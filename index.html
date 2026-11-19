@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Maratón CAF 3D — Reconoce la ruta y arma tu plan</title>
+<meta name="description" content="Los 42,195 km del Maratón CAF de Caracas en 3D, sobre el trazado GPS real. Mira en 60 segundos dónde sube y dónde se bebe, y llévate el ritmo de cada kilómetro para tu tiempo objetivo.">
+<meta name="theme-color" content="#0d0f16">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_VE">
+<meta property="og:title" content="Maratón CAF en 3D: reconoce la ruta y arma tu plan">
+<meta property="og:description" content="La ruta real de Caracas con su relieve: las subidas, los puestos de agua y el ritmo de cada kilómetro para tu objetivo.">
+<meta property="og:image" content="https://alemorenovj.github.io/maraton-caf-3d/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="La ruta del Maratón CAF en 3D, con Caracas y El Ávila al fondo">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Maratón CAF en 3D: reconoce la ruta y arma tu plan">
+<meta name="twitter:description" content="La ruta real de Caracas con su relieve: las subidas, los puestos de agua y el ritmo de cada kilómetro para tu objetivo.">
+<meta name="twitter:image" content="https://alemorenovj.github.io/maraton-caf-3d/og.jpg">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#14161c;--bone:#f4efe6;--mute:#8b8f9a;--line:rgba(255,255,255,.12);--panel:rgba(16,18,26,.72);
+--up:#ff6b4a;--flat:#f2c94c;--down:#3ecf8e;--water:#4aa8ff;--accent:#ffd23f}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#0d0f16;color:var(--bone);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.serif{font-family:"Instrument Serif",Georgia,serif;font-weight:400}
+.panel{background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px}
+#hud{position:fixed;inset:0;pointer-events:none;display:none}
+#hud>*{pointer-events:auto}
+/* stats */
+#stats{position:absolute;left:14px;top:14px;padding:12px 16px;min-width:210px}
+#stats .km{font-size:44px;line-height:1;font-family:"Instrument Serif",serif}
+#stats .km small{font-size:16px;color:var(--mute);font-family:Inter}
+#stats .row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 14px;margin-top:10px}
+#stats .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+#stats .v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+/* tramo */
+#tramo{position:absolute;left:14px;top:196px;width:300px;padding:14px 16px}
+#tramo .tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+#tramo h3{font-family:"Instrument Serif",serif;font-weight:400;font-size:25px;line-height:1.1;margin:4px 0 6px}
+#tramo p{font-size:13px;line-height:1.45;color:#d6d3cc}
+#tramo .tip{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:13px;line-height:1.45}
+#tramo .tip b{color:var(--accent);font-weight:600}
+#next{margin-top:9px;font-size:12px;color:var(--mute);display:flex;flex-direction:column;gap:3px}
+#next span b{color:var(--bone);font-weight:600}
+/* minimapa */
+#mini{position:absolute;right:14px;top:14px;padding:8px;width:300px}
+#mini canvas{width:100%;display:block;border-radius:8px}
+#mini .cap{font-size:10px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding:4px 4px 0;display:flex;justify-content:space-between}
+/* carrera */
+#race{position:absolute;right:14px;top:210px;width:300px;padding:12px 14px;display:none}
+.bar{height:9px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden;margin:4px 0 10px}
+.bar i{display:block;height:100%;border-radius:9px;transition:width .2s}
+#race .lab{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+#race .lab b{color:var(--bone)}
+#eff{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:4px}
+#eff button{font-size:11px;padding:8px 2px}
+#delta{font-size:13px;margin-top:10px;text-align:center}
+#drink{position:absolute;left:50%;bottom:190px;transform:translateX(-50%);display:none;font-size:17px;padding:14px 26px;background:var(--water);color:#06203c;border:0;font-weight:700;box-shadow:0 8px 30px rgba(74,168,255,.5);animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
+/* toast */
+#toast{position:absolute;left:50%;top:18px;transform:translate(-50%,-140%);padding:11px 18px;max-width:min(520px,calc(100vw - 660px));min-width:280px;transition:transform .45s cubic-bezier(.2,.9,.2,1);text-align:center}
+#toast.on{transform:translate(-50%,0)}
+#toast .t{font-family:"Instrument Serif",serif;font-size:22px;line-height:1.1}
+#toast .d{font-size:12.5px;color:#d6d3cc;margin-top:3px;line-height:1.4}
+/* fondo */
+#bottom{position:absolute;left:14px;right:14px;bottom:14px;padding:10px 12px 8px}
+#prof{width:100%;height:92px;display:block;cursor:pointer;border-radius:8px}
+#ctl{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+#ctl .sp{flex:1}
+button{font-family:inherit;color:var(--bone);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:500;cursor:pointer}
+button:hover{background:rgba(255,255,255,.16)}
+button.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+#legend{font-size:11px;color:var(--mute);display:flex;gap:12px;align-items:center}
+#legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px}
+/* índice */
+#idx{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,92vw);max-height:76vh;overflow:auto;padding:18px;display:none}
+#idx h2{font-family:"Instrument Serif",serif;font-weight:400;font-size:30px;margin-bottom:10px}
+#idx .it{padding:10px 12px;border-radius:10px;cursor:pointer;display:grid;grid-template-columns:86px 1fr;gap:10px;font-size:13px}
+#idx .it:hover{background:rgba(255,255,255,.08)}
+#idx .it b{font-weight:600}#idx .it span{color:var(--mute)}
+/* pantallas */
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 700px at 50% 20%,rgba(40,44,70,.55),rgba(8,9,14,.93));padding:20px;overflow:auto}
+.card{width:min(860px,100%);padding:30px 32px}
+.card h1{font-family:"Instrument Serif",serif;font-weight:400;font-size:clamp(40px,7vw,68px);line-height:.98}
+.card h1 em{color:var(--mute)}
+.card .sub{color:#cfccc4;margin:12px 0 22px;font-size:15px;line-height:1.5;max-width:640px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mode{padding:18px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.05);cursor:pointer;text-align:left;transition:.15s}
+.mode:hover{background:rgba(255,255,255,.1);transform:translateY(-2px)}
+.mode.sel{border-color:var(--accent);background:rgba(255,210,63,.08)}
+.mode h3{font-family:"Instrument Serif",serif;font-weight:400;font-size:26px;margin-bottom:4px}
+.mode p{font-size:13px;color:#c9c6be;line-height:1.45}
+.opts{display:flex;gap:22px;flex-wrap:wrap;margin:18px 0 4px}
+.opts label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);display:block;margin-bottom:6px}
+.seg{display:flex;gap:5px;flex-wrap:wrap}
+.go{margin-top:20px;font-size:17px;padding:14px 30px;background:var(--accent);color:#1a1400;border:0;font-weight:700}
+.go:hover{background:#ffe07a}
+.fine{font-size:11.5px;color:var(--mute);margin-top:16px;line-height:1.5}
+.keys{font-size:12px;color:var(--mute);margin-top:12px}
+kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-family:inherit;font-size:11px;color:var(--bone)}
+#end table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;font-variant-numeric:tabular-nums}
+#end td,#end th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+#end td:first-child,#end th:first-child{text-align:left}
+#end th{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:500}
+#end ul{margin:8px 0 0 18px;font-size:14px;line-height:1.6;color:#dedbd3}
+.stars{font-size:34px;letter-spacing:6px;color:var(--accent)}
+#load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0d0f16;font-family:"Instrument Serif",serif;font-size:28px;z-index:9}
+@media (max-width:900px){
+ #tramo{top:auto;bottom:182px;left:8px;right:8px;width:auto;padding:10px 12px;cursor:pointer}#tramo p,#tramo .tip{display:none}#tramo.open .tip{display:block}#tramo h3::after{content:' ›';color:var(--mute)}#tramo h3{font-size:20px}#next{flex-direction:row;gap:12px;flex-wrap:wrap}
+ #stats{left:8px;top:8px;padding:8px 12px;min-width:0}#stats .km{font-size:32px}#stats .row{gap:4px 12px;margin-top:6px}#stats .v{font-size:14px}
+ #mini{right:8px;top:8px;width:150px;padding:5px}#mini .cap{display:none}
+ #race{right:8px;top:104px;width:190px;padding:8px 10px}#eff button{font-size:10px;padding:7px 0}
+ #toast{top:auto;bottom:300px;max-width:92vw;min-width:0;transform:translate(-50%,400%)}#toast.on{transform:translate(-50%,0)}
+ #bottom{left:8px;right:8px;bottom:8px;padding:8px}#prof{height:64px}#legend{display:none}
+ #drink{bottom:300px}.modes{grid-template-columns:1fr}.card{padding:20px}
+ button{padding:8px 10px;font-size:12px}
+}
+</style>
+<link rel="stylesheet" href="ui/ui.css?v=5">
+<link rel="stylesheet" href="ui/movil.css?v=5">
+</head>
+<body>
+<div id="load"><div class="lt">Maratón CAF <em>en 3D</em></div><div class="ls">Reconoce los 42 km antes de correrlos: dónde sube, dónde se bebe y a qué ritmo ir en cada kilómetro.</div><div class="lb"><i id="loadB"></i></div><div class="lx" id="loadT">Cargando la ruta</div></div>
+<script>(function () { var f = .03, cap = .3, b = document.getElementById('loadB'), tx = document.getElementById('loadT'); // barra de carga: avanza sola hasta el tope del paso en curso y salta cuando el juego avisa
+  var it = setInterval(function () { f += (cap - f) * .06; b.style.width = (f * 100).toFixed(1) + '%'; }, 120);
+  window.__carga = function (v, t) { cap = Math.max(cap, v); if (t) tx.textContent = t; if (v >= 1) { clearInterval(it); b.style.width = '100%'; } }; })();</script>
+<canvas id="gl"></canvas>
+
+<div id="fps" style="display:none;position:fixed;right:14px;bottom:150px;z-index:5;font:12px Inter,system-ui;color:#fff;background:rgba(0,0,0,.6);padding:4px 8px;border-radius:6px"></div>
+<div id="hud">
+  <div id="stats" class="panel">
+    <div class="km"><span id="sKm">0.0</span> <small>/ 42.2 km</small></div>
+    <div class="row">
+      <div><div class="k">Reloj</div><div class="v" id="sClock">0:00:00</div></div>
+      <div><div class="k">Ritmo</div><div class="v" id="sPace">5:41/km</div></div>
+      <div><div class="k">Altitud</div><div class="v" id="sEle">870 m</div></div>
+      <div><div class="k">Pendiente</div><div class="v" id="sGrade">0.0 %</div></div>
+    </div>
+  </div>
+  <div id="tramo" class="panel">
+    <div class="tag" id="tTag">Tramo 1</div>
+    <h3 id="tName"></h3>
+    <p id="tDesc"></p>
+    <div class="tip" id="tTip"></div>
+    <div id="next"><span id="nWater"></span><span id="nHill"></span></div>
+  </div>
+  <div id="mini" class="panel"><canvas id="miniC" width="568" height="300"></canvas>
+    <div class="cap"><span>Norte ↑ · El Ávila</span><span id="mStreet"></span></div></div>
+  <div id="race" class="panel">
+    <div class="lab"><span>Energía (glucógeno)</span><b id="rE">100%</b></div><div class="bar"><i id="bE" style="background:var(--accent);width:100%"></i></div>
+    <div class="lab"><span>Hidratación</span><b id="rH">100%</b></div><div class="bar"><i id="bH" style="background:var(--water);width:100%"></i></div>
+    <div class="lab"><span>Esfuerzo</span><b id="rEf"></b></div>
+    <div id="eff"><button data-e="0">Suave</button><button data-e="1">Objetivo</button><button data-e="2">Fuerte</button><button data-e="3">A tope</button></div>
+    <div id="delta"></div>
+  </div>
+  <div id="toast" class="panel"><div class="t" id="toT"></div><div class="d" id="toD"></div></div>
+  <button id="drink">💧 Beber <kbd style="background:rgba(0,0,0,.2);color:#06203c">B</kbd></button>
+  <div id="bottom" class="panel">
+    <canvas id="prof"></canvas>
+    <div id="ctl">
+      <button id="bPlay" title="Espacio">⏸ Pausa</button>
+      <div class="seg" id="segSpd"><button data-s="10">×10</button><button data-s="30">×30</button><button data-s="60">×60</button><button data-s="120">×120</button></div>
+      <button id="bCam" title="C">🎥 Cámara</button>
+      <button id="bLuz" title="Cambia entre la luz de la hora real de carrera (sale de noche, 6:05 a.m.) y pleno día">🌅 Hora real</button>
+      <button id="bIdx" title="T">☰ Tramos</button>
+      <div class="sp"></div>
+      <div id="legend"><span><i style="background:var(--up)"></i>Sube</span><span><i style="background:var(--flat)"></i>Llano</span><span><i style="background:var(--down)"></i>Baja</span><span><i style="background:var(--water)"></i>Hidratación</span></div>
+      <button id="bPlan" title="P">Mi plan</button>
+      <button id="bMenu">Menú</button>
+    </div>
+  </div>
+  <div id="idx" class="panel"><h2>Tramos de la ruta</h2><div id="idxL"></div></div>
+</div>
+
+<div id="start" class="screen" style="display:none">
+  <div class="card panel">
+    <h1>Maratón CAF <em>en 3D</em></h1>
+    <p class="sub">Los 42,195 km de Caracas sobre el trazado GPS real, con su relieve, sus edificios y El Ávila al fondo. Mira dónde sube y dónde se bebe, y llévate el ritmo de cada kilómetro para tu tiempo objetivo.</p>
+    <div class="modes">
+      <div class="mode sel" data-m="resumen"><span class="badge">Si es tu primera vez</span><h3>Lo esencial en 60 s</h3><p>Un vuelo por los puntos que deciden la carrera: las subidas, los geles, la media maratón y la meta, con la hora a la que pasarás por cada uno.</p></div>
+      <div class="mode" data-m="tour"><h3>Reconocer la ruta</h3><p>Recorrido guiado completo. Te cuenta cada tramo y cada hito, y puedes saltar a cualquier kilómetro tocando el perfil.</p></div>
+      <div class="mode" data-m="race"><h3>Correr la carrera</h3><p>Tú decides el esfuerzo. Administra energía e hidratación en las subidas para llegar a meta en tu tiempo objetivo sin chocar con el muro.</p></div>
+    </div>
+    <div class="opts">
+      <div><label>Tiempo objetivo</label><div class="seg" id="segT"><button data-t="3.25">3:15</button><button data-t="3.5">3:30</button><button data-t="4" class="on">4:00</button><button data-t="4.5">4:30</button><button data-t="5">5:00</button></div><div id="objStart"></div></div>
+      <div class="opt-dur"><label>Duración del recorrido</label><div class="seg" id="segD"><button data-s="60">≈4 min</button><button data-s="30" class="on">≈8 min</button><button data-s="10">≈24 min</button></div></div>
+      <div><label>Gráficos</label><div class="seg" id="segQ"><button data-q="alta" title="Sombras, reflejos, bloom y gradación de color">Alta</button><button data-q="media" title="La misma ciudad sin sombras ni efectos: para teléfonos">Media</button><button data-q="ligera" title="Ciudad simplificada, para equipos modestos">Ligera</button></div><div class="qnota">Alta: sombras y efectos. Media: la misma ciudad sin ellos (teléfonos). Ligera: lo mínimo, para equipos lentos.</div></div>
+    </div>
+    <div class="startacts"><button class="go" id="bGo">Ver la ruta en 60 s →</button><button class="lnk" id="bPlanS">Ver mi plan de carrera</button></div>
+    <div class="keys"><kbd>Espacio</kbd> pausa · <kbd>←</kbd><kbd>→</kbd> saltar 500 m · <kbd>C</kbd> cámara (seguimiento, a bordo, dron, cenital) · <kbd>M</kbd> sonido · <kbd>F</kbd> fps · <kbd>T</kbd> tramos · en carrera: <kbd>1</kbd>–<kbd>4</kbd> esfuerzo, <kbd>B</kbd> beber</div>
+    <div class="fine" id="fine"></div>
+  </div>
+</div>
+
+<div id="end" class="screen" style="display:none"><div class="card panel" id="endC"></div></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script src="data/caf-data.js?v=55"></script>
+<script>window.__carga && __carga(.62, 'Levantando la ciudad');</script>
+<script type="module" src="game.js?v=85"></script>
+</body>
+</html>

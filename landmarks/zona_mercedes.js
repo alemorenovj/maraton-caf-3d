@@ -1,0 +1,456 @@
+// Zona mercedes (km 23,3–26,8): lo que el video muestra y las huellas genéricas no resuelven.
+//  1. Torre Banfanb (El Rosal, esquina de la Av. Venezuela): cilindro de vidrio azul espejo sobre basamento blanco de arcos (s=579 del video).
+//  2. Elevado de Las Mercedes (km 24,44): puente diagonal oscuro con pilas amarillas y la valla verde «Un sabor como nada» (f_0239).
+//  3. Viaducto de la Autopista Prados del Este (km 25,75–26,07): la ruta gira y corre bajo su borde izquierdo; valla rosada de
+//     Capsuyen Pharma en el frente, muro con el mural geométrico de rombos y el de franjas de colores, valla de Tomás Seif y la bomba (f_0251–0254).
+//  4. Puente de El Ciempiés (km 26,45–26,76): parapeto de concreto a la izquierda (el video no tiene barandas amarillas) y la señal verde.
+//  5. Hotel Tamanaco (cuerpo blanco doblado con terrazas por piso, testeras escalonadas, letrero verde, piscina, astas, pórtico) y
+//     Eurobuilding (torre blanca de bandas horizontales, ala diagonal y ala este, testera con balcones y ranura, viga «Eurobuilding»).
+//  13. Calle La Guairita (km 26,70–26,95): borde izquierdo con verja y parapeto, verja negra sobre muro blanco a la derecha, bomba de gasolina.
+//  6–7. Muro con portón a la salida del viaducto; copas de lóbulos con tronco y ramas en los bordes del puente de El Ciempiés y vallas rosadas.
+//  8–10. Muro de contención bajo el viaducto (der.), valla larga genérica bajo el tablero, arbolado de la ladera del Tamanaco.
+//  11. CCCT (podio en terrazas y Pirámide Invertida) y Cubo Negro, sobre sus huellas OSM (Chuao, a la izquierda del puente).
+//  12. Rampa (26,11–26,40): murete y muro de contención solo hasta el paso bajo la autopista, reja blanca, corte de roca, muro verde a la
+//      izquierda y el paso bajo la Autopista Prados del Este (km 26,21).
+// El terreno lateral (muro de la rampa, valle bajo el puente, cerro del Tamanaco) lo ponen fx/correcciones/mercedes.js (relieve).
+// Anclas del video (19-nov): t=640 s (bajo la autopista, letrero «La Huayrita») = km 26,20, no 26,36 como dice el índice; t=643,75 ≈ 26,40;
+// t=650,75 ≈ 26,50. Entre t=644,25 y 649,75 el video intercala un tramo de OTRA cámara (sin capó, con zoom) girada ~35° a la
+// izquierda de la marcha: ahí el Eurobuilding parece 30° a la derecha, pero respecto a la vía queda ~5° a la izquierda, igual que
+// en el simulador. El trazado y el hotel están bien (fx/capturas/ciempies_fix.jpg y ciempies_esquema.png); no compares con esos cuadros.
+export const meta = {
+  id: 'zona_mercedes', nombre: 'Zona mercedes',
+  quita: [[10.489679, -66.860998, 20], [10.478599, -66.857049, 8],   // Banfanb (se modela aquí) · techo de la bomba (se modela aquí)
+    // círculos a lo largo de cada ala del Tamanaco (25) y del Eurobuilding (19): sin ellos el motor sembraba árboles que salían por la azotea
+    [10.477456, -66.85705, 11], [10.477455, -66.856936, 11], [10.477453, -66.856822, 11], [10.477452, -66.856708, 11], [10.47745, -66.856594, 11], [10.477449, -66.856479, 11], [10.477447, -66.856365, 11], [10.47742, -66.85642, 11], [10.477491, -66.856324, 11], [10.477561, -66.856228, 11], [10.477631, -66.856132, 11], [10.477702, -66.856036, 11], [10.477772, -66.85594, 11], [10.477842, -66.855845, 11], [10.477869, -66.856036, 15], [10.47795, -66.85594, 15], [10.478031, -66.855845, 15], [10.478112, -66.855749, 15], [10.478193, -66.855653, 15], [10.477366, -66.856164, 10], [10.477295, -66.856106, 10], [10.477223, -66.856047, 10], [10.477151, -66.855989, 10], [10.477079, -66.85593, 10], [10.477007, -66.855872, 10],
+    [10.48247, -66.851003, 12], [10.482503, -66.850884, 12], [10.482535, -66.850765, 12], [10.482567, -66.850646, 12], [10.4826, -66.850528, 12], [10.482632, -66.850409, 12], [10.482664, -66.85029, 12], [10.48269, -66.850327, 11], [10.482611, -66.85025, 11], [10.482531, -66.850173, 11], [10.482452, -66.850096, 11], [10.482373, -66.85002, 11], [10.482294, -66.849943, 11], [10.482276, -66.849961, 12], [10.482312, -66.849836, 12], [10.482347, -66.849711, 12], [10.482383, -66.849586, 12], [10.482418, -66.849461, 12], [10.482453, -66.849336, 12]],
+};
+
+export function build(THREE, api) {
+  const g = new THREE.Group();
+  // Escala vertical: el juego dibuja ruta y terreno a (cota − cotaMín) × EX; routeAt().y y ground() vienen sin exagerar.
+  const enBanco = /test\.html/.test(location.pathname), q = new URLSearchParams(location.search);
+  const EX = enBanco || api.EX ? 1 : (api.D.meta.exag || 1) * (+q.get('relieve') || 1.5);
+  const RA = k => { const p = api.routeAt(k); p.y *= EX; return p; };
+  const GY = (x, z) => api.ground(x, z) * EX;
+  const LL = (la, lo) => api.xz(la, lo);
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(1, 1, 1), V = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+  const add = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; g.add(m); return m; };
+  const ang = (tx, tz) => Math.atan2(tx, tz);   // rotation.y que lleva el +Z local a la dirección (tx, tz)
+  // dos(): malla de un paño (muro, parapeto, tablero, verja) con DOS caras frontales en vez de un material DoubleSide. El pase de normales
+  // de la oclusión ambiental (fx/atmosfera.js) descarta las caras traseras: un muro que mostraba a la vía su cara trasera dejaba ver la
+  // AO de los árboles de detrás como manchas negras pixeladas (muro de la rampa, km 26,12–26,42). Se duplican los triángulos al revés.
+  const dos = (ge, mat) => { const s0 = ge.index ? ge.toNonIndexed() : ge, p = s0.attributes.position.array, uv = s0.attributes.uv && s0.attributes.uv.array, n = p.length / 3;
+    const P = new Float32Array(p.length * 2), U = uv ? new Float32Array(uv.length * 2) : null; P.set(p); if (U) U.set(uv);
+    for (let t = 0; t < n; t += 3) for (let j = 0; j < 3; j++) { const a = t + 2 - j, b = n + t + j; P[b * 3] = p[a * 3]; P[b * 3 + 1] = p[a * 3 + 1]; P[b * 3 + 2] = p[a * 3 + 2]; if (U) { U[b * 2] = uv[a * 2]; U[b * 2 + 1] = uv[a * 2 + 1]; } }
+    const o = new THREE.BufferGeometry(); o.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); if (U) o.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); o.computeVertexNormals();
+    mat.side = THREE.FrontSide; return new THREE.Mesh(o, mat); };
+  const concreto = api.concrete(0x9a9b97), concretoOsc = api.concrete(0x5b5c5a), amarillo = api.concrete(0xe8b923);
+  // valla publicitaria: textura con texto
+  const valla = (w, h, fn) => { const t = api.canvasTex(w, h, fn); const m = new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .05, roughness: .7 }); api.onFrame(st => { m.emissiveIntensity = .05 + .9 * st.noche; }); return m; };
+
+  // ═════════ 1. Torre Banfanb ═════════
+  {
+    const P = [[10.489517, -66.861044], [10.489731, -66.861179], [10.489809, -66.861071], [10.489809, -66.860953], [10.489735, -66.86087], [10.489634, -66.860824]].map(([a, b]) => LL(a, b));
+    const c = LL(10.489679, -66.860998), y0 = Math.min(...P.map(p => GY(p.x, p.z))) - .4;
+    // basamento blanco de dos niveles con arcos corridos
+    const arcos = api.canvasTex(512, 256, (x, w, h) => { x.fillStyle = '#eeece6'; x.fillRect(0, 0, w, h); x.fillStyle = '#d9d6ce'; x.fillRect(0, 0, w, 26);
+      for (let i = 0; i < 2; i++) { const a = i * w / 2 + 34, b = (i + 1) * w / 2 - 34, r = (b - a) / 2; x.fillStyle = '#3d4a55'; x.beginPath(); x.moveTo(a, h); x.lineTo(a, 120); x.arc(a + r, 120, r, Math.PI, 0); x.lineTo(b, h); x.fill();
+        x.fillStyle = 'rgba(180,210,235,.35)'; x.fillRect(a + 8, 128, b - a - 16, 6); } });
+    arcos.wrapS = arcos.wrapT = THREE.RepeatWrapping; arcos.repeat.set(1 / 13, -1 / 9.5);
+    const bm = new THREE.MeshStandardMaterial({ map: arcos, roughness: .85 });
+    const sh = new THREE.Shape(P.map(p => new THREE.Vector2(p.x - c.x, -(p.z - c.z))));
+    const base = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 9.5, bevelEnabled: false }), [api.concrete(0xdedbd3), bm]);
+    base.rotation.x = -Math.PI / 2; base.position.set(c.x, y0, c.z); g.add(base);
+    // cornisa blanca volada sobre el basamento
+    const corn = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: .7, bevelEnabled: false }), api.concrete(0xf2f0ea)); corn.rotation.x = -Math.PI / 2; corn.scale.set(1.06, 1.06, 1); corn.position.set(c.x, y0 + 9.5, c.z); g.add(corn);
+    // el cilindro de vidrio espejo
+    const vid = api.facade({ pared: '#173f8f', vidrio: '#2f6fd6', pisos: 11, vanos: 16, marco: .1, bandas: true, encendidas: .35, seed: 31, roughness: .12, metalness: .75, env: 1.3 });
+    vid.map.repeat.set(3, 1); vid.emissiveMap.repeat.set(3, 1);
+    const R0 = 13.2, H0 = 35;
+    add(new THREE.CylinderGeometry(R0, R0, H0, 48, 1, true), vid, c.x - 1.5, y0 + 10.2 + H0 / 2, c.z + 1);
+    add(new THREE.CylinderGeometry(R0 + .25, R0 + .25, 1.2, 48), api.concrete(0xd8dde2), c.x - 1.5, y0 + 10.2 + H0 + .6, c.z + 1);
+    add(new THREE.CylinderGeometry(R0 - .4, R0 - .4, .4, 48), api.concrete(0x6b7177), c.x - 1.5, y0 + 10.2 + H0 + 1.3, c.z + 1);
+    // franja vertical de ventanas cuadradas (el «lomo» claro que se ve desde la calle de la Alcaldía)
+    const lomo = api.facade({ pared: '#8fa7c4', vidrio: '#28456e', pisos: 11, vanos: 3, marco: .45, encendidas: .3, seed: 5, roughness: .3, metalness: .4 });
+    const lm = add(new THREE.CylinderGeometry(R0 + .08, R0 + .08, H0, 10, 1, true, Math.PI * 1.15, .55), lomo, c.x - 1.5, y0 + 10.2 + H0 / 2, c.z + 1);
+    lm.material.side = THREE.FrontSide;
+  }
+
+  // ═════════ 2. Elevado de Las Mercedes (km 24,44) ═════════
+  {
+    const A = LL(10.48622, -66.86447), B = LL(10.48689, -66.86702), p = RA(24.44);
+    const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2;
+    const yD = p.y + 6.6;   // intradós del tablero sobre la calzada
+    const deck = add(new THREE.BoxGeometry(11, 1.5, L), api.concrete(0x3e3630), mx, yD + .75, mz, ang(ux, uz));
+    // barandas y cajón oscuro de las caras
+    add(new THREE.BoxGeometry(11.6, .9, L), api.concrete(0x4a3f36), mx, yD + .25, mz, ang(ux, uz));
+    add(new THREE.BoxGeometry(.25, 1, L), concreto, mx + uz * 5.4, yD + 2, mz - ux * 5.4, ang(ux, uz));
+    add(new THREE.BoxGeometry(.25, 1, L), concreto, mx - uz * 5.4, yD + 2, mz + ux * 5.4, ang(ux, uz));
+    // pilas amarillas (fuera de la calzada)
+    for (let t = -L / 2 + 12; t < L / 2 - 5; t += 24) {
+      const x = mx + ux * t, z = mz + uz * t; let dmin = 1e9; for (let k = 24.30; k <= 24.62; k += .004) { const r = RA(k); dmin = Math.min(dmin, Math.hypot(r.x - x, r.z - z)); }
+      if (dmin < 13) continue; const gy = GY(x, z); add(new THREE.BoxGeometry(1.4, yD - gy + .2, 1.4), amarillo, x, (yD + gy) / 2, z, ang(ux, uz));
+    }
+    // valla verde en la cara que mira hacia El Rosal (de donde viene el corredor)
+    const nx = uz, nz = -ux, sgn = (p.x - mx) * nx + (p.z - mz) * nz > 0 ? 1 : -1;   // normal del tablero hacia el norte (hacia la Av. Venezuela)
+    const toN = (p.tx * nx + p.tz * nz) < 0 ? 1 : -1;
+    const fx = nx * toN, fz = nz * toN;
+    const vm = valla(1024, 256, (x, w, h) => { x.fillStyle = '#1f8a4c'; x.fillRect(0, 0, w, h); x.fillStyle = '#e9f7ee'; x.font = 'italic 64px Arial, sans-serif'; x.textBaseline = 'middle'; x.fillText('Un sabor', 70, h * .36); x.font = 'bold 120px Arial, sans-serif'; x.fillStyle = '#b8f04a'; x.fillText('como nada', 330, h * .66);
+      x.fillStyle = '#e9f7ee'; x.font = '44px Arial, sans-serif'; x.fillText('como', 230, h * .7); x.strokeStyle = 'rgba(255,255,255,.6)'; x.lineWidth = 8; x.strokeRect(4, 4, w - 8, h - 8); });
+    // dónde cruza el eje de la ruta: punto del tablero más cercano a la ruta en 24,44
+    const tc = (p.x - mx) * ux + (p.z - mz) * uz, cx = mx + ux * tc, cz = mz + uz * tc;
+    const b = add(new THREE.PlaneGeometry(17, 4.2), vm, cx + fx * 5.95, yD + 1.6, cz + fz * 5.95, ang(fx, fz)); b.rotation.y = Math.atan2(fx, fz);
+    void sgn; void deck;
+  }
+
+  // ═════════ 3. Viaducto de Prados del Este, murales y vallas (km 25,75–26,07) ═════════
+  {
+    // ejes de trabajo: cuerda de la ruta entre 25,86 y 26,07 (a = a lo largo, l = lateral, + a la izquierda)
+    const A = RA(25.86), B = RA(26.07), L0 = Math.hypot(B.x - A.x, B.z - A.z), ux = (B.x - A.x) / L0, uz = (B.z - A.z) / L0, lx = uz, lz = -ux;
+    const W = (a, l) => ({ x: A.x + ux * a + lx * l, z: A.z + uz * a + lz * l });
+    // eje del viaducto en esas coordenadas (las dos calzadas juntas, 26 m): recto desde el suroeste y se abre a la derecha al final
+    const eje = [[-260, -10], [-60, -8], [40, -7], [120, -11], [175, -20], [215, -29]];
+    const lat = a => { for (let i = 1; i < eje.length; i++) if (a <= eje[i][0]) { const [a0, l0] = eje[i - 1], [a1, l1] = eje[i], t = (a - a0) / (a1 - a0); return l0 + (l1 - l0) * t; } return eje[eje.length - 1][1]; };
+    const yRuta = a => { const k = 25.86 + a / 1000 * (26.07 - 25.86) / (L0 / 1000); return RA(Math.max(25.74, Math.min(26.1, k))).y; };
+    const yInt = a => a <= -40 ? RA(25.785).y + 6.3 : a >= 20 ? yRuta(a) + 7.6 : RA(25.785).y + 6.3 + (yRuta(20) + 7.6 - RA(25.785).y - 6.3) * (a + 40) / 60;   // intradós: ~6,3 m sobre la Av. Principal donde la cruza, 7,6 m sobre la calle de abajo
+    // Tablero de vigas (video t=626–634 s): losa delgada sobre 11 vigas longitudinales de 1,4 m de canto, frente de borde claro con
+    // New Jersey encima, cabezales transversales cada 28 m sobre pilas cuadradas. El intradós lleva una luz de rebote (emisivo) para
+    // que no salga negro: en el video se lee gris medio, con el sol entrando por el lado izquierdo, que queda abierto.
+    const intra = new THREE.MeshStandardMaterial({ color: 0x7b7973, roughness: .95, emissive: 0x1f1e1b, side: THREE.DoubleSide });
+    const fasc = new THREE.MeshStandardMaterial({ color: 0x86847d, roughness: .9, side: THREE.DoubleSide });
+    api.onFrame(st => { intra.emissiveIntensity = 1 - .85 * st.noche; });
+    const HW = 14.5, AS = []; for (let a = -260; a <= 215.1; a += 5) AS.push(a);
+    // barrido de una sección [l, y] (l lateral desde el eje del viaducto, y desde la cara inferior de las vigas) a lo largo del eje
+    const barrido = (secs, mat) => { const ps = [], ix = []; let v = 0;
+      for (const sec of secs) for (let e = 0; e < sec.length; e++) { const [l0, y0] = sec[e], [l1, y1] = sec[(e + 1) % sec.length];
+        for (let i = 0; i < AS.length; i++) { const a = AS[i], lc = lat(a), y = yInt(a), p0 = W(a, lc + l0), p1 = W(a, lc + l1); ps.push(p0.x, y + y0, p0.z, p1.x, y + y1, p1.z);
+          if (i) ix.push(v - 2, v, v - 1, v - 1, v, v + 1); v += 2; } }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setIndex(ix); ge.computeVertexNormals(); g.add(dos(ge, mat)); };
+    const caja = (l0, l1, y0, y1) => [[l0, y0], [l1, y0], [l1, y1], [l0, y1]];
+    const vigas = [caja(-13.6, 13.6, 1.4, 2.0)]; for (let lo = -12; lo <= 12.01; lo += 2.4) vigas.push(caja(lo - .25, lo + .25, 0, 1.45));
+    barrido(vigas, intra);
+    barrido([caja(13.6, HW, .35, 2.7), caja(-HW, -13.6, .35, 2.7), [[13.85, 2.7], [HW, 2.7], [HW, 3.75], [14.05, 3.75], [13.85, 3.1]], [[-HW, 2.7], [-13.85, 2.7], [-13.85, 3.1], [-14.05, 3.75], [-HW, 3.75]]], fasc);
+    // pilas cuadradas bajo cabezales; ninguna sobre la calzada ni la acera
+    const ruta = []; for (let k = 25.55; k <= 26.2; k += .003) ruta.push(RA(k));
+    const dRuta = (x, z) => { let d = 1e9; for (const r of ruta) d = Math.min(d, Math.hypot(r.x - x, r.z - z)); return d; };
+    for (let a = -246; a <= 210; a += 28) { const c = W(a, lat(a)), c2 = W(a + 1, lat(a + 1)), ry = ang(c2.x - c.x, c2.z - c.z), y = yInt(a);
+      add(new THREE.BoxGeometry(2 * HW - .4, 1.75, 1.7), intra, c.x, y + .55, c.z, ry);
+      for (const lo of [-9.5, 0, 9.5]) { const P = W(a, lat(a) + lo); if (dRuta(P.x, P.z) < 7.2) continue; const gy = GY(P.x, P.z) - .3, h = y - .3 - gy; if (h < 2) continue;
+        add(new THREE.BoxGeometry(1.6, h, 1.6), concreto, P.x, gy + h / 2, P.z, ry); } }
+    // lámparas en el intradós sobre la calle y los dos letreros verdes colgados (t=630 s)
+    { const lamp = api.glow(0xfff1d2, { dia: .5, noche: 2.2 });
+      for (let k = 25.835; k <= 26.06; k += .016) { const r = RA(k), a = (r.x - A.x) * ux + (r.z - A.z) * uz, l = (r.x - A.x) * lx + (r.z - A.z) * lz; if (Math.abs(l - lat(a)) > 12) continue;
+        add(new THREE.BoxGeometry(.7, .14, .7), lamp, r.x, yInt(a) + 1.36, r.z); }
+      const verde = (lin) => valla(512, 256, (x, w, h) => { x.fillStyle = '#17794b'; x.fillRect(0, 0, w, h); x.strokeStyle = '#fff'; x.lineWidth = 7; x.strokeRect(9, 9, w - 18, h - 18); x.fillStyle = '#fff'; x.font = 'bold 54px Arial, sans-serif';
+        lin.forEach((t, i) => x.fillText(t, 36, 78 + i * 70)); });
+      const r = RA(25.875), a = (r.x - A.x) * ux + (r.z - A.z) * uz, yb = yInt(a), fy = Math.atan2(-r.tx, -r.tz);
+      for (const [d, txt] of [[1.6, ['↖ CHUAO', 'EL CAFETAL', '← LAS MERCEDES']], [-5.5, ['CENTRO', 'CHACAO', 'PETARE ↗']]]) {
+        const P = { x: r.x + r.lx * d, z: r.z + r.lz * d }, s = add(new THREE.BoxGeometry(3.4, 1.9, .12), [concreto, concreto, concreto, concreto, verde(txt), concreto], P.x, yb - .9, P.z); s.rotation.y = fy;
+        add(new THREE.BoxGeometry(.1, .9, .1), concreto, P.x, yb + .1, P.z); } }
+    // valla de Capsuyen Pharma en la cara noroeste, de frente a la Av. Principal de Las Mercedes
+    const cap = valla(1024, 320, (x, w, h) => { const gr = x.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#ff3d9a'); gr.addColorStop(1, '#e8217f'); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+      x.fillStyle = '#ffffff'; x.font = 'bold 150px Arial Black, Arial, sans-serif'; x.textBaseline = 'alphabetic'; x.fillText('Capsuyen', 40, 170); x.font = 'bold 70px Arial, sans-serif'; x.fillText('PHARMA', 700, 240);
+      x.fillStyle = '#3cc45a'; x.fillRect(0, 200, 640, 26); x.fillStyle = '#2f6ee0'; x.fillRect(0, 226, 640, 16); x.fillStyle = '#ffffff'; x.font = 'italic 40px Arial, sans-serif'; x.fillText('¡Somos la Cajita Morada!', 40, 292); });
+    // la valla va en el muro bajo el viaducto, a la DERECHA de la calle y de cara a ella, sobre el mural (f_0252); desde la Av. Principal se ve de frente
+    { const r0 = RA(25.795), r1 = RA(25.83), mx = (r0.x + r1.x) / 2 - (r0.lx + r1.lx) / 2 * 9.35, mz = (r0.z + r1.z) / 2 - (r0.lz + r1.lz) / 2 * 9.35, len = Math.hypot(r1.x - r0.x, r1.z - r0.z);
+      const fondo = add(new THREE.BoxGeometry(len + 1, 6.2, .5), concretoOsc, mx - r0.lx * .3, (r0.y + r1.y) / 2 + 6.9, mz - r0.lz * .3, ang(r0.lx, r0.lz));
+      const b = add(new THREE.PlaneGeometry(len, 5.6), cap, mx, (r0.y + r1.y) / 2 + 6.9, mz); b.rotation.y = Math.atan2(r0.lx, r0.lz); void fondo; }
+    // muro bajo el viaducto, a la derecha de la calle: primero rombos y triángulos, después franjas redondeadas de colores
+    const murA = api.canvasTex(1024, 128, (x, w, h) => { x.fillStyle = '#f2f0ea'; x.fillRect(0, 0, w, h); const C = ['#e23b2e', '#f2b705', '#1f9e5a', '#2a6dd8', '#f07c1e', '#8e3fb8', '#111111', '#2bb6c9', '#e8467c'];
+      for (let i = 0; i < 26; i++) { const x0 = i * w / 26, cw = w / 26; x.fillStyle = C[(i * 5) % C.length]; x.beginPath(); x.moveTo(x0, 0); x.lineTo(x0 + cw, 0); x.lineTo(x0 + cw * .5, h * .5); x.fill();
+        x.fillStyle = C[(i * 7 + 3) % C.length]; x.beginPath(); x.moveTo(x0, h); x.lineTo(x0 + cw, h); x.lineTo(x0 + cw * .5, h * .5); x.fill();
+        x.fillStyle = '#111'; x.beginPath(); x.moveTo(x0 + cw * .5, h * .5); x.lineTo(x0 + cw, h * .08); x.lineTo(x0 + cw, h * .92); x.fill(); } });
+    murA.wrapS = THREE.RepeatWrapping;
+    const murB = api.canvasTex(1024, 128, (x, w, h) => { x.fillStyle = '#eef0f2'; x.fillRect(0, 0, w, h); const C = ['#f2b705', '#2a6dd8', '#e23b2e', '#f07c1e', '#2bb6c9', '#ffffff', '#e8467c'];
+      for (let i = 0; i < 22; i++) { const x0 = i * w / 22 + 6, cw = w / 22 - 12; const r = cw / 2; x.fillStyle = C[i % C.length]; x.beginPath(); x.moveTo(x0, h - 8); x.lineTo(x0, r + 8); x.arc(x0 + r, r + 8, r, Math.PI, 0); x.lineTo(x0 + cw, h - 8); x.fill();
+        x.fillStyle = C[(i + 3) % C.length]; x.fillRect(x0, h * .55, cw, h * .18); } });
+    murB.wrapS = THREE.RepeatWrapping;
+    const muro = (k0, k1, tex, off, alto, rep) => { const ps = [], uv = [], ix = []; let m = 0, s = 0, prev = null;
+      for (let k = k0; k <= k1 + 1e-6; k += .004, m++) { const r = RA(k), x = r.x - r.lx * off, z = r.z - r.lz * off, gy = r.y - .2; if (prev) s += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z];
+        ps.push(x, gy, z, x, gy + alto, z); uv.push(s / rep, 0, s / rep, 1); if (m) { const o = (m - 1) * 2; ix.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); ge.computeVertexNormals();
+      g.add(dos(ge, new THREE.MeshStandardMaterial({ map: tex, roughness: .85, side: THREE.DoubleSide })));
+      // coronamiento
+      const cp = [], ci = []; m = 0; for (let k = k0; k <= k1 + 1e-6; k += .004, m++) { const r = RA(k); for (const d of [off - .2, off + .2]) cp.push(r.x - r.lx * d, r.y - .2 + alto + .15, r.z - r.lz * d); if (m) { const o = (m - 1) * 2; ci.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } }
+      const gc = new THREE.BufferGeometry(); gc.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3)); gc.setIndex(ci); gc.computeVertexNormals(); g.add(dos(gc, new THREE.MeshStandardMaterial({ color: 0xcfcdc6, side: THREE.DoubleSide }))); };
+    muro(25.775, 25.93, murA, 9.2, 4.0, 34);
+    muro(25.945, 26.07, murB, 9.2, 3.0, 36);
+    // valla de Tomás Seif en poste alto, a la izquierda sobre la bomba
+    { const r = RA(25.80), P = { x: r.x + r.lx * 24, z: r.z + r.lz * 24 }, gy = GY(P.x, P.z);
+      add(new THREE.CylinderGeometry(.55, .65, 15, 10), concreto, P.x, gy + 7.5, P.z);
+      const ts = valla(768, 320, (x, w, h) => { x.fillStyle = '#0e2f6b'; x.fillRect(0, 0, w, h); x.fillStyle = '#1b6fd1'; x.fillRect(w * .62, 0, w * .38, h); x.fillStyle = '#ffffff'; x.font = 'bold 30px Arial, sans-serif'; x.fillText('TOMÁS SEIF', 30, 52);
+        x.font = 'bold 44px Arial, sans-serif'; x.fillText('MEJORAMOS TU SALUD', 30, 130); x.fillText('Y ESTÉTICA DENTAL', 30, 182); x.fillStyle = '#ffd23a'; x.font = 'bold 30px Arial, sans-serif'; x.fillText('CON RESULTADOS DURADEROS', 30, 232);
+        x.fillStyle = '#f1d9c4'; x.beginPath(); x.arc(w * .8, h * .42, 62, 0, 7); x.fill(); x.fillStyle = '#123a80'; x.fillRect(w * .68, h * .62, w * .24, h * .38); });
+      const fy = Math.atan2(-r.tx, -r.tz) + .5; const pa = add(new THREE.BoxGeometry(13, 5.4, .4), [concretoOsc, concretoOsc, concretoOsc, concretoOsc, ts, concretoOsc], P.x, gy + 17.2, P.z); pa.rotation.y = fy; }
+    // bomba de gasolina (techo blanco con franja roja) a la izquierda en 25,79
+    { const c = LL(10.478599, -66.857049), gy = GY(c.x, c.z), r = RA(25.79), ry = ang(r.tx, r.tz);
+      const tech = new THREE.MeshStandardMaterial({ color: 0xf4f4f2, roughness: .6 }), roja = api.glow(0xd42a2a, { dia: .2, noche: .8 });
+      add(new THREE.BoxGeometry(22, 1.1, 13), [roja, roja, tech, tech, roja, roja], c.x, gy + 5.6, c.z, ry);
+      for (const [a, b] of [[-7, -3.5], [7, -3.5], [-7, 3.5], [7, 3.5]]) add(new THREE.BoxGeometry(.5, 5.1, .5), tech, c.x + Math.cos(ry) * a + Math.sin(ry) * b, gy + 2.55, c.z - Math.sin(ry) * a + Math.cos(ry) * b, ry);
+      for (const a of [-4, 4]) add(new THREE.BoxGeometry(1.2, 1.6, .7), roja, c.x + Math.cos(ry) * a, gy + .8, c.z - Math.sin(ry) * a, ry); }
+  }
+
+  // ═════════ 4. Puente de El Ciempiés: parapeto de concreto a la izquierda y señal verde ═════════
+  {
+    // 20-nov: el paño amarillo del elevado se apaga (sinBaranda en mercedes.js) y el parapeto izquierdo arranca en 26,40 (t=643,75:
+    // New Jersey con riel metálico y el valle abierto); el derecho en 26,45 (en 26,40–26,45 está la acera de la Cruz Roja, sin muro)
+    const ps = [], ix = []; let m = 0; const k0 = 26.40, k1 = 26.765;
+    for (let k = k0; k <= k1 + 1e-6; k += .003, m++) { const r = RA(k); for (const [d, h] of [[6.95, -.35], [6.95, 1.0], [7.75, 1.0], [7.75, -2.2]]) ps.push(r.x + r.lx * d, r.y + h, r.z + r.lz * d);
+      if (m) { const o = (m - 1) * 4; for (const [a, b] of [[0, 1], [1, 2], [2, 3]]) ix.push(o + a, o + 4 + a, o + b, o + b, o + 4 + a, o + 4 + b); } }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setIndex(ix); ge.computeVertexNormals();
+    g.add(dos(ge, new THREE.MeshStandardMaterial({ color: 0xb4b2ab, roughness: .95, side: THREE.DoubleSide })));
+    // la baranda amarilla del elevado genérico queda dentro del parapeto; a la derecha, bordillo y acera (no baranda)
+    const ps2 = [], ix2 = []; m = 0;
+    for (let k = 26.45; k <= k1 + 1e-6; k += .003, m++) { const r = RA(k); for (const [d, h] of [[-6.95, -.35], [-6.95, 1.2], [-7.7, 1.2], [-7.7, -.35]]) ps2.push(r.x + r.lx * d, r.y + h, r.z + r.lz * d);
+      if (m) { const o = (m - 1) * 4; for (const [a, b] of [[0, 1], [1, 2], [2, 3]]) ix2.push(o + a, o + 4 + a, o + b, o + b, o + 4 + a, o + 4 + b); } }
+    const ge2 = new THREE.BufferGeometry(); ge2.setAttribute('position', new THREE.Float32BufferAttribute(ps2, 3)); ge2.setIndex(ix2); ge2.computeVertexNormals();
+    g.add(dos(ge2, new THREE.MeshStandardMaterial({ color: 0x8f8f89, roughness: .95, side: THREE.DoubleSide })));
+    // señal verde DIST. EL CIEMPIÉS / LAB. MERCEDES a la derecha (f_0261)
+    const r = RA(26.78), P = { x: r.x - r.lx * 9, z: r.z - r.lz * 9 }, gy = GY(P.x, P.z) - .2;
+    const sm = valla(512, 256, (x, w, h) => { x.fillStyle = '#16794a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#fff'; x.lineWidth = 8; x.strokeRect(10, 10, w - 20, h - 20); x.fillStyle = '#fff'; x.font = 'bold 50px Arial, sans-serif'; x.fillText('DIST. EL CIEMPIÉS', 34, 100); x.fillText('LAB. MERCEDES', 34, 180); x.font = 'bold 64px Arial'; x.fillText('↑', w - 70, 150); });
+    add(new THREE.CylinderGeometry(.14, .14, 6, 8), concreto, P.x, gy + 3, P.z);
+    const s = add(new THREE.BoxGeometry(3.6, 1.8, .12), [concreto, concreto, concreto, concreto, sm, concreto], P.x + r.lx * 1.5, gy + 5.6, P.z + r.lz * 1.5); s.rotation.y = Math.atan2(-r.tx, -r.tz);
+  }
+  // ═════════ 5. Hotel Tamanaco y Eurobuilding (19-nov, 5ª pasada, con foto de referencia de cada uno) ═════════
+  // cajaUV(): caja cuya textura de fachada se repite cada `bay` m en horizontal y cada `fh` m (un piso) en vertical, para que todas las
+  // piezas compartan un solo material (el fusionador las junta) y la ventana tenga siempre el mismo tamaño.
+  const cajaUV = (w, h, d, bay, fh) => { const ge = new THREE.BoxGeometry(w, h, d), uv = ge.attributes.uv;
+    for (let f = 0; f < 6; f++) { if (f === 2 || f === 3) continue; const su = (f < 2 ? d : w) / bay, sv = h / fh; for (let j = 0; j < 4; j++) { const i = f * 4 + j; uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); } }
+    return ge; };
+  // losa(): cuerpo de hotel piso a piso. A, B = extremos del eje en metros (este, norte) desde ref; ancho en m. o: fh (alto de piso),
+  // bay, frente (+1 = la cara a la izquierda de A→B es la de las terrazas), paso (retranqueo por piso del frente), cortaA / cortaB
+  // ([desde piso, m por piso]: la testera baja en escalones), pisos de fachada fach/tras/test, pb (material de la planta baja), techo.
+  const losa = (ref, A, B, ancho, pisos, o) => {
+    const fh = o.fh || 3.3, bay = o.bay || 7.2, c = LL(ref[0], ref[1]), P0 = { x: c.x + A[0], z: c.z - A[1] }, P1 = { x: c.x + B[0], z: c.z - B[1] };
+    const L = Math.hypot(P1.x - P0.x, P1.z - P0.z), ux = (P1.x - P0.x) / L, uz = (P1.z - P0.z) / L, nx = uz, nz = -ux, ry = ang(ux, uz), fr = o.frente || 1, pf = o.paso || 0;
+    let gmin = 1e9, gmax = -1e9; for (let t = 0; t <= 1.001; t += .25) for (const s of [-1, 0, 1]) { const gy = GY(P0.x + (P1.x - P0.x) * t + nx * s * ancho / 2, P0.z + (P1.z - P0.z) * t + nz * s * ancho / 2); gmin = Math.min(gmin, gy); gmax = Math.max(gmax, gy); }
+    const mx = (P0.x + P1.x) / 2, mz = (P0.z + P1.z) / 2, y0 = (o.y0 ?? gmax) + (o.dy || 0), techo = o.techo || blancoT;
+    const mats = (fa, tr, te) => fr > 0 ? [fa, tr, techo, techo, te, te] : [tr, fa, techo, techo, te, te];
+    const corta = (cc, i) => cc && i >= cc[0] ? (i - cc[0] + 1) * cc[1] : 0;
+    // zócalo: de la ladera al primer piso, con la misma fachada (en la ladera asoman pisos de servicio)
+    const hz = y0 - gmin + 1.5; add(cajaUV(ancho, hz, L, bay, fh), mats(o.pb || o.fach, o.pb || o.tras, o.test), mx, gmin - 1.5 + hz / 2, mz, ry);
+    let prev = null, y = y0;
+    for (let i = 0; i < pisos; i++) {
+      const w = ancho - i * pf, off = -fr * pf * i / 2, a = corta(o.cortaA, i), b = corta(o.cortaB, i), Lr = L - a - b, cx = mx + nx * off + ux * (a - b) / 2, cz = mz + nz * off + uz * (a - b) / 2;
+      if (Lr < 6 || w < 6) break;
+      add(cajaUV(w, fh, Lr, bay, fh), mats(i === 0 && o.pb ? o.pb : o.fach, i === 0 && o.pb ? o.pb : o.tras, o.test), cx, y + fh / 2, cz, ry);
+      // antepecho corrido de la terraza que deja el piso de abajo (el balcón que se ve desde la calle)
+      if (prev && pf > 0) { const e = fr * (prev.w / 2 - .12); add(new THREE.BoxGeometry(.24, 1.05, prev.Lr), blancoT, prev.cx + nx * e, y + .52, prev.cz + nz * e, ry); }
+      prev = { w, Lr, cx, cz }; y += fh;
+    }
+    // pretil de la azotea
+    if (prev) for (const s of [-1, 1]) { const e = s * (prev.w / 2 - .1); add(new THREE.BoxGeometry(.2, .9, prev.Lr), blancoT, prev.cx + nx * e, y + .45, prev.cz + nz * e, ry); }
+    return { y, y0, gmin, mx, mz, nx, nz, ux, uz, ry, L, P0, P1, top: prev };
+  };
+  const blancoT = api.concrete(0xe2e0d8);
+  // ── Hotel Tamanaco InterContinental (1953). Referencia: foto desde Las Mercedes (Wikimedia Commons, «Tamanaco Hotel, Caracas»), el
+  // sello de correo de 1953 y la imagen satelital: un solo cuerpo blanco y largo de ~10 pisos que se dobla en la ladera (ala oeste, que
+  // mira al norte, y ala diagonal hacia el noreste, que mira a Las Mercedes), con terrazas corridas en cada piso por la cara del valle,
+  // la testera oeste bajando en escalones, el bloque central más alto con el letrero verde «Tamanaco Inter-Continental» en la azotea,
+  // la piscina en forma de riñón y la hilera de astas al pie del ala oeste, y la marquesina circular del acceso al sur. Huella OSM.
+  {
+    const ref = [10.477564, -66.856146];
+    const tex = api.canvasTex(256, 128, (x, w, h) => { x.fillStyle = '#e6e4dc'; x.fillRect(0, 0, w, h); x.fillStyle = '#bdbab1'; x.fillRect(0, 0, w, h * .05);
+      for (const a of [.07, .54]) { x.fillStyle = '#353d46'; x.fillRect(a * w, h * .2, w * .36, h * .5); x.fillStyle = 'rgba(255,255,255,.16)'; x.fillRect(a * w, h * .2, w * .36, h * .09); x.fillStyle = '#e2e0d8'; x.fillRect(a * w + w * .175, h * .2, 3, h * .5); } });
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const fach = new THREE.MeshStandardMaterial({ map: tex, roughness: .82 }), test = api.concrete(0xe0ded6);
+    const base = { fh: 3.3, bay: 7.2, fach, tras: fach, test, frente: 1, techo: api.concrete(0xaeaea2) };   // azoteas y terrazas gris verdoso (satelital)
+    // ala oeste (mira al norte): 10 pisos con terrazas y la testera oeste en escalones (el «zigurat» de la foto)
+    const o1 = losa(ref, [-99, -12], [-24, -13], 20, 10, { ...base, paso: .85, cortaA: [3, 5.2] });
+    // ala diagonal hacia el noreste (mira al noroeste, a Las Mercedes): 10 pisos; su testera noreste es la que baja en escalones a la
+    // izquierda de la foto desde Las Mercedes
+    losa(ref, [-30, -16], [33, 31], 21, 10, { ...base, paso: .85, cortaB: [2, 3.8], y0: o1.y0 });
+    // bloque noreste (salones y habitaciones) más bajo, y ala sur detrás (no se ve desde la ruta)
+    losa(ref, [12, 34], [54, 70], 30, 6, { ...base, paso: .6, y0: o1.y0 });
+    losa(ref, [-2, -22], [30, -62], 20, 8, { ...base, frente: -1, paso: .5 });
+    // bloque central del codo, dos pisos más alto, con el letrero verde en la azotea de cara a Las Mercedes
+    { const k = LL(ref[0] - 7 / 111320, ref[1] - 24 / 109470), top = o1.y0 + 10 * 3.3, gy = GY(k.x, k.z);
+      add(cajaUV(17, top + 2 * 3.3 - gy, 15, 7.2, 3.3), [fach, fach, blancoT, blancoT, fach, fach], k.x, (top + 2 * 3.3 + gy) / 2, k.z, ang(.79, -.61));
+      const v = RA(25.62), dx = v.x - k.x, dz = v.z - k.z, d = Math.hypot(dx, dz), fx = dx / d, fz = dz / d;
+      const tt = valla(1024, 384, (x, w, h) => { x.fillStyle = '#1f8a62'; x.fillRect(0, 0, w, h); x.fillStyle = '#f6f4ee'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = 'bold 200px Georgia, serif'; x.fillText('Tamanaco', w / 2, h * .4);
+        x.font = 'bold 84px Arial, sans-serif'; x.fillText('INTER·CONTINENTAL', w / 2, h * .82); });
+      const verde = api.concrete(0x1d7a57), yS = top + 2 * 3.3 + 4.6;
+      const s = add(new THREE.BoxGeometry(22, 8.2, .6), [verde, verde, verde, verde, tt, verde], k.x + fx * 2, yS, k.z + fz * 2); s.rotation.y = Math.atan2(fx, fz);
+      for (const e of [-8, 8]) add(new THREE.BoxGeometry(.4, 4.6, .4), concretoOsc, k.x + fx * 1.6 + fz * e, top + 2 * 3.3 + .3, k.z + fz * 1.6 - fx * e); }
+    // piscina en forma de riñón con su terraza, al norte del ala oeste
+    { const k = LL(ref[0] + 22 / 111320, ref[1] - 76 / 109470), gy = GY(k.x, k.z);
+      add(new THREE.BoxGeometry(44, .9, 26), api.concrete(0xd9d6cc), k.x, gy - .3, k.z, .05);
+      const sh = new THREE.Shape(); for (let i = 0; i <= 40; i++) { const t = i / 40 * Math.PI * 2, r = 1 - .32 * Math.max(0, Math.cos(t * 2 - 1.2)) ** 3; const px = Math.cos(t) * 16 * r, pz = Math.sin(t) * 6.5 * r + Math.sin(t * 2) * 1.5; i ? sh.lineTo(px, pz) : sh.moveTo(px, pz); }
+      const agua = new THREE.MeshStandardMaterial({ color: 0x35b4d8, roughness: .12, metalness: .15, emissive: 0x0c3a48, emissiveIntensity: .35 });
+      const p = new THREE.Mesh(new THREE.ShapeGeometry(sh), agua); p.rotation.set(-Math.PI / 2, 0, .05); p.position.set(k.x, gy + .17, k.z); g.add(p); }
+    // hilera de astas con banderas al pie del ala oeste (foto: delante del cuerpo bajo, sobre los jardines)
+    { const col = [0xd12f2f, 0x1f5fbf, 0xf2c230, 0x2a9a4c, 0xffffff, 0xd12f2f, 0x1f5fbf, 0xe86a1a, 0x2a9a4c, 0xf2c230, 0x8e3fb8, 0x1f5fbf, 0xd12f2f, 0xffffff];
+      const asta = api.concrete(0xf2f1ec), tela = col.map(c => api.concrete(c, { roughness: .8 }));
+      for (let i = 0; i < 14; i++) { const e = -94 + i * 4.6, k = LL(ref[0] + 6.5 / 111320, ref[1] + e / 109470), gy = GY(k.x, k.z);
+        add(new THREE.CylinderGeometry(.07, .09, 10, 6), asta, k.x, gy + 5, k.z);
+        add(new THREE.BoxGeometry(1.7, 1.05, .04), tela[i], k.x + .9, gy + 9.3, k.z); } }
+    // acceso al sur: rotonda con la fuente y la marquesina circular del pórtico
+    { const k = LL(ref[0] - 54 / 111320, ref[1] - 41 / 109470), gy = GY(k.x, k.z);
+      add(new THREE.CylinderGeometry(10, 10, .9, 32), blancoT, k.x, gy + 5.2, k.z);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; add(new THREE.CylinderGeometry(.35, .35, 5, 8), blancoT, k.x + Math.cos(a) * 7, gy + 2.5, k.z + Math.sin(a) * 7); }
+      add(new THREE.CylinderGeometry(6, 6.4, .5, 28), api.concrete(0x6f9e4c), k.x + 16, gy + .2, k.z - 10); }
+  }
+  // ── Hotel Eurobuilding (Chuao, calle La Guairita). Referencia: el video (t≈645–652 s) y la imagen satelital: torre BLANCA de 18
+  // pisos (ala oeste de la huella OSM en zigzag) con fachadas de bandas horizontales —antepecho blanco y ventana corrida oscura—, la
+  // testera oeste lisa con la columna de balcones apilados en el canto norte, una ranura vertical oscura y el emblema arriba; detrás,
+  // el ala diagonal y el ala este de 13 pisos con las mismas bandas y torres de escalera blancas en las puntas. En la calle, la viga
+  // oscura con «Eurobuilding» en letras blancas sobre la entrada (t≈651 s).
+  {
+    const ref = [10.482465, -66.850144];
+    const tex = api.canvasTex(256, 64, (x, w, h) => { x.fillStyle = '#e8e7e2'; x.fillRect(0, 0, w, h); x.fillStyle = '#343b43'; x.fillRect(0, h * .22, w, h * .46);
+      x.fillStyle = 'rgba(255,255,255,.2)'; x.fillRect(0, h * .22, w, h * .07); x.fillStyle = '#cfd2d4'; for (let i = 0; i < 4; i++) x.fillRect(i * w / 4, h * .22, 2, h * .46); x.fillStyle = '#d3d0c8'; x.fillRect(0, h * .68, w, h * .035); });
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    const fach = new THREE.MeshStandardMaterial({ map: tex, roughness: .8 }), test = api.concrete(0xe3e2dc);
+    const pbTex = api.canvasTex(256, 64, (x, w, h) => { x.fillStyle = '#d8d6cf'; x.fillRect(0, 0, w, h); x.fillStyle = '#20262c'; x.fillRect(w * .04, h * .12, w * .92, h * .76); x.fillStyle = '#9aa3aa'; for (let i = 0; i < 6; i++) x.fillRect(w * .04 + i * w * .184, h * .12, 3, h * .76); });
+    pbTex.wrapS = pbTex.wrapT = THREE.RepeatWrapping; const pb = new THREE.MeshStandardMaterial({ map: pbTex, roughness: .4, metalness: .2 });
+    const base = { fh: 3.1, bay: 8, fach, tras: fach, test, pb, frente: 1, techo: api.concrete(0xb2b3b0) };
+    const t = losa(ref, [-94, .6], [-16, 22.2], 22, 18, base);
+    losa(ref, [-20, 25], [22, -19], 22, 13, { ...base, y0: t.y0 });
+    const e = losa(ref, [20, -21], [88.5, -1.3], 24, 13, { ...base, y0: t.y0 });
+    // testera oeste: columna de balcones en el canto norte, ranura oscura, emblema y casetas
+    const W0 = { x: t.P0.x - t.ux * .3, z: t.P0.z - t.uz * .3 }, oscuro = api.concrete(0x2b3036);
+    for (let i = 1; i < 18; i++) { const y = t.y0 + i * 3.1, cx = W0.x + t.nx * 8 - t.ux * .8, cz = W0.z + t.nz * 8 - t.uz * .8;
+      add(new THREE.BoxGeometry(5.2, .28, 1.7), blancoT, cx, y, cz, t.ry); add(new THREE.BoxGeometry(5.2, 1.0, .16), blancoT, cx - t.ux * .8, y + .6, cz - t.uz * .8, t.ry); }
+    add(new THREE.BoxGeometry(2.4, 15 * 3.1, .3), oscuro, W0.x - t.nx * 3.5, t.y0 + 2 * 3.1 + 15 * 3.1 / 2, W0.z - t.nz * 3.5, t.ry);
+    const emb = valla(256, 256, (x, w, h) => { x.fillStyle = '#e9e8e2'; x.fillRect(0, 0, w, h); x.strokeStyle = '#7d848b'; x.lineWidth = 14; x.beginPath(); x.arc(w / 2, h / 2, w * .4, 0, 7); x.stroke();
+      x.fillStyle = '#5d646b'; x.font = 'bold 150px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('E', w / 2, h * .54); });
+    const em = add(new THREE.BoxGeometry(4.2, 4.2, .2), [test, test, test, test, emb, test], W0.x + t.nx * 1.5, t.y - 4, W0.z + t.nz * 1.5); em.rotation.y = Math.atan2(-t.ux, -t.uz);
+    add(new THREE.BoxGeometry(12, 3.2, 9), test, t.mx - t.ux * 18, t.y + 1.6, t.mz - t.uz * 18, t.ry);
+    add(new THREE.CylinderGeometry(1.8, .3, .9, 16), api.concrete(0xd9dbdc), t.mx - t.ux * 30, t.y + 2.2, t.mz - t.uz * 30);
+    // torres de escalera blancas en las puntas del ala este (más altas que el cuerpo)
+    for (const s of [-1, 1]) { const P = s < 0 ? e.P0 : e.P1, gy = GY(P.x, P.z) - 1; add(new THREE.BoxGeometry(8, e.y + 4 - gy, 7), test, P.x + e.ux * s * 2, (e.y + 4 + gy) / 2, P.z + e.uz * s * 2, e.ry); }
+    // viga oscura con «Eurobuilding» sobre la entrada, a la derecha de la calle La Guairita (t≈651 s)
+    { const r = RA(26.775), oscV = api.concrete(0x25292d), letras = valla(1024, 96, (x, w, h) => { x.fillStyle = '#25292d'; x.fillRect(0, 0, w, h); x.fillStyle = '#f4f4f0'; x.font = 'bold 72px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Eurobuilding', w / 2, h * .55); });
+      const c0 = 10.5, c1 = 26, mx = r.x - r.lx * (c0 + c1) / 2, mz = r.z - r.lz * (c0 + c1) / 2, yb = r.y + 5.4;
+      const v = add(new THREE.BoxGeometry(c1 - c0, 1.4, .9), [oscV, oscV, oscV, oscV, oscV, letras], mx, yb, mz); v.rotation.y = Math.atan2(r.tx, r.tz);
+      for (const d of [c0 + .4, c1 - .4]) { const x = r.x - r.lx * d, z = r.z - r.lz * d, gy = Math.min(GY(x, z), r.y); add(new THREE.BoxGeometry(.7, yb - gy, .7), oscV, x, (yb + gy) / 2 - .3, z); } }
+  }
+  // ═════════ 6. Salida del viaducto, izquierda (km 25,90–26,03): muro oscuro con portón negro y árboles detrás (t=631–634 s) ═════════
+  const hojaA = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true, vertexColors: true }), hojaB = hojaA, tronco = api.concrete(0x5a4a3a);
+  let sem = 11; const rnd = () => (sem = (sem * 16807) % 2147483647) / 2147483647;
+  // copa de follaje: esfera deformada con ruido, facetas chicas y dos tonos de verde por cara (masa de hojas, no un globo liso)
+  const copaGeo = r => { const ge = new THREE.IcosahedronGeometry(r, 3), P = ge.attributes.position, n = P.count, col = new Float32Array(n * 3), h = (x, y, z) => { const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return s - Math.floor(s); };
+    for (let i = 0; i < n; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i), kx = Math.round(x / r * 40), ky = Math.round(y / r * 40), kz = Math.round(z / r * 40), f = 1 + (h(kx, ky, kz) - .5) * .34 + Math.sin(x / r * 5 + kz) * .07; P.setXYZ(i, x * f, y * f * .8, z * f); }
+    for (let i = 0; i < n; i += 3) { const u = h(i, r, 3.1), sol = .55 + .45 * Math.max(0, P.getY(i) / r), cr = (.035 + u * .03) * sol, cg = (.095 + u * .065) * sol, cb = (.02 + u * .02) * sol; for (let j = 0; j < 3; j++) { col[(i + j) * 3] = cr; col[(i + j) * 3 + 1] = cg; col[(i + j) * 3 + 2] = cb; } }
+    ge.setAttribute('color', new THREE.BufferAttribute(col, 3)); ge.computeVertexNormals(); return ge; };
+  const copa = (x, y, z, r, gy) => { const n = 4 + ((rnd() * 3) | 0); add(copaGeo(r * .82), hojaA, x, y, z);
+    for (let i = 0; i < n; i++) { const a = i / n * 6.283 + rnd() * .8, q = r * (.42 + rnd() * .28), e = r * (.45 + rnd() * .3); add(copaGeo(q), hojaA, x + Math.cos(a) * e, y + (rnd() - .25) * r * .55, z + Math.sin(a) * e); }
+    const yb = y - r * .45; if (yb - gy > .8) { add(new THREE.CylinderGeometry(.18, .32, yb - gy, 6), tronco, x, (yb + gy) / 2, z);
+      for (const a of [rnd() * 6.283, rnd() * 6.283]) { const br = add(new THREE.CylinderGeometry(.08, .14, r * .8, 5), tronco, x + Math.cos(a) * r * .22, yb + r * .3, z + Math.sin(a) * r * .22); br.rotation.set(Math.sin(a) * .7, 0, -Math.cos(a) * .7); } } };
+  {
+    const ps = [], ix = []; let m = 0; const off = 8.6, alto = 3.3;
+    for (let k = 25.90; k <= 26.03 + 1e-6; k += .004, m++) { const r = RA(k); for (const d of [off, off + .35]) for (const h of [-.3, alto]) ps.push(r.x + r.lx * d, r.y + h, r.z + r.lz * d);
+      if (m) { const o = (m - 1) * 4; ix.push(o, o + 4, o + 1, o + 1, o + 4, o + 5, o + 1, o + 5, o + 3, o + 3, o + 5, o + 7, o + 2, o + 6, o + 3, o + 3, o + 6, o + 7); } }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setIndex(ix); ge.computeVertexNormals();
+    g.add(dos(ge, new THREE.MeshStandardMaterial({ color: 0x3e3f3c, roughness: .95, side: THREE.DoubleSide })));
+    const r = RA(25.965), negro = api.concrete(0x16181a, { roughness: .6 });
+    add(new THREE.BoxGeometry(5.5, 2.9, .2), negro, r.x + r.lx * (off - .15), r.y + 1.15, r.z + r.lz * (off - .15), ang(r.tx, r.tz) + Math.PI / 2);
+    // los árboles detrás del muro los pone el motor (fx/correcciones/mercedes.js, veg.L)
+  }
+  // ═════════ 7. Puente de El Ciempiés: copas que asoman sobre el parapeto y vallas rosadas en postes a la derecha (t=642–650 s) ═════════
+  {
+    // las copas a los lados del puente son árboles del motor sembrados abajo (fx/correcciones/mercedes.js, arboles)
+    const rosa = valla(256, 512, (x, w, h) => { const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#f2559a'); gr.addColorStop(1, '#d92c7c'); x.fillStyle = gr; x.fillRect(0, 0, w, h); x.strokeStyle = '#ffffff'; x.lineWidth = 10; x.strokeRect(12, 12, w - 24, h - 24); });
+    // 20-nov: el primero en 26,48 (el video lo pasa en t≈650,5 = km 26,48; estaba en 26,55 por el índice corrido)
+    for (const k of [26.48, 26.62, 26.70]) { const q = RA(k), x =q.x - q.lx * 9.4, z = q.z - q.lz * 9.4, gy = Math.min(GY(x, z), q.y);
+      add(new THREE.CylinderGeometry(.16, .2, q.y + 12.2 - gy, 8), concreto, x, (q.y + 12.2 + gy) / 2, z);
+      const b = add(new THREE.BoxGeometry(3.2, 7.6, .15), [concreto, concreto, concreto, concreto, rosa, concreto], x + q.lx * .3, q.y + 8.2, z + q.lz * .3); b.rotation.y = Math.atan2(-q.tx, -q.tz); }   // pendón alto (t=645 s: llega a media torre del Eurobuilding)
+  }
+  // ═════════ 8. Muro de contención a la derecha bajo el viaducto (km 25,74–25,98; t=630 s): concreto claro alto junto a la vía de abajo;
+  //  tapa el faldón del relieve del cerro, que quedaba como una mancha negra bajo el tablero ═════════
+  { const ps = [], ix = []; let m = 0; const off = 27.5;
+    for (let k = 25.74; k <= 25.98 + 1e-6; k += .004, m++) { const r = RA(k); for (const h of [-1.5, 11]) ps.push(r.x - r.lx * off, r.y + h, r.z - r.lz * off); if (m) { const o = (m - 1) * 2; ix.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setIndex(ix); ge.computeVertexNormals();
+    g.add(dos(ge, new THREE.MeshStandardMaterial({ color: 0xaaa79f, roughness: .95, side: THREE.DoubleSide }))); }
+  // ═════════ 9. Valla larga a la derecha bajo el viaducto (t=630 s): panel morado con manchas amarillas sobre una franja oscura; genérica ═════════
+  { const r = RA(25.92), P = { x: r.x - r.lx * 12.5, z: r.z - r.lz * 12.5 };
+    const vm = valla(1024, 256, (x, w, h) => { x.fillStyle = '#7b2e86'; x.fillRect(0, 0, w, h * .72); x.fillStyle = '#f2c91f'; for (const [cx, cy, rr] of [[120, 90, 70], [300, 120, 44], [560, 80, 52], [800, 110, 66]]) { x.beginPath(); x.arc(cx, cy, rr, 0, 7); x.fill(); }
+      x.fillStyle = '#ffffff'; x.fillRect(380, 40, 140, 22); x.fillRect(380, 80, 100, 22); x.fillRect(650, 60, 110, 22); x.fillStyle = '#1d1e20'; x.fillRect(0, h * .72, w, h * .28); x.fillStyle = '#c9c7c0'; x.fillRect(80, h * .82, 300, 14); x.fillRect(640, h * .82, 220, 14); });
+    const b = add(new THREE.BoxGeometry(16, 4.4, .3), [concretoOsc, concretoOsc, concretoOsc, concretoOsc, vm, concretoOsc], P.x, r.y + 4.6, P.z); b.rotation.y = Math.atan2(-r.tx, -r.tz) - .25; }
+  // ═════════ 10. Ladera del Tamanaco: arbolado entre el viaducto y el hotel (t=622–627 s: el hotel asoma sobre copas) ═════════
+  // (sembrado con árboles del motor desde fx/correcciones/mercedes.js, arboles)
+  // ═════════ 11. CCCT y Cubo Negro (Chuao): fuera del cuadro del video, pero a 250–500 m a la izquierda del ramal y del puente de El Ciempiés.
+  //  Ubicación y tamaño de las huellas OSM (Centro Banaven «Cubo Negro» 81×81 m, 50 m; Pirámide Invertida 85×83 m, 6 niveles; podio del CCCT
+  //  284×208 m). El podio del CCCT va en terrazas de concreto con bandas de vidrio oscuro; la Pirámide Invertida crece piso a piso. ═════════
+  { const vidN = api.glass(0x0e1216, { roughness: .08, metalness: .9, envMapIntensity: 1.4 }), conc = api.concrete(0x8f8c85);
+    const terr = api.facade({ pared: '#9b978e', vidrio: '#1b2229', pisos: 2, vanos: 16, bandas: true, encendidas: .25, seed: 41, roughness: .8, metalness: .1 });
+    const caja = (la, lo, w, d, y0, h, mat) => { const c = LL(la, lo), b = add(new THREE.BoxGeometry(w, h, d), mat, c.x, y0 + h / 2, c.z); return b; };
+    const gyAt = (la, lo, w, d) => { const c = LL(la, lo); let m = 1e9; for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, 0]]) m = Math.min(m, GY(c.x + a * w / 2, c.z + b * d / 2)); return m - 1; };
+    // Cubo Negro: zócalo retranqueado y el cubo de vidrio negro espejo
+    { const la = 10.484244, lo = -66.853311, y0 = gyAt(la, lo, 81, 81); caja(la, lo, 74, 74, y0, 5, conc); caja(la, lo, 81, 81, y0 + 5, 46, vidN); caja(la, lo, 81.6, 81.6, y0 + 51, .8, conc); }
+    // podio del CCCT en cuatro terrazas
+    { const la = 10.485177, lo = -66.855283; let y = gyAt(la, lo, 250, 180);
+      for (const [w, d, h] of [[255, 185, 7.5], [225, 160, 6], [195, 135, 6], [165, 110, 6]]) { caja(la, lo, w, d, y, h, [terr, terr, conc, conc, terr, terr]); y += h; } }
+    // Pirámide Invertida: cada piso más ancho que el de abajo, vidrio oscuro
+    { const la = 10.485326, lo = -66.8555; let y = gyAt(la, lo, 60, 60); for (let i = 0; i < 6; i++) { const w = 58 + i * 5.4; caja(la, lo, w, w, y, 3.8, vidN); caja(la, lo, w + .6, w + .6, y + 3.8, .5, conc); y += 4.3; } }
+  }
+  // ═════════ 12. Rampa de El Ciempiés, km 26,11–26,40 (20-nov, con las anclas t=636,3 = km 26,15 · t=639,6 = 26,21 bajo la autopista ·
+  //  t=643,0 = 26,34 · t=643,75 = 26,40). Hasta el 19-nov había un muro gris de 6 m a la derecha en todo el tramo (puesto con el índice
+  //  corrido 0,16 km). El video muestra a la derecha: murete bajo el talud de grama de la autopista (26,11–26,165, t=636,5–637,5), el muro
+  //  de contención alto solo en la llegada al paso bajo la autopista (26,165–26,20, t=638,5), acera con reja blanca y edificios después
+  //  (26,215–26,265, t=640,25–641,25) y el corte de roca con matorral y edificios arriba (26,27–26,375, t=641,5–643,25); a la izquierda,
+  //  el muro verde claro (26,27–26,32, t=641,5–642,25). Y el paso bajo la Autopista Prados del Este (dos calzadas sobre la ruta, 26,21). ═════════
+  {
+    // barrido de una sección [d, h] a lo largo de la ruta (d > 0 a la DERECHA, m desde el eje; h sobre la cota de la ruta); u = metros/rep
+    const barre = (k0, k1, sec, mat, paso = .003, rep = 0) => { const ps = [], uv = [], ix = []; let m = 0, n = 0, s = 0, prev = null;
+      for (let k = k0; k <= k1 + 1e-6; k += paso, m++) { const r = RA(k), S = sec(k); n = S.length; if (prev) s += Math.hypot(r.x - prev.x, r.z - prev.z); prev = r;
+        S.forEach(([d, h], a) => { ps.push(r.x - r.lx * d, r.y + h, r.z - r.lz * d); uv.push(rep ? s / rep : 0, a / (n - 1)); });
+        if (m) { const o = (m - 1) * n; for (let a = 0; a < n - 1; a++) ix.push(o + a, o + n + a, o + a + 1, o + a + 1, o + n + a, o + n + a + 1); } }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); g.add(dos(ge, mat)); };
+    const lin = (k, a, b) => Math.max(0, Math.min(1, (k - a) / (b - a)));
+    const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide, ...o });
+    // derecha: murete de 2,3 m que sube a muro de contención de 6 m, y detrás el talud de grama hasta el terreno (relieve +5 m desde 16 m)
+    const hM = k => 2.3 + 3.7 * lin(k, 26.163, 26.176);
+    barre(26.11, 26.199, k => [[7.4, -.4], [7.4, hM(k)], [7.9, hM(k) + .2], [9.9, hM(k) + .2]], M(0xaaa69c));
+    barre(26.11, 26.199, k => [[9.8, hM(k) + .15], [13.5, Math.max(hM(k) + .3, 4.3)], [21, 5.4]], M(0x6c8a3c));
+    // derecha tras el paso bajo la autopista: reja blanca sobre murete en el borde de la acera
+    const rejaB = api.canvasTex(128, 128, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#eceae4'; for (let i = 0; i < 8; i++) x.fillRect(i * w / 8 + 4, 0, 5, h); x.fillRect(0, 2, w, 8); x.fillRect(0, h - 10, w, 10); });
+    rejaB.wrapS = THREE.RepeatWrapping;
+    barre(26.216, 26.266, () => [[8.8, -.4], [8.8, .5]], M(0xe4e2dc));
+    barre(26.216, 26.266, () => [[8.8, .5], [8.8, 1.8]], new THREE.MeshStandardMaterial({ map: rejaB, alphaTest: .5, side: THREE.DoubleSide, roughness: .6 }), .003, 1.6);
+    // derecha: corte de roca de 9 m con matorral arriba (el relieve +9 m arranca detrás, a 13 m)
+    const H = k => 9 * lin(k, 26.272, 26.292) * (1 - lin(k, 26.356, 26.378));
+    const rr = (k, j) => Math.sin(k * 1700 + j * 2.1) * .5 + Math.sin(k * 4100 + j * 5.3) * .35;
+    barre(26.268, 26.38, k => { const h = H(k); return [[7.6, -.4], [7.8 + rr(k, 1) * .4, .3 + h * .3], [8.6 + rr(k, 2), h * .62], [9.8 + rr(k, 3), h * .86]]; }, M(0x7d7466, { flatShading: true }), .0025);
+    barre(26.268, 26.38, k => { const h = H(k); return [[9.7 + rr(k, 3), h * .86], [11.2 + rr(k, 4) * .6, h + .3], [14.5, h + 1.1]]; }, M(0x4e6a2e, { flatShading: true }), .0025);
+    // izquierda: muro verde claro de paneles (t=641,5–642,25)
+    barre(26.268, 26.322, k => [[-7.6, -.4], [-7.6, 3.6 * Math.min(1, lin(k, 26.268, 26.274) + .3)]], M(0xa8c98a, { roughness: .85 }));
+    // paso bajo la Autopista Prados del Este (km 26,21; t=638,5–640): dos calzadas de tres canales (OSM) sobre pilas fuera de la vía
+    const yI = RA(26.206).y + 6.8, calz = [
+      [[10.480052, -66.853799], [10.48021, -66.853748], [10.480489, -66.853687], [10.480659, -66.853661], [10.480829, -66.853653]],
+      [[10.480938, -66.853777], [10.480763, -66.853782], [10.480632, -66.853788], [10.480405, -66.853821], [10.480166, -66.853889], [10.479977, -66.853968]]];
+    const ruta = []; for (let k = 26.09; k <= 26.33; k += .003) ruta.push(RA(k));
+    const dR = (x, z) => { let d = 1e9; for (const r of ruta) d = Math.min(d, Math.hypot(r.x - x, r.z - z)); return d; };
+    const tab = api.concrete(0x8d8a83), bajo = api.concrete(0x6f6d68);
+    for (const C of calz) { const P = C.map(([a, b]) => LL(a, b));
+      for (let i = 1; i < P.length; i++) { const A = P[i - 1], B = P[i], L = Math.hypot(B.x - A.x, B.z - A.z), mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2, ry = ang(B.x - A.x, B.z - A.z);
+        add(new THREE.BoxGeometry(13, 1.7, L + .6), bajo, mx, yI + .85, mz, ry);
+        for (const s of [-1, 1]) add(new THREE.BoxGeometry(.35, 1.1, L + .6), tab, mx + Math.cos(ry) * 6.3 * s, yI + 2.25, mz - Math.sin(ry) * 6.3 * s, ry); }
+      for (const p of P) { if (dR(p.x, p.z) < 8.5) continue; const gy = GY(p.x, p.z) - .3; if (yI - gy < 2) continue; add(new THREE.BoxGeometry(1.8, yI - gy, 1.8), tab, p.x, (yI + gy) / 2, p.z); } }
+  }
+  // ═════════ 13. Calle La Guairita (km 26,70–26,95, t=651–659 s): una sola calzada de tres canales entre brocales amarillos. A la izquierda,
+  //  franja de grama y parapeto de concreto (la Río de Janeiro va aparte, en puente, más allá) y luego verja negra sobre murete con árboles;
+  //  a la derecha, acera y verja negra sobre muro blanco con arbolado; la bomba de gasolina de techo rojo a la izquierda en el 26,90 ═════════
+  {
+    const cintaV = (k0, k1, d, y0, y1, mat, rep) => { const ps = [], uv = [], ix = []; let m = 0, s = 0, prev = null;
+      for (let k = k0; k <= k1 + 1e-6; k += .003, m++) { const r = RA(k), x = r.x + r.lx * d, z = r.z + r.lz * d; if (prev) s += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z];
+        ps.push(x, r.y + y0, z, x, r.y + y1, z); uv.push(s / rep, 0, s / rep, 1); if (m) { const o = (m - 1) * 2; ix.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); ge.computeVertexNormals(); g.add(dos(ge, mat)); };
+    const rejaT = api.canvasTex(128, 128, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#16181a'; for (let i = 0; i < 8; i++) x.fillRect(i * w / 8 + 3, 0, 5, h); x.fillRect(0, 4, w, 7); x.fillRect(0, h - 16, w, 7); });
+    rejaT.wrapS = THREE.RepeatWrapping; const reja = new THREE.MeshStandardMaterial({ map: rejaT, alphaTest: .5, side: THREE.DoubleSide, roughness: .6 });
+    const muroB = new THREE.MeshStandardMaterial({ color: 0xe9e7e0, roughness: .9, side: THREE.DoubleSide }), parap = new THREE.MeshStandardMaterial({ color: 0xb9b6ae, roughness: .95, side: THREE.DoubleSide });
+    // izquierda: parapeto bajo de concreto (26,70–26,80) y verja negra sobre murete (26,80–26,87)
+    cintaV(26.70, 26.80, 7.7, -.4, .95, parap, 10); cintaV(26.70, 26.80, 7.95, -.4, .95, parap, 10);
+    cintaV(26.80, 26.87, 7.8, -.4, .6, muroB, 10); cintaV(26.80, 26.87, 7.8, .6, 2.3, reja, 2.2);
+    // derecha: muro blanco con verja negra encima, detrás de la acera (26,785–26,93)
+    cintaV(26.785, 26.93, -9.3, -.5, .85, muroB, 10); cintaV(26.785, 26.93, -9.3, .85, 2.6, reja, 2.2);
+    // bomba de gasolina: techo blanco de borde rojo sobre seis columnas, dos islas de surtidores
+    { const r = RA(26.895), cx = r.x + r.lx * 19, cz = r.z + r.lz * 19, gy = Math.min(GY(cx, cz), r.y + .2), ry = ang(r.tx, r.tz);
+      const rojo = api.concrete(0xd8462c), tech = api.concrete(0xf3f2ee), gris = api.concrete(0x9a9c9d);
+      add(new THREE.BoxGeometry(14, 1.2, 26), [rojo, rojo, tech, tech, rojo, rojo], cx, gy + 5.6, cz, ry);
+      for (const a of [-9, 0, 9]) for (const b of [-3.5, 3.5]) add(new THREE.BoxGeometry(.5, 5.1, .5), tech, cx + Math.sin(ry) * a + Math.cos(ry) * b, gy + 2.55, cz + Math.cos(ry) * a - Math.sin(ry) * b, ry);
+      for (const b of [-3.5, 3.5]) for (const a of [-5, 5]) add(new THREE.BoxGeometry(.8, 1.7, 1.4), gris, cx + Math.sin(ry) * a + Math.cos(ry) * b, gy + .85, cz + Math.cos(ry) * a - Math.sin(ry) * b, ry);
+      add(new THREE.BoxGeometry(16, .14, 30), api.concrete(0xb4b2ac), cx, gy + .05, cz, ry); }
+  }
+  return api.sombras(g);
+}
