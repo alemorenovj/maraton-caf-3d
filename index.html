@@ -200,9 +200,25 @@ kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-fami
 
 <div id="end" class="screen" style="display:none"><div class="card panel" id="endC"></div></div>
 
+<script>
+/* Red de seguridad: si el juego se queda cargando, pierde el contexto gráfico o falla al arrancar, se avisa en pantalla en vez de dejar la pantalla en negro. */
+(function(){var hecho=false,errs=window.__errs=[];
+function aviso(t,d){if(hecho)return;hecho=true;var b=document.createElement('div');b.id='fallo';b.style.cssText='position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99;background:#1b1d26;color:#f3efe6;border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:12px 14px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.5)';
+var q=document.createElement('b');q.textContent=t;var s=document.createElement('div');s.style.cssText='opacity:.75;margin:4px 0 10px;word-break:break-word';s.textContent=d||'';
+var a=document.createElement('a');a.href='?calidad=ligera';a.textContent='Abrir en modo Ligero';a.style.cssText='display:inline-block;background:#f5c842;color:#111;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:10px';
+var r=document.createElement('a');r.href='#';r.textContent='Reintentar';r.style.color='#f3efe6';r.onclick=function(e){e.preventDefault();location.reload();};
+b.appendChild(q);b.appendChild(s);b.appendChild(a);b.appendChild(r);document.body.appendChild(b);}
+function txt(e){try{var r=e&&e.reason;return String((e&&e.message)||(r&&(r.message||r))||e).slice(0,180)}catch(x){return 'error'}}
+function nota(m){if(!m||/ResizeObserver|NotAllowedError|AbortError|play\(\)/.test(m))return;errs.push(m);if(errs.length>8)errs.shift();}
+addEventListener('error',function(e){var g=e&&e.target;if(g&&g!==window&&g.tagName){if(g.tagName==='SCRIPT')nota('No cargó '+String(g.src||'').split('/').pop().split('?')[0]);return;}nota(txt(e)+(e.filename?' · '+String(e.filename).split('/').pop().split('?')[0]+':'+e.lineno:''));},true);
+addEventListener('unhandledrejection',function(e){nota(txt(e));});
+addEventListener('DOMContentLoaded',function(){var c=document.getElementById('gl');if(c)c.addEventListener('webglcontextlost',function(ev){ev.preventDefault();aviso('Este equipo se quedó sin memoria gráfica','El simulador necesita menos carga aquí. '+(errs[errs.length-1]||''));});
+var t0=Date.now(),iv=setInterval(function(){var l=document.getElementById('load');if(!l||getComputedStyle(l).display==='none'){clearInterval(iv);return;}var s=(Date.now()-t0)/1000;if(errs.length&&s>8){clearInterval(iv);aviso('Algo falló al abrir el simulador',errs[errs.length-1]);}else if(s>40){clearInterval(iv);aviso('Está tardando más de lo normal','Puede ser la conexión, o que este equipo necesite el modo Ligero.');}},1000);});
+window.__aviso=aviso;})();
+</script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script src="data/caf-data.js?v=55"></script>
 <script>window.__carga && __carga(.62, 'Levantando la ciudad');</script>
-<script type="module" src="game.js?v=85"></script>
+<script type="module" src="game.js?v=86"></script>
 </body>
 </html>

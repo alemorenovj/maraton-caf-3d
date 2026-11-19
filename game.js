@@ -184,7 +184,7 @@ const grade = new ShaderPass({ uniforms: { tDiffuse: { value: null }, sat: { val
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: 'uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float vig; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); float l = dot(c.rgb, vec3(0.2126,0.7152,0.0722)); c.rgb = mix(vec3(l), c.rgb, sat); c.rgb = (c.rgb - 0.18) * con + 0.18; vec2 q = vUv - 0.5; c.rgb *= 1.0 - vig * dot(q, q) * 1.6; gl_FragColor = vec4(max(c.rgb, 0.0), c.a); }' });
 composer.addPass(new RenderPass(scene, camera)); composer.addPass(bloom); composer.addPass(grade); composer.addPass(new OutputPass());
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); if (Q.post !== false) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }   /* en calidad media no hay posproceso: sus búferes no se reservan (memoria en teléfonos) */ camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', () => { resize(); drawProfileBase(); }); resize();
 // API de los hitos modelados a mano (landmarks/*.js) y huellas genéricas que cada uno sustituye
 const api = makeApi(THREE, D, { EX, hT }), QUITA = [];
