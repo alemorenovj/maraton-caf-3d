@@ -10,6 +10,8 @@
 // - Vuelta por Los Próceres, derecha: isla de palmas reales y ciclovía verde-celeste (f_0163–0172); muro de piedra con el
 //   edificio blanco en terraza (17,28–17,50; f_0163); estacionamiento EPA de 6 niveles (f_0178); letrero BDV (f_0180).
 // - Hongos decorativos: rojo de lunares, amarillo y el turquesa gigante de la redoma (f_0167–0182).
+// - Salida del puente de Los Ilustres, derecha (18,84–18,95; video de YouTube t=471–472,5 s): nave de techo de tejas en dientes de
+//   sierra tras una reja gris y una valla alta de cara oscura (§11).
 // Los monolitos, el óvalo, el espejo de agua y el obelisco son del hito landmarks/los_proceres.js; el monumento, de los_simbolos.js.
 export const meta = {
   id: 'zona_proceres', nombre: 'Zona proceres',
@@ -214,6 +216,43 @@ export function build(THREE, api) {
     hongo(17.88, 15, 4.6, 3.4, turq);                   // el turquesa gigante de la redoma (f_0181)
     hongo(18.17, 13, 2.2, 1.5, turq);                   // en la isla de Los Ilustres de vuelta (f_0182)
     hongo(16.98, 10.4, 2.2, 1.1, rojo);
+  }
+
+  // ═════════ 11. Salida del puente de Los Ilustres, derecha (km 18,84–18,95; video t=471–472,5 s) ═════════
+  // Nave de un piso con techo de tejas naranja en dientes de sierra (la huella la baja fx/correcciones/proceres.js a 3,4 m), reja gris
+  // corrida en el borde de la acera y una valla alta de cara oscura al pie de las torres crema.
+  { const XZ = (la, lo) => api.xz(la, lo);
+    // borde de la nave que da a la ruta (huella OSM, de sur a norte) y fondo del techo hacia dentro
+    const A = XZ(10.481385, -66.894284), B = XZ(10.481858, -66.894529), ux = B.x - A.x, uz = B.z - A.z, L = Math.hypot(ux, uz), u = [ux / L, uz / L];
+    let v = [-u[1], u[0]]; const cen = XZ(10.481711, -66.894375); if ((cen.x - A.x) * v[0] + (cen.z - A.z) * v[1] < 0) v = [-v[0], -v[1]];   // v: hacia dentro
+    const teja = new THREE.MeshStandardMaterial({ map: tex(128, 64, (k, w, h) => { k.fillStyle = '#c4572d'; k.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 8) { k.fillStyle = 'rgba(80,25,10,.35)'; k.fillRect(0, y, w, 2); }
+      for (let x = 0; x < w; x += 6) { k.fillStyle = 'rgba(255,190,140,.12)'; k.fillRect(x, 0, 2, h); } }), roughness: .85 });
+    const H0 = 3.4, RISE = 1.5, D = 7, N = Math.round(L / 4.2), w = L / N, pos = [], uvs = [];
+    const P3 = (s, d, y) => { const x = A.x + u[0] * s + v[0] * d, z = A.z + u[1] * s + v[1] * d; return [x, y, z]; };
+    const yb = Math.min(api.ground(A.x, A.z), api.ground(B.x, B.z), api.ground(A.x + v[0] * D, A.z + v[1] * D)) + H0;
+    const tri = (a, b, c, ua, ub, uc) => { pos.push(...a, ...b, ...c); uvs.push(...ua, ...ub, ...uc); };
+    for (let i = 0; i < N; i++) { const s0 = i * w, s1 = s0 + w, sm = s0 + w / 2;
+      // cada diente: dos aguas con la cumbrera perpendicular a la calle (los hastiales miran a la vía), de 0 a D m hacia dentro
+      const a0 = P3(s0, -.4, yb), a1 = P3(sm, -.4, yb + RISE), a2 = P3(s1, -.4, yb), b0 = P3(s0, D, yb), b1 = P3(sm, D, yb + RISE), b2 = P3(s1, D, yb);
+      tri(a0, b0, a1, [0, 0], [D / 2, 0], [0, 1]); tri(a1, b0, b1, [0, 1], [D / 2, 0], [D / 2, 1]); tri(a1, b1, a2, [0, 1], [D / 2, 1], [0, 0]); tri(a2, b1, b2, [0, 0], [D / 2, 1], [D / 2, 0]);
+      tri(a0, a1, a2, [0, 0], [.5, .5], [1, 0]); }   // hastial del lado de la calle
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    const P0 = ge.attributes.position.array, U0 = ge.attributes.uv.array, n = P0.length / 3, PP = new Float32Array(P0.length * 2), UU = new Float32Array(U0.length * 2); PP.set(P0); UU.set(U0);
+    for (let t = 0; t < n; t += 3) for (let j = 0; j < 3; j++) { const a = t + 2 - j, b = n + t + j; PP.set(P0.subarray(a * 3, a * 3 + 3), b * 3); UU.set(U0.subarray(a * 2, a * 2 + 2), b * 2); }   // dos caras frontales (oclusión ambiental)
+    const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(PP, 3)); g2.setAttribute('uv', new THREE.Float32BufferAttribute(UU, 2)); g2.computeVertexNormals();
+    g.add(new THREE.Mesh(g2, teja));
+    // reja gris del borde de la acera (barrotes instanciados + pasamanos), 18,845–18,955 a 9,6 m del eje
+    const barro = new THREE.BoxGeometry(.05, 1, .05), gris = api.concrete(0x8d9194, { metalness: .5, roughness: .5 }), mats = [];
+    for (let km = 18.845; km <= 18.955; km += .00016) { const p = lado(km, -9.6); M.compose(P.set(p.x, p.y + 1.15, p.z), Q.identity(), S.set(1, 2.1, 1)); mats.push(M.clone()); }
+    inst(barro, gris, mats);
+    for (const hy of [.25, 2.1]) cinta(18.845, 18.955, .005, () => [-9.62, -9.58], gris, hy, 1);
+    const poste = new THREE.BoxGeometry(.12, 2.3, .12); for (let km = 18.845; km <= 18.956; km += .0025) { const p = lado(km, -9.6); add(poste, gris, p.x, p.y + 1.15, p.z); }
+    // valla alta de cara oscura (la vemos por detrás, enrejado de perfiles) a la derecha del final del puente
+    { const p = lado(18.842, -13.5), T = new THREE.Group(); T.position.set(p.x, p.y, p.z); T.rotation.y = Math.atan2(p.r.tx, p.r.tz) + Math.PI; g.add(T);
+      const reja = api.canvasTex(64, 128, (k, w, h) => { k.fillStyle = '#2d3133'; k.fillRect(0, 0, w, h); k.strokeStyle = '#4a4f52'; k.lineWidth = 2; for (let x = 0; x <= w; x += 16) { k.beginPath(); k.moveTo(x, 0); k.lineTo(x, h); k.stroke(); } for (let y = 0; y <= h; y += 16) { k.beginPath(); k.moveTo(0, y); k.lineTo(w, y); k.stroke(); } });
+      const mr = new THREE.MeshStandardMaterial({ map: reja, roughness: .7, metalness: .3 }), mo = api.concrete(0x2d3133);
+      add(new THREE.BoxGeometry(4.6, 9, .5), [mo, mo, mo, mo, mr, mr], 0, 6, 0, T);
+      for (const x of [-1.4, 1.4]) add(new THREE.BoxGeometry(.4, 1.6, .4), mo, x, .8, 0, T); }
   }
 
   if (arboles.length) plantaArboles();

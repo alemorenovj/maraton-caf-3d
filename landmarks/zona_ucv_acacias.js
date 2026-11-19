@@ -241,5 +241,149 @@ export function build(THREE, api) {
     const lazo = new THREE.Mesh(new THREE.TorusGeometry(.5, .08, 6, 16), api.concrete(0xc8202a)); lazo.position.set(0, 1.6, 1.25); o.add(lazo);
     o.position.set(s.x, s.y + .15, s.z); o.rotation.y = s.r + 1.2; g.add(o); }
 
+  // ═════════ Bajada de Los Símbolos a los estadios (km 19,2–19,95): comercios y referencias que se reconocen al pasar ═════════
+  // Video bajado a 2–4 cuadros/s (t = segundo del video de YouTube, ≈ 44 m/s; el índice de fotogramas va ~0,26 km adelantado aquí). Anclas:
+  // puente de Los Ilustres t=470,25 (km 18,77) · oso de alambre de la redoma t=477–478,5 (19,15) · Farmatodo de frente t=481 (19,29) ·
+  // isla pintada de triángulos t=482,5–483 (19,39) · parada azul t=485 (19,55) · marquesina naranja de la bomba t=485,75 (19,59) ·
+  // semáforo t=486 (19,61) · letrero verde de farmacia t=487 (19,66) · quiosco del mural t=487,5 (19,70) · tótem de Toyota t=493,5 (19,90) ·
+  // plaza de las banderas t=495 (19,95). Nombres: solo los que se leen en el video (Farmatodo, Toyota/C.A. Cars) o están en OSM en ese
+  // sitio (E/S Ciudad Universitaria PDV, Farmacia Universitaria, Panadería Los Símbolos, Farmacia Los Próceres).
+  { const XZ = (la, lo) => api.xz(la, lo), gy = suelo;
+    const nrm = (x, z) => { const l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
+    const ladoP = (k, d) => { const r = RA(k); return { x: r.x + r.lx * d, z: r.z + r.lz * d, y: r.y, r, ry: Math.atan2(r.tx, r.tz) }; };
+    const mesh = (geo, mat, x, y, z, ry = 0, p = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; p.add(m); return m; };
+    const plano = (w, h, mat, x, y, z, nx, nz) => mesh(new THREE.PlaneGeometry(w, h), mat, x, y, z, Math.atan2(nx, nz));   // cara frontal hacia (nx, nz)
+    const matTex = (tex, o = {}) => new THREE.MeshStandardMaterial({ map: tex, roughness: .6, ...o });
+    const texto = (w, h, fondo, tinta, txt, px, extra) => api.canvasTex(w, h, (k, W, H) => { k.fillStyle = fondo; k.fillRect(0, 0, W, H); if (extra) extra(k, W, H);
+      k.fillStyle = tinta; k.font = `bold ${px}px sans-serif`; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillText(txt, W / 2, H / 2 + 2); });
+    // paño con DOS caras frontales (techos y muros inclinados: el pase de normales de la oclusión ambiental descarta las caras traseras)
+    const dos = (pos, mat) => { const n = pos.length / 3, P = new Float32Array(pos.length * 2); P.set(pos);
+      for (let t = 0; t < n; t += 3) for (let j = 0; j < 3; j++) { const a = t + 2 - j, b = n + t + j; P[b * 3] = pos[a * 3]; P[b * 3 + 1] = pos[a * 3 + 1]; P[b * 3 + 2] = pos[a * 3 + 2]; }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ge.computeVertexNormals(); const m = new THREE.Mesh(ge, mat); g.add(m); return m; };
+    const blanco = api.concrete(0xf2f1ec), grisMetal = api.concrete(0x8e9396, { metalness: .5, roughness: .5 }), rueda = api.concrete(0x1d1e20);
+
+    // ── Farmatodo (km 19,34 der., OSM way 1547479272): caja blanca de un piso, techo azul a cuatro aguas, banda azul con FARMATODO
+    // al frente y hacia la calle lateral, estacionamiento con carros de punta y murete gris azulado con jardineras (video t=480,5–482)
+    { const A = XZ(10.4846, -66.893634), B = XZ(10.484482, -66.893493), C = XZ(10.484583, -66.893406), D = XZ(10.484701, -66.893546);
+      const u = nrm(D.x - A.x, D.z - A.z), W = Math.hypot(D.x - A.x, D.z - A.z), Dp = Math.hypot(B.x - A.x, B.z - A.z); let v = nrm(B.x - A.x, B.z - A.z);
+      const rr = RA(19.33); if ((rr.x - A.x) * v[0] + (rr.z - A.z) * v[1] > 0) v = [-v[0], -v[1]];   // v: hacia el fondo, lejos de la ruta
+      const at = (s, d) => ({ x: A.x + u[0] * s + v[0] * d, z: A.z + u[1] * s + v[1] * d });
+      const y0 = Math.min(gy(A.x, A.z), gy(B.x, B.z), gy(C.x, C.z), gy(D.x, D.z)) - .4, H = 5.4, ry = Math.atan2(-u[1], u[0]);
+      const c = at(W / 2, Dp / 2); mesh(new THREE.BoxGeometry(W, H, Dp), blanco, c.x, y0 + H / 2, c.z, ry);
+      // vitrina corrida y puerta en el frente
+      const vit = matTex(api.canvasTex(256, 64, (k, w, h) => { k.fillStyle = '#e9ecef'; k.fillRect(0, 0, w, h); k.fillStyle = '#3b4f63'; k.fillRect(6, 10, w - 12, h - 10);
+        k.fillStyle = 'rgba(255,255,255,.18)'; for (let x = 6; x < w; x += 40) k.fillRect(x, 10, 3, h); k.fillStyle = '#1d2c3a'; k.fillRect(w * .44, 14, w * .12, h - 14); }), { roughness: .25, metalness: .3 });
+      const fr = at(W / 2, -.04); plano(W - 1.2, 2.7, vit, fr.x, y0 + .4 + 1.35, fr.z, -v[0], -v[1]);
+      // banda azul con el nombre: al frente (hacia la ruta) y en el costado que da a la calle lateral (el que se ve al llegar)
+      const banda = (w) => matTex(texto(512, 64, '#1554a8', '#ffffff', 'FARMATODO', 40, (k, W2, H2) => { k.fillStyle = '#ffffff'; k.fillRect(0, H2 - 5, W2, 5); }));
+      const yb = y0 + H - .75; plano(W - .4, 1.15, banda(), fr.x, yb, fr.z, -v[0], -v[1]);
+      const lad = at(-.04, Dp / 2); plano(Dp - 3, 1.15, banda(), lad.x, yb, lad.z, -u[0], -u[1]);
+      // techo azul a cuatro aguas con alero de 0,6 m, de la cornisa (y0+H) a 2,2 m más arriba, con plano superior
+      const azul = api.concrete(0x1f5fb8, { roughness: .55 }), O = .6, IN = Math.min(3.4, Dp / 2 - .5), yt = y0 + H, yr = yt + 2.2;
+      const base = [at(-O, -O), at(W + O, -O), at(W + O, Dp + O), at(-O, Dp + O)], top = [at(IN, IN), at(W - IN, IN), at(W - IN, Dp - IN), at(IN, Dp - IN)], pos = [];
+      for (let i = 0; i < 4; i++) { const a = base[i], b = base[(i + 1) % 4], cc = top[(i + 1) % 4], d = top[i];
+        pos.push(a.x, yt, a.z, b.x, yt, b.z, cc.x, yr, cc.z, a.x, yt, a.z, cc.x, yr, cc.z, d.x, yr, d.z); }
+      pos.push(top[0].x, yr, top[0].z, top[1].x, yr, top[1].z, top[2].x, yr, top[2].z, top[0].x, yr, top[0].z, top[2].x, yr, top[2].z, top[3].x, yr, top[3].z);
+      dos(pos, azul);
+      // frontón blanco sobre la entrada (el triángulo de la esquina que se ve en t=481,5)
+      { const e0 = at(W / 2 - 2.6, -O - .05), e1 = at(W / 2 + 2.6, -O - .05), ec = at(W / 2, -O - .05); dos([e0.x, yt, e0.z, e1.x, yt, e1.z, ec.x, yt + 1.7, ec.z], api.concrete(0xf4f4f0)); }
+      // estacionamiento al frente (asfalto con rayas) hasta la acera, murete gris azulado con remate blanco y jardinera, y carros de punta
+      const PD = 10.6, NU = 6, NV = 5, pp = [], uv = [], ix = [];
+      for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++) { const p = at(-1 + (W + 2) * i / NU, -PD * j / NV); pp.push(p.x, gy(p.x, p.z) + .06, p.z); uv.push(i / NU, j / NV); }
+      for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) { const a = j * (NU + 1) + i, b = a + NU + 1; ix.push(a, b, a + 1, a + 1, b, b + 1); }
+      const gp = new THREE.BufferGeometry(); gp.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3)); gp.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); gp.setIndex(ix); gp.computeVertexNormals();
+      if (gp.attributes.normal.getY(0) < 0) { const I = gp.index.array; for (let t = 0; t < I.length; t += 3) { const q = I[t + 1]; I[t + 1] = I[t + 2]; I[t + 2] = q; } gp.computeVertexNormals(); }
+      const asf = api.canvasTex(256, 128, (k, w, h) => { k.fillStyle = '#7d7e7a'; k.fillRect(0, 0, w, h); for (let i = 0; i < 500; i++) { k.fillStyle = `rgba(40,40,40,${Math.random() * .12})`; k.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
+        k.fillStyle = '#eceae2'; for (let i = 1; i < 7; i++) k.fillRect(w * i / 7.4, 0, 3, h * .48); k.fillRect(0, h * .48, w, 3); });
+      const mp = new THREE.Mesh(gp, matTex(asf, { roughness: .95 })); mp.receiveShadow = true; g.add(mp);
+      const muro = api.concrete(0x7f95a8), remate = api.concrete(0xeef0ee), jard = api.concrete(0x4d7a35, { roughness: 1 }), LW = W - 4.2, cm = at(LW / 2 - .5, -PD + .3), ym = gy(cm.x, cm.z);
+      mesh(new THREE.BoxGeometry(LW, .85, .4), muro, cm.x, ym + .42, cm.z, ry); mesh(new THREE.BoxGeometry(LW, .1, .5), remate, cm.x, ym + .88, cm.z, ry);
+      const cj = at(LW / 2 - .5, -PD + 1.1); mesh(new THREE.BoxGeometry(LW - .6, .5, 1.1), jard, cj.x, gy(cj.x, cj.z) + .3, cj.z, ry);
+      const cuerpo = new THREE.BoxGeometry(1.8, .85, 4.3), cabina = new THREE.BoxGeometry(1.6, .6, 2.2), cols = [0xdadbd8, 0x9aa3ad, 0x2b2d33, 0xa31d22, 0xe6e6e2];
+      cols.forEach((col, i) => { const p = at(1.6 + i * 2.75, -3.1), y = gy(p.x, p.z) + .06, rc = Math.atan2(v[0], v[1]), mc = api.concrete(col, { roughness: .35, metalness: .4 });
+        mesh(cuerpo, mc, p.x, y + .62, p.z, rc); mesh(cabina, mc, p.x - v[0] * .3, y + 1.32, p.z - v[1] * .3, rc); mesh(new THREE.BoxGeometry(1.9, .5, 3.6), rueda, p.x, y + .25, p.z, rc); });
+    }
+
+    // ── Paradas de autobús en la acera derecha: blanca con mupi antes del Farmatodo (t=480–480,5) y azul antes de la bomba (t=485)
+    const parada = (k, colTecho, colPanel, mupi) => { const p = ladoP(k, -8.75), T = new THREE.Group(); T.position.set(p.x, p.y, p.z); T.rotation.y = p.ry; g.add(T);
+      const est = api.concrete(colTecho, { metalness: .4, roughness: .45 });
+      mesh(new THREE.BoxGeometry(2.1, .14, 4.6), est, 0, 2.62, 0, 0, T);                                       // techo
+      mesh(new THREE.BoxGeometry(.08, 1.9, 4.4), api.concrete(colPanel, { roughness: .3, metalness: .2 }), -.75, 1.35, 0, 0, T);   // espaldar (lado de afuera)
+      for (const z of [-2, 2]) mesh(new THREE.BoxGeometry(.1, 2.6, .1), est, -.75, 1.3, z, 0, T);
+      mesh(new THREE.BoxGeometry(.45, .08, 3.4), grisMetal, -.45, .48, 0, 0, T);                                 // banco
+      if (mupi) { const cara = matTex(mupi), marco = api.concrete(colTecho); mesh(new THREE.BoxGeometry(1.3, 2.3, .25), [marco, marco, marco, marco, cara, cara], .1, 1.35, -2.75, 0, T); } };
+    const mupi = api.canvasTex(64, 128, (k, w, h) => { const gr = k.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#1b3f86'); gr.addColorStop(1, '#3d8ad6'); k.fillStyle = gr; k.fillRect(0, 0, w, h);
+      k.fillStyle = '#f2c230'; k.beginPath(); k.arc(w / 2, h * .38, 16, 0, 7); k.fill(); k.fillStyle = '#ffffff'; k.fillRect(8, h * .7, w - 16, 6); k.fillRect(8, h * .78, w - 26, 5); });
+    parada(19.268, 0xd9dcdf, 0xb9c4cc, mupi);
+    parada(19.545, 0x2c5aa0, 0x9fb3c8, null);
+
+    // ── Isla de la bocacalle tras el Farmatodo (km 19,40 der.; t=482,5–483): brocal amarillo y murete pintado de triángulos rojo, azul y verde
+    { const k0 = 19.394, k1 = 19.412, a = ladoP(k0, -11.2), b = ladoP(k1, -11.2), Lw = Math.hypot(b.x - a.x, b.z - a.z), ry = Math.atan2(b.x - a.x, b.z - a.z), cx = (a.x + b.x) / 2, cz = (a.z + b.z) / 2, y = Math.max(gy(cx, cz), (a.y + b.y) / 2);
+      const tri = api.canvasTex(256, 32, (k, w, h) => { k.fillStyle = '#f3f1ea'; k.fillRect(0, 0, w, h); const cs = ['#d8262f', '#1f58b5', '#2f9e44', '#f2c230'];
+        for (let i = 0; i < 16; i++) { k.fillStyle = cs[i % 4]; k.beginPath(); const x = i * 16; if (i % 2) { k.moveTo(x, 0); k.lineTo(x + 16, 0); k.lineTo(x + 8, h); } else { k.moveTo(x, h); k.lineTo(x + 16, h); k.lineTo(x + 8, 0); } k.fill(); } });
+      tri.wrapS = THREE.RepeatWrapping; tri.repeat.set(Lw / 8, 1); const mt = matTex(tri, { roughness: .8 });
+      mesh(new THREE.BoxGeometry(3.6, .2, Lw + 3), api.concrete(0xb7b2a6), cx, y + .1, cz, ry);
+      for (const s of [-1.75, 1.75]) mesh(new THREE.BoxGeometry(.22, .24, Lw + 3), api.concrete(0xe9bf22, { roughness: .8 }), cx + Math.cos(ry) * s, y + .12, cz - Math.sin(ry) * s, ry);
+      mesh(new THREE.BoxGeometry(.45, .9, Lw), [mt, mt, blanco, blanco, blanco, blanco], cx, y + .65, cz, ry); }
+
+    // ── E/S Ciudad Universitaria (PDV, OSM node 2408097116), km 19,59 der.: marquesina blanca con faja naranja y el logo, cuatro columnas,
+    // dos islas de surtidores con brocal amarillo (t=485,75: se ve la faja naranja y los topes amarillos al borde derecho de la imagen)
+    { const P0 = XZ(10.48607, -66.891902), P1 = XZ(10.485972, -66.891827), u = nrm(P1.x - P0.x, P1.z - P0.z), w = [-u[1], u[0]], Cg = XZ(10.486016, -66.891852);
+      const L = 15, Wc = 10, ry = Math.atan2(u[0], u[1]), at = (s, d) => ({ x: Cg.x + u[0] * s + w[0] * d, z: Cg.z + u[1] * s + w[1] * d });
+      let yg = Infinity; for (const [s, d] of [[-L / 2, -Wc / 2], [L / 2, -Wc / 2], [L / 2, Wc / 2], [-L / 2, Wc / 2], [0, 0]]) { const p = at(s, d); yg = Math.min(yg, gy(p.x, p.z)); }
+      const rr = RA(19.585); yg = Math.max(yg, rr.y - .3); const HT = 5.1;
+      mesh(new THREE.BoxGeometry(Wc, .32, L), blanco, Cg.x, yg + HT, Cg.z, ry);                                  // losa
+      const naranja = api.concrete(0xe2582a, { roughness: .6 });
+      for (const d of [-Wc / 2, Wc / 2]) { const p = at(0, d); mesh(new THREE.BoxGeometry(.25, .95, L + .25), naranja, p.x, yg + HT + .08, p.z, ry); }
+      for (const s of [-L / 2, L / 2]) { const p = at(s, 0); mesh(new THREE.BoxGeometry(Wc, .95, .25), naranja, p.x, yg + HT + .08, p.z, ry); }
+      const logo = matTex(texto(256, 32, '#e2582a', '#ffffff', 'PDV', 26, (k, W2, H2) => { k.fillStyle = '#f6c21c'; k.beginPath(); k.arc(W2 / 2 - 34, H2 / 2, 9, 0, 7); k.fill(); k.fillStyle = '#ffffff'; k.fillRect(0, H2 - 3, W2, 3); }));
+      // logo en las caras de la faja que dan a la ruta y al que llega por ella
+      const sv = [rr.x - Cg.x, rr.z - Cg.z], dW = (sv[0] * w[0] + sv[1] * w[1]) > 0 ? 1 : -1, dU = (rr.tx * u[0] + rr.tz * u[1]) > 0 ? -1 : 1;
+      { const p = at(0, dW * (Wc / 2 + .14)); plano(L - 1, .9, logo, p.x, yg + HT + .08, p.z, w[0] * dW, w[1] * dW); }
+      { const p = at(dU * (L / 2 + .14), 0); plano(Wc - 1, .9, logo, p.x, yg + HT + .08, p.z, u[0] * dU, u[1] * dU); }
+      const col = new THREE.BoxGeometry(.42, HT, .42); for (const s of [-L / 2 + 3, L / 2 - 3]) for (const d of [-Wc / 2 + 2.2, Wc / 2 - 2.2]) { const p = at(s, d); mesh(col, blanco, p.x, yg + HT / 2, p.z, ry); }
+      const surt = new THREE.BoxGeometry(.6, 1.65, .9), tapa = api.concrete(0xd8262f), amar = api.concrete(0xe9bf22, { roughness: .8 });
+      for (const d of [-2.2, 2.2]) { const p = at(0, d); mesh(new THREE.BoxGeometry(1.3, .22, 7), amar, p.x, yg + .11, p.z, ry);
+        for (const s of [-1.8, 1.8]) { const q = at(s, d); mesh(surt, blanco, q.x, yg + .22 + .82, q.z, ry); mesh(new THREE.BoxGeometry(.64, .25, .94), tapa, q.x, yg + 1.8, q.z, ry); } }
+      // topes amarillos a lo largo de la acera, delante de la bomba
+      for (let k = 19.572; k <= 19.6; k += .007) { const p = ladoP(k, -9.9); mesh(new THREE.BoxGeometry(.3, .5, 1.6), amar, p.x, Math.max(p.y, gy(p.x, p.z)) + .25, p.z, p.ry); }
+    }
+
+    // ── Farmacia Universitaria (OSM, km 19,645 der.): letrero verde de cruz en un poste en la acera (t=487) y rótulo en el frente del bloque crema
+    { const p = ladoP(19.648, -9.7), T = new THREE.Group(); T.position.set(p.x, p.y, p.z); T.rotation.y = p.ry; g.add(T);
+      const cruz = matTex(api.canvasTex(64, 128, (k, w, h) => { k.fillStyle = '#f7f7f4'; k.fillRect(0, 0, w, h); k.fillStyle = '#1f9a4a'; k.beginPath(); k.arc(w / 2, h * .36, 26, 0, 7); k.fill();
+        k.fillStyle = '#ffffff'; k.fillRect(w / 2 - 6, h * .36 - 18, 12, 36); k.fillRect(w / 2 - 18, h * .36 - 6, 36, 12); k.fillStyle = '#1f9a4a'; k.font = 'bold 13px sans-serif'; k.textAlign = 'center'; k.fillText('FARMACIA', w / 2, h * .82); }));
+      mesh(new THREE.CylinderGeometry(.08, .1, 4.2, 8), grisMetal, 0, 2.1, 0, 0, T);
+      mesh(new THREE.BoxGeometry(.9, 1.7, .14), [blanco, blanco, blanco, blanco, cruz, cruz], 0, 4.9, 0, 0, T);
+      const E0 = XZ(10.486506, -66.891161), E1 = XZ(10.486347, -66.891405), e = nrm(E1.x - E0.x, E1.z - E0.z), rr = RA(19.65); let n = [-e[1], e[0]];
+      if ((rr.x - E0.x) * n[0] + (rr.z - E0.z) * n[1] < 0) n = [-n[0], -n[1]];
+      const c = { x: E0.x + (E1.x - E0.x) * .62 + n[0] * .25, z: E0.z + (E1.z - E0.z) * .62 + n[1] * .25 };
+      plano(9, .95, matTex(texto(512, 56, '#ffffff', '#1f9a4a', 'FARMACIA UNIVERSITARIA', 34, (k, W2, H2) => { k.fillStyle = '#1f9a4a'; k.fillRect(0, 0, W2, 5); k.fillRect(0, H2 - 5, W2, 5); })), c.x, gy(c.x, c.z) + 3.5, c.z, n[0], n[1]); }
+
+    // ── Rótulos de planta baja de la torre verde pálido (OSM: Panadería Los Símbolos y Farmacia Los Próceres, km 19,21–19,235 der.)
+    { const E0 = XZ(10.484065, -66.894306), E1 = XZ(10.483881, -66.894528), e = nrm(E1.x - E0.x, E1.z - E0.z), rr = RA(19.22); let n = [-e[1], e[0]];
+      if ((rr.x - E0.x) * n[0] + (rr.z - E0.z) * n[1] < 0) n = [-n[0], -n[1]];
+      const pon = (f, mat) => { const c = { x: E0.x + (E1.x - E0.x) * f + n[0] * .3, z: E0.z + (E1.z - E0.z) * f + n[1] * .3 }; plano(7, .9, mat, c.x, gy(c.x, c.z) + 3.4, c.z, n[0], n[1]); };
+      pon(.2, matTex(texto(512, 64, '#7a3b1e', '#f6e3b4', 'PANADERÍA LOS SÍMBOLOS', 36)));
+      pon(.72, matTex(texto(512, 64, '#ffffff', '#1f9a4a', 'FARMACIA LOS PRÓCERES', 32, (k, W2, H2) => { k.fillStyle = '#1f9a4a'; k.fillRect(0, H2 - 6, W2, 6); k.fillRect(14, H2 / 2 - 14, 8, 28); k.fillRect(4, H2 / 2 - 4, 28, 8); }))); }
+
+    // ── Quiosco del mural (niño leyendo sobre el globo terráqueo, fondo azul y verde), km 19,703 der. (t=487–487,5)
+    { const p = ladoP(19.703, -11.6), y = Math.max(p.y, gy(p.x, p.z));
+      const mural = matTex(api.canvasTex(256, 128, (k, w, h) => { const gr = k.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#2c5fb0'); gr.addColorStop(.6, '#2e8f8a'); gr.addColorStop(1, '#5aa646'); k.fillStyle = gr; k.fillRect(0, 0, w, h);
+        k.fillStyle = '#3b7fd0'; k.beginPath(); k.arc(w * .3, h * .55, 38, 0, 7); k.fill(); k.fillStyle = '#5bb24a'; k.beginPath(); k.ellipse(w * .26, h * .5, 16, 22, .4, 0, 7); k.fill();
+        k.fillStyle = '#f2c230'; k.beginPath(); k.ellipse(w * .7, h * .72, 30, 34, 0, 0, 7); k.fill(); k.fillStyle = '#e9b48a'; k.beginPath(); k.arc(w * .7, h * .32, 17, 0, 7); k.fill();
+        k.fillStyle = '#3a2618'; k.beginPath(); k.arc(w * .7, h * .27, 17, Math.PI, 0); k.fill(); k.fillStyle = '#f4f1e6'; k.fillRect(w * .58, h * .58, 60, 20); k.fillStyle = '#c84a32'; k.fillRect(w * .58, h * .58, 60, 4); }));
+      mesh(new THREE.BoxGeometry(2.6, 2.8, 4.4), [mural, mural, api.concrete(0xd9d6cc), blanco, mural, mural], p.x, y + 1.4, p.z, p.ry); }
+
+    // ── Tótem de Toyota / C.A. Cars (km 19,912 der., t=493,5): dos postes blancos, logo rojo, «C.A. Cars» y Ventas · Repuestos · Servicio
+    { const p = ladoP(19.912, -9.9), T = new THREE.Group(); T.position.set(p.x, Math.max(p.y, gy(p.x, p.z)), p.z); T.rotation.y = p.ry; g.add(T);
+      const cara = matTex(api.canvasTex(128, 512, (k, w, h) => { k.fillStyle = '#f7f7f5'; k.fillRect(0, 0, w, h); k.strokeStyle = '#d0262c'; k.lineWidth = 7; k.beginPath(); k.ellipse(w / 2, 70, 40, 27, 0, 0, 7); k.stroke();
+        k.beginPath(); k.ellipse(w / 2, 62, 17, 10, 0, 0, 7); k.stroke(); k.beginPath(); k.ellipse(w / 2, 74, 7, 22, 0, 0, 7); k.stroke(); k.fillStyle = '#d0262c'; k.font = 'bold 25px sans-serif'; k.textAlign = 'center'; k.fillText('TOYOTA', w / 2, 132);
+        k.fillStyle = '#dcdcd8'; k.fillRect(0, 160, w, 3); k.fillStyle = '#2b2d33'; k.font = 'bold 20px sans-serif'; k.fillText('C.A. Cars', w / 2, 200);
+        k.fillStyle = '#dcdcd8'; k.fillRect(0, 240, w, 3); k.fillStyle = '#2b2d33'; k.font = '17px sans-serif'; ['Ventas', 'Repuestos', 'Servicio'].forEach((s, i) => { k.fillText(s, w / 2, 300 + i * 46); k.fillRect(10, 316 + i * 46, w - 20, 2); }); }));
+      for (const x of [-.75, .75]) mesh(new THREE.BoxGeometry(.25, 9.2, .25), blanco, x, 4.6, 0, 0, T);
+      mesh(new THREE.BoxGeometry(1.25, 5.4, .3), [blanco, blanco, blanco, blanco, cara, cara], 0, 6.2, 0, 0, T); }
+  }
+
   return api.sombras(g);
 }

@@ -97,10 +97,14 @@ export default {
     { ll: [10.486348, -66.866175], a: 'COM', pisos: 3, col: '#e4e2dc', shop: 0 },
     { ll: [10.485467, -66.865920], a: 'COM', pisos: 1, col: '#e0dbd0' },
     { ll: [10.485835, -66.864995], a: 'COM', pisos: 3, col: '#d6c7a6', shop: 0, nota: 'beige de 3 pisos con muro blanco (izq., s=600)' },
-    { ll: [10.485076, -66.865329], a: 'COM', pisos: 6, col: '#a39f97', shop: 0, detalle: 0, nota: 'esqueleto de concreto en construcción con andamios (der., s=600)' },
+    // 22-nov (Texaco): el lote del 24,57–24,63 der. es reja y copas grandes (t=598,5–599); el esqueleto con grúa está pasada la estación
+    { ll: [10.485076, -66.865329], quitar: true, nota: 'lote arbolado tras lámina gris y muro con reja (der., t=598,5–599); el muro va en landmarks §20' },
     { ll: [10.485199, -66.864521], a: 'COM', pisos: 1, col: '#c8352e', shop: 1, nota: 'KFC, rojo (izq.)' },
     { ll: [10.484937, -66.864370], a: 'COM', pisos: 2, col: '#d9cfc0', nota: 'Pizza Hut' },
-    { ll: [10.484444, -66.864852], a: 'VID', pisos: 2, alt: 1, col: '#8cc2d6', nota: 'local de vidrio celeste con letrero azul (der., t=600,5–601; 2ª pasada)' },
+    // 22-nov: la Texaco ocupa la esquina 24,63–24,68 (landmarks/zona_mercedes.js §19); detrás, en orden: esqueleto con grúa y lámina gris
+    // (t=600,25–600,75; la huella 10.484444,-66.864852 la quita un círculo `quita` del módulo y sus losas van en §19) y el local de vidrio
+    // celeste de marco azul pegado a la acera (t=601)
+    { ll: [10.484441, -66.864602], a: 'VID', pisos: 2, alt: 1, col: '#8cc2d6', nota: 'local de vidrio celeste con marco azul, km 24,70–24,71 der. (t=601)' },
     { ll: [10.484375, -66.864533], a: 'COM', pisos: 2, col: '#e9e7e2' },
     { ll: [10.484285, -66.864393], a: 'RES', alt: 1, pisos: 3, col: '#f2f1ed', shop: 1, nota: 'Supermercado Yeet: blanco de 3 plantas con logo azul (der., t=601,5; 2ª pasada: era caja gris)' },
     { ll: [10.484861, -66.864180], a: 'RES', pisos: 4, alt: 1, col: '#e2d9c8', nota: 'Residencias La Joya' },
@@ -220,6 +224,11 @@ export default {
   // árboles del motor sembrados abajo a los dos lados del puente de El Ciempiés (las copas asoman sobre el parapeto, t=642–650 s)
   // y en la ladera del Tamanaco (el hotel asoma sobre copas, t=622–627 s)
   arboles: [
+    // lote arbolado a la derecha antes de la Texaco (24,57–24,63, t=598,5–599): copas grandes tras la lámina y el muro con reja
+    { ll: [10.485335, -66.865399], especie: 'caobo', alto: 14 }, { ll: [10.485222, -66.865411], especie: 'saman', alto: 16 },
+    { ll: [10.485223, -66.865290], especie: 'mango', alto: 13 }, { ll: [10.485072, -66.865373], especie: 'caobo', alto: 15 },
+    { ll: [10.485109, -66.865245], especie: 'saman', alto: 17 }, { ll: [10.485005, -66.865246], especie: 'mango', alto: 14 },
+    { ll: [10.485047, -66.865135], especie: 'caobo', alto: 12 }, { ll: [10.485190, -66.865504], especie: 'mijao', alto: 15 },
     // Plaza Alfredo Sadel (25,10–25,16 izq.): los árboles inventariados en OSM (úcaros, mare mare, un araguaney plateado; 2023)
     { ll: [10.482117, -66.861295], especie: 'caobo', alto: 11.5 }, { ll: [10.482178, -66.861271], especie: 'caobo', alto: 10.5 },
     { ll: [10.482178, -66.861206], especie: 'caobo', alto: 12.0 },

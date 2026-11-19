@@ -6,6 +6,8 @@
 //   f_0161 monolitos al frente = 16,95 (+0,7) · f_0162 giro de retorno = 17,18 (+0,9)
 //   f_0163 edificio blanco sobre muro a la derecha = 17,30 (+0,9) · f_0178 estacionamiento de varios niveles = 17,82 (−0,08)
 //   f_0180 «18K» y letrero BDV = 17,95 (−0,15) · f_0182 Residencias Mayoral Plaza = 18,12 (−0,19) · f_0189 puente = 18,78 (−0,26).
+//   Bajada (19-nov, video bajado a 2–4 cuadros/s, t en s del video de YouTube): puente t=470,25 = 18,77 · nave de tejas t=471,75 = 18,88 ·
+//   oso de alambre de la redoma t=477 = 19,15 · Farmatodo t=481 = 19,29 (el resto, en la cabecera de la sección nueva de zona_ucv_acacias.js).
 // La ruta va por Los Ilustres/Las Acacias (ida por la calzada oeste, vuelta por la este, ejes a 25–33 m) y da la vuelta por el
 // Paseo Los Próceres (ida por la calzada NO, vuelta por la SE, a ±33 m del eje del paseo). En ambos sentidos el parque queda a la izquierda.
 // Lo singular (isla central de Los Ilustres, parque de atracciones, viaducto de la Valle-Coche, barandas del puente, urnas, farolas,
@@ -55,7 +57,9 @@ export default {
     { ll: [10.475155, -66.894850], a: 'COM', pisos: 4, col: '#e6e2da', shop: 0 },
     { ll: [10.476922, -66.894698], a: 'RES', pisos: 8, col: '#d8c9ad', shop: 0, alt: 1, nota: 'Residencias Los Ilustres, km 18,38 der.' },
     { ll: [10.481894, -66.893556], a: 'RES', pisos: 22, col: '#e2cea6', shop: 0, alt: 1, nota: 'Edificio Carolina: torre crema tras el puente (f_0189)' },
-    { ll: [10.481711, -66.894375], a: 'RES', pisos: 4, col: '#e6dfcf', shop: 1 },
+    // 19-nov (bajada): al salir del puente el video (t=471–472,5) muestra a la derecha una nave de un piso, paredes claras y techo de tejas
+    // naranja en dientes de sierra detrás de una reja gris, no un bloque de 4 pisos. El techo y la reja van en landmarks/zona_proceres.js
+    { ll: [10.481711, -66.894375], a: 'COM', h: 3.4, col: '#ebe5d6', shop: 0, detalle: 0, nota: 'nave de techo de tejas tras la reja, km 18,86–18,93 der.' },
   ],
   via: [
     // Los Ilustres de ida: parque de atracciones a la derecha con muro amarillo, isla central ancha a la izquierda (a mano)
@@ -77,6 +81,15 @@ export default {
     { km0: 17.28, km1: 17.50, lado: 'R', d0: 16, d1: 18, dh: 2.6, d2: 75, d3: 95, rampa: 20, nota: 'terraza del edificio blanco tras el muro de piedra (f_0163)' },
   ],
   estructuras: [],
+  // 19-nov: perfil de la bajada de Los Símbolos a los estadios (km 18,84–19,60). El SRTM del juego dejaba la cresta de la Redoma de
+  // Los Símbolos ~2 m baja y la bajada repartida a 1,1 %. SRTM 30 m crudo y Copernicus GLO-30 (envolvente baja a ±24 m, sin techos ni
+  // copas), anclados al juego en el km 19,85–20,05, coinciden: la subida tras el puente de Los Ilustres es de ~4,5 m (no 2,3) y la
+  // bajada fuerte va del 19,22 al 19,60 (Farmatodo → bomba PDV), ~2 % en vez de 1,4 %. Del 19,60 en adelante el juego ya estaba bien
+  // (±1 m) y el perfil de ucv_acacias.js empieza en el 19,95: este termina en 0 antes y no lo toca.
+  // RETIRADO el mismo día: subir 2 m la cresta (km 18,98–19,22) choca con la ida, que pasa por la misma avenida (km 15,0–15,6) y se iguala
+  // en cota con esta vuelta: el terreno quedaba 0,5 m sobre la calzada en 18,97–19,16 (lo detectó fx/choques.js). La bajada queda en 1,4 %
+  // (las fuentes dan ~2 %). Para rehacerlo hay que subir a la vez la ida con el mismo perfil.
+  perfil: [],
   // 19-nov: árboles de la isla central de Los Ilustres (ida 15,70–16,34, se ven también desde la vuelta 18,1–18,7). Antes eran copas a mano
   // de elipsoides lisos verde claro que de lejos parecían globos; ahora son árboles del motor en las mismas posiciones (f_0151–0155, f_0182–0186)
   arboles: [

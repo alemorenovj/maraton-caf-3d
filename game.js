@@ -650,7 +650,7 @@ function updateHUD() {
 }
 
 // ───────── Simulación ─────────
-function seek(s) { if (Math.abs(s - S.s) > 400) precarga = 1; S.s = clamp(s, 0, TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(D.hitos.filter(h => sOfKm(h.km) < S.s - 30).map(h => h.km)); }
+function seek(s) { hiNext = 0;   /* tras un salto, el descarte por distancia de los hitos se recalcula en el cuadro siguiente, no 200 ms después */ if (Math.abs(s - S.s) > 400) precarga = 1; S.s = clamp(s, 0, TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(D.hitos.filter(h => sOfKm(h.km) < S.s - 30).map(h => h.km)); }
 function drink() { window.__cafUI?.carrera?.beber(); }   // «Correr la carrera» vive en ui/carrera.js (modelo en ui/carrera_modelo.js)
 function step(dtReal) {
   if (S.mode === 'race') { window.__cafUI?.carrera?.paso(dtReal); return; }   // la carrera la avanza su modelo (ui/carrera.js)

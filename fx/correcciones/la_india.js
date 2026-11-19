@@ -2,6 +2,12 @@
 // Referencia: video en carro, fotogramas f_0064–f_0087 (s 157–215). El km del índice va ~0,06 por delante del km del juego
 // en este tramo (anclas: pasarela OSM 997226844 = km 7,20 ↔ s 183,6; cruce 2.ª Avenida = km 8,06 ↔ s 200; La India = km 8,25 ↔ s 207).
 // Lo singular (monumento, Galerías El Paraíso, torres de Residencias Galerías Paraíso, pasarelas, bombas) está a mano en landmarks/zona_la_india.js.
+// 19-nov: el PUENTE LOS LEONES está en el km 7,27–7,43 (OSM 276264345/304807717, km 7,265–7,425). No cruza una quebrada: cruza la Autopista
+// Francisco Fajardo (Gran Cacique Guaicaipuro; calzadas en km 7,344 y 7,388) y el Guaire (7,364), con los ramales del Distribuidor La Paz a ras
+// en los dos extremos. La carrera va por el tablero de 3 canales hacia el sur; el de 1 canal (contraflujo) corre ~9 m a la izquierda.
+// Se llega por la Av. La Paz bajando del lomo de Bella Vista (el dueño: «antes del puente es más pronunciada»).
+// Anclas del video (yt nc30axuNBaw, segundo): pasarela 7,20 ↔ 183,6 · leones a ambos lados 7,272 ↔ 185,0 · tablero con guardarriel amarillo
+// 186–188,9 · fin del guardarriel der. 7,44 ↔ 188,9 · «AVENIDA O'HIGGINS» 7,48 ↔ 189,9 (video acelerado, ~42 m/s). Bajada franca en 182–184 s.
 export default {
   edif: [
     // ── Fin de San Martín (km 6,2–6,45; f_0064–0066)
@@ -37,6 +43,14 @@ export default {
     // ── Avenida ancha de la pasarela y torre blanca de remate amarillo (km 7,2–7,35; s 184–185)
     { ll: [10.482955, -66.949816], a: 'RES', pisos: 17, col: '#f0efe9', shop: 0, alt: 1, nota: 'torre blanca con remate amarillo, km 7,25 der.' },
     { ll: [10.482346, -66.949771], a: 'RES', pisos: 12, col: '#efeee8', shop: 0, alt: 1, nota: 'bloque blanco de ventanas en retícula, km 7,32 der.' },
+    // ── Salida del puente, izq. (km 7,44–7,53; s 188,4–189,4): torres de ladrillo rojo y beige de ~14 pisos, la del frente con valla en la azotea.
+    //    Eran huellas «parque» de 50 m que salían como torres de vidrio verde y azul.
+    { ll: [10.4817, -66.9478], r: 75, a: 'RES', alt: 1, shop: 0 },
+    { ll: [10.481702, -66.947971], a: 'RES', pisos: 14, col: '#cdb48c', shop: 0, alt: 1, nota: 'torre beige detrás de la de ladrillo rojo (10.481210), km 7,45 izq. (s 188,4–189,4)' },
+    { ll: [10.481301, -66.947733], a: 'RES', pisos: 14, col: '#b0634a', shop: 0, alt: 1, nota: 'ladrillo, segunda fila, km 7,50 izq. (s 189,4)' },
+    { ll: [10.481791, -66.947746], a: 'RES', pisos: 13, col: '#d6c7a8', shop: 0, rail: 1 },
+    { ll: [10.482023, -66.947499], a: 'RES', pisos: 13, col: '#ddd2bb', shop: 0, rail: 1 },
+    { ll: [10.481056, -66.947619], a: 'RES', pisos: 12, col: '#d2c4a6', shop: 0, rail: 1 },
     // ── Av. O'Higgins (km 7,45–8,15; f_0076–0083)
     { ll: [10.481210, -66.948101], a: 'RES', pisos: 12, col: '#a8473a', shop: 0, alt: 1, nota: 'torre de ladrillo rojo, km 7,50 izq. (s 189)' },
     { ll: [10.480827, -66.947943], a: 'RES', pisos: 12, col: '#e4dcc8', shop: 0, rail: 1 },
@@ -81,8 +95,10 @@ export default {
     { km0: 6.47, km1: 6.68, set: { 'veg.L': .55, 'veg.R': .7, 'veg.denL': 2, 'veg.denR': 3, 'R.tipo': 'muro/terreno', 'R.col': ['#8d7a5c', '#6f6a5c'] } },
     // avenida ancha de la pasarela con separador de grama y árboles a la derecha (s 183–185)
     { km0: 7.17, km1: 7.30, set: { sep: 'isla con grama', canales: 3, calzadas: 2, ancho: 30, 'veg.R': .6, 'veg.denR': 3, 'veg.L': .35 } },
-    // puente con barandas amarillas (s 186–188)
-    { km0: 7.30, km1: 7.42, set: { sep: 'brocal amarillo', canales: 2, calzadas: 2, ancho: 24, 'veg.L': .1, 'veg.R': .15, 'L.tipo': 'parque', 'R.tipo': 'parque' } },
+    // Puente Los Leones (s 185–189): tablero propio de 3 canales en un sentido, sin separador; el tablero de contraflujo va a mano
+    // (landmarks/zona_la_india.js) a la izquierda. Sin árboles del generador sobre el tablero.
+    { km0: 7.28, km1: 7.43, set: { sep: 'ninguno', canales: 3, calzadas: 1, ancho: 13, 'veg.L': 0, 'veg.R': 0, 'veg.denL': 0, 'veg.denR': 0, 'veg.palL': 0, 'veg.palR': 0,
+      'L.tipo': 'muro/terreno', 'R.tipo': 'muro/terreno', 'L.retiro': 2, 'R.retiro': 2 } },
     // Av. O'Higgins: brocal amarillo central, dos canales por sentido y franja ancha con árboles grandes a la derecha (f_0077–0083)
     { km0: 7.55, km1: 8.17, set: { sep: 'brocal amarillo', canales: 2, calzadas: 2, ancho: 26, 'veg.R': .75, 'veg.denR': 3, 'veg.L': .55, 'veg.denL': 3, 'veg.palL': 0, 'veg.palR': 0, 'R.retiro': 14, 'L.retiro': 10, 'R.tipo': 'residencial', 'L.tipo': 'residencial' } },
     { km0: 7.98, km1: 8.17, set: { 'veg.palR': .3, 'veg.R': .35, 'veg.L': .12, 'veg.denL': 1 } },
@@ -92,12 +108,25 @@ export default {
     { km0: 8.32, km1: 8.48, set: { sep: 'isla con grama', calzadas: 2, canales: 2, ancho: 24, 'veg.palL': 0, 'veg.palR': 0, 'veg.R': .35, 'veg.L': .2 } },
   ],
   relieve: [
-    // el puente de O'Higgins cruza una quebrada: a ambos lados el terreno cae (s 186–188)
-    { km0: 7.31, km1: 7.41, lado: 'LR', d0: 9, d1: 14, dh: -6, d2: 60, d3: 90, rampa: 12, nota: "puente de la Av. O'Higgins sobre la quebrada" },
+    // Puente Los Leones: bajo el vano (7,318–7,410) van la autopista (gálibo 5 m + losa) y el Guaire. Derecha desde el borde del tablero (8,9 m);
+    // izquierda, pasado el tablero de contraflujo (15,4 m). Ancho lateral limitado a 60 m: la autopista cruza oblicua (63–80°).
+    // Debe coincidir con KT0/KT1/DHT de landmarks/zona_la_india.js.
+    { km0: 7.318, km1: 7.410, lado: 'R', d0: 9.2, d1: 13, dh: -7, d2: 45, d3: 60, rampa: 10, nota: 'Puente Los Leones: autopista y Guaire abajo (der.)' },
+    { km0: 7.318, km1: 7.410, lado: 'L', d0: 15.8, d1: 19.5, dh: -7, d2: 45, d3: 60, rampa: 10, nota: 'Puente Los Leones: autopista y Guaire abajo (izq.)' },
   ],
-  estructuras: [
-    { tipo: 'barandas', km0: 7.30, km1: 7.42, color: '#f2c230', nota: 'puente con barandas amarillas (OSM 564099367)' },
-  ],
+  // el guardarriel genérico del motor se quita: el del módulo es de doble onda sobre parales, como en el video
+  estructuras: [],
+  sinBaranda: [[7.26, 7.44]],
+  sinCebra: [[7.26, 7.44]],
+  // copas que asoman por encima del tablero desde las orillas del Guaire (s 187,5–188,4, der.)
+  arboles: [{ ll: [10.482507, -66.948823], especie: 'saman', alto: 16 }, { ll: [10.482271, -66.948630], especie: 'mango', alto: 14 },
+    { ll: [10.482052, -66.948410], especie: 'saman', alto: 15 }, { ll: [10.482690, -66.949675], especie: 'mango', alto: 13 }],
+  // Perfil 19-nov (cota de la vía, m). Medido — km: juego · SRTM 30 m crudo · Copernicus GLO-30 (mín. en ±30 m, sin techos):
+  // 6,80: 904,1 · 910 · 899 | 7,04: 908,1 · 917 · 914,6 | 7,12: 905,7 · 913 · 911,7 | 7,20: 903,3 · 906 · 900,2 | 7,28: 901,1 · 902 · 896,2 |
+  // 7,36: 899,0 · 900 · 896,3 | 7,44: 897,4 · 902 · 897,2. Las dos fuentes dan un lomo de 911–915 m en el 7,0–7,1 y una caída de 10–15 m
+  // hasta el tablero en ~150 m (el DSM la exagera con techos); el juego tenía 2,9 % de bajada y el tablero inclinado 2,6 %. El video muestra la
+  // bajada franca en 182–184 s. Queda (arranca en 6,86 para que el suavizado no toque el 6,8): subida ~3 % (6,86→7,03), bajada media 6,1 % (máx. 6,3 %) 7,11→7,27, tablero 898,8→896,6 m (~1,4 %).
+  perfil: [{ km: 6.86, dz: 0 }, { km: 7.03, dz: 2.5 }, { km: 7.11, dz: 2.5 }, { km: 7.27, dz: -2.6 }, { km: 7.42, dz: -1.0 }, { km: 7.55, dz: 0 }],
   // las pasarelas van a mano en landmarks/zona_la_india.js (escalera de un solo lado, viga de acero rojo óxido);
   // se quitan las genéricas mal puestas (7,36 gris y 8,11) y las barandas corridas 0,15 km
   quitaEstructuras: [[7.30, 7.40], [7.45, 7.66], [8.05, 8.15]],

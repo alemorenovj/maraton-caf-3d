@@ -20,11 +20,21 @@ export default {
     // la torre que asoma detrás de las casas es verde pálido y de ~17 pisos (f_0191–0192), no crema de 20
     { ll: [10.483944, -66.894277], a: 'RES', pisos: 17, col: '#d2d5bb', alt: 1, shop: 0, nota: 'torre verde pálido tras las casas, km 19,23 der.' },
     { ll: [10.484042, -66.893841], a: 'RES', pisos: 16, col: '#dcc39b', nota: 'torre crema, km 19,27 der.' },
-    { ll: [10.484592, -66.893520], a: 'COM', h: 6, col: '#f1f1ee', shop: 1, nota: 'Farmatodo (blanco y azul), km 19,34 der.' },
+    // 19-nov: el Farmatodo (OSM way 1547479272, brand Farmatodo, 24 h, drive-through) se modela entero en landmarks/zona_ucv_acacias.js:
+    // caja blanca, techo azul a cuatro aguas, rótulo FARMATODO y estacionamiento al frente (video t=481–482)
+    { ll: [10.484592, -66.893520], quitar: true, nota: 'Farmatodo, km 19,34 der.: va a mano' },
     { ll: [10.484248, -66.893155], a: 'RES', pisos: 11, col: '#a89084', alt: 1, nota: 'torre parda detrás de Farmatodo (f_0193)' },
     { ll: [10.485300, -66.892790], a: 'RES', pisos: 7, col: '#cfc7ba', shop: 1, nota: 'edificio con locales y toldos naranja, km 19,45 der. (f_0194)' },
     { ll: [10.485551, -66.892478], a: 'RES', pisos: 6, col: '#d9d4c8', shop: 1, nota: 'km 19,50 der.' },
     { ll: [10.485745, -66.892080], a: 'RES', pisos: 7, col: '#d6d2c9', shop: 1, nota: 'Edificio Macu, km 19,55 der.' },
+    // 19-nov: E/S Ciudad Universitaria (PDV, OSM node 2408097116): la huella de 98 m² a 9 m del eje es la marquesina (va a mano); la de 190 m², la tienda
+    { ll: [10.486040, -66.891837], quitar: true, nota: 'marquesina de la bomba PDV, km 19,59 der.: va a mano' },
+    { ll: [10.485901, -66.891785], a: 'COM', h: 4.2, col: '#eeede8', shop: 0, detalle: 0, nota: 'tienda de la bomba PDV, km 19,58 der.; antes salía como casa de techo de teja' },
+    // km 19,64–19,73 der. (video t=486,5–487,5): bloque crema con locales y el letrero verde de Farmacia Universitaria, el quiosco del mural,
+    // un edificio de ladrillo naranja de 6 pisos y uno crema de 5
+    { ll: [10.486321, -66.891212], a: 'RES', pisos: 5, col: '#e8e1cf', shop: 1, alt: 1, nota: 'Farmacia Universitaria y El Mundo del Libro en planta baja (OSM), km 19,66 der.' },
+    { ll: [10.486593, -66.890877], a: 'RES', pisos: 6, col: '#c8673d', shop: 1, alt: 1, nota: 'ladrillo naranja de 6 pisos tras el quiosco del mural, km 19,70 der.' },
+    { ll: [10.486698, -66.890687], a: 'RES', pisos: 5, col: '#e2d5b6', shop: 1, alt: 0, nota: 'crema de 5 pisos con balcones, km 19,72 der.' },
     { ll: [10.486862, -66.890496], a: 'RES', pisos: 12, col: '#ecebe6', alt: 1, nota: 'edificio blanco alto, km 19,75 der. (f_0196)' },
     { ll: [10.486968, -66.890025], a: 'RES', pisos: 8, col: '#c8724e', alt: 1, nota: 'edificios de ladrillo naranja, km 19,80 der. (f_0197)' },
     // 19-nov: va antes que Cars porque su punto cae también dentro de la huella grande de Cars y la teñía de ladrillo

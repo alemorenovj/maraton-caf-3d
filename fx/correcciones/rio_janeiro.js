@@ -50,6 +50,13 @@ export default {
     { ll: [10.483022, -66.846724], a: 'RES', pisos: 9, col: '#dcd3c3', shop: 0, nota: 'km 27,09 izq.' },
     { ll: [10.482894, -66.846278], a: 'VID', pisos: 3, col: '#1f2529', shop: 0, nota: 'edificio negro de vidrio con base de concreto, km 27,14 izq. (f_0266)' },
     { ll: [10.481972, -66.844163], a: 'COM', pisos: 2, col: '#7ccfc2', shop: 1, nota: 'local verde agua con letrero, km 27,39 der. (f_0268)' },
+    // 22-nov, «en Chuao hay como un supermercado antes de entrar a la Río» (Alejandro): Supermercado Gama Express (OSM way 713231141,
+    // km 27,64 der.), visto en el video t=676,25–677,75 (faja roja «Gama», vidrio, «Farmacia 24» y «Bodegón»; el índice va ~0,4 km
+    // ADELANTADO aquí: t=677,5 marca 28,06). Se modela en landmarks/zona_rio_janeiro.js; aquí se quita su extrusión genérica.
+    { ll: [10.481364, -66.841955], quitar: true, nota: 'Gama Express: cuerpo, faja y vidriera en el módulo' },
+    { ll: [10.481332, -66.841621], a: 'VID', alt: 1, pisos: 4, col: '#6f95c8', shop: 0, nota: 'Panadería Laedy (OSM): blanco con ventanales azules y la panadería y la barbería abajo, km 27,67 der. (t=677,75)' },
+    { ll: [10.482024, -66.844410], a: 'COM', alt: 1, pisos: 2, col: '#eeeeeb', shop: 0, nota: 'Bicimanía (OSM; letrero «Bike» en el video t=668–670), blanco, km 27,37 der.' },
+    { ll: [10.482265, -66.845792], a: 'COM', alt: 1, pisos: 2, col: '#f3f3f1', shop: 0, nota: 'Farmatodo (OSM), km 27,21 der.; el letrero va en el módulo' },
     { ll: [10.481705, -66.840689], a: 'RES', alt: 1, pisos: 8, col: '#a56a4c', shop: 0, nota: 'torre de ladrillo, km 27,78 izq. (f_0273)' },
     { ll: [10.481873, -66.840130], a: 'RES', alt: 1, pisos: 9, col: '#a8704f', shop: 0, nota: 'km 27,85 izq.' },
     { ll: [10.482050, -66.839923], a: 'RES', pisos: 11, col: '#ddd0b6', shop: 0, nota: 'km 27,88 izq.' },
@@ -85,6 +92,9 @@ export default {
     { km0: 26.88, km1: 26.95, set: { 'veg.L': .3, 'veg.R': .6, 'veg.palL': .4 } },
     { km0: 27.1, km1: 27.45, set: { 'L.tipo': 'casas', 'R.tipo': 'casas', 'L.col': ['#ece6da', '#d9cfbd', '#f1efe8'], 'R.col': ['#e9e5dc', '#d8d0c0', '#c9c2b4'], 'veg.L': .45, 'veg.R': .5 } },
     { km0: 27.45, km1: 27.8, set: { 'L.col': ['#ece6da', '#d9cfbd', '#e2b9a0'], 'R.col': ['#e9e5dc', '#d8d0c0', '#c9c2b4'], 'veg.palR': .5 } },
+    // 22-nov: a la izquierda, frente al Gama, el video muestra quintas, muros blancos y oficinas bajas (t=673–676,5), no locales de
+    // santamarías de colores (salían «CAF», «CUBO», «CAUCHO» en azul, rojo y amarillo)
+    { km0: 27.45, km1: 27.72, set: { 'L.tipo': 'casas' } },
     { km0: 27.8, km1: 28.2, set: { 'L.col': ['#a56a4c', '#ddd0b6'], 'R.col': ['#e6dcc6', '#e3d7bf'], 'veg.L': .5, 'veg.R': .45 } },
     // Av. Río de Janeiro, tramo con barrera New Jersey amarilla: canal a la izquierda (sin edificios), talud con bosque a la derecha
     // (auditoría 19-nov) a la izquierda, tras la barrera, van la calzada contraria y el canal: copas sueltas y bajas, no un túnel de samanes (f_0275)

@@ -1,6 +1,6 @@
 // «Mi plan de carrera»: ritmo por km a esfuerzo parejo según la pendiente real (mismo gradeSpeed que el motor),
 // parciales, subidas, puestos, consejos por tramo e imagen 1080×1920 para el teléfono. Nada corre por cuadro.
-const KM = 42.195, SALIDA_MIN = 6 * 60 + 5, KEY = 'caf3d-objetivo', KEYU = 'caf3d-objetivo-u';
+const KM = 42.195, SALIDA_MIN = 6 * 60 + 5, KEY = 'caf3d-objetivo', KEYU = 'caf3d-objetivo-u'; // gitleaks:allow (claves de localStorage, no secretos)
 const RAPIDOS = [3.25, 3.5, 4, 4.5, 5];
 // una línea por tramo (si cambia el nombre de un tramo, se usa la primera frase de su consejo)
 const UNO = {
