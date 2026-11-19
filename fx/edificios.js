@@ -682,7 +682,7 @@ function build(ctx, THREE, D) {
   }
   // mallas base, una por zona
   const meshes = [];
-  for (const G of base.values()) { const m = G.mesh(THREE, mat, shadows); if (m) { m.frustumCulled = true; scene.add(m); meshes.push(m); } }
+  for (const G of base.values()) { const m = G.mesh(THREE, mat, shadows); if (m) { m.frustumCulled = true; m.userData.mem = 'edif-base'; scene.add(m); meshes.push(m); } }
   for (const d of det.values()) { d.cx /= d.n; d.cz /= d.n; }
   const detList = [...det.values()];
   let tris = 0; for (const m of meshes) tris += m.geometry.index.count / 3;
@@ -695,20 +695,28 @@ function build(ctx, THREE, D) {
     const G = new Geo(), GR = new Geo();
     for (const b of d.list) detail(b, G, GR, ctx, THREE, hT, Y, inPoly, R, nearest);
     d.mesh = G.mesh(THREE, mat, shadows); d.meshR = GR.mesh(THREE, matR, shadows);
-    if (d.mesh) scene.add(d.mesh); if (d.meshR) scene.add(d.meshR); d.st = 1;
+    for (const m of [d.mesh, d.meshR]) if (m) { m.userData.mem = 'edif-det'; scene.add(m); } d.st = 1;
     d.tris = (d.mesh ? d.mesh.geometry.index.count / 3 : 0) + (d.meshR ? d.meshR.geometry.index.count / 3 : 0);
   };
+  // Memoria acotada: una zona de detalle se construye a menos de `carga` m, se ve a menos de `vis` y se suelta de verdad (fuera de la escena,
+  // geometría liberada, referencias soltadas) a más de `suelta` m; si vuelve a quedar cerca (ida y vuelta) se reconstruye igual. Además hay un
+  // tope de triángulos de detalle residentes: si se pasa, se sueltan primero las zonas más lejanas que no se están viendo. Radios en ctx.Q.mem.
+  const MB = ctx.Q.mem || {}, R_CARGA = MB.detCarga || 1000, R_VIS = MB.detVis || 620, R_SUELTA = Math.max(R_CARGA + 150, MB.detSuelta || 1400), TOPE = MB.detTri || Infinity;
+  const freeDet = d => { for (const m of [d.mesh, d.meshR]) if (m) { scene.remove(m); m.geometry.dispose(); } d.mesh = d.meshR = null; d.st = 0; detTri -= d.tris || 0; d.tris = 0; };
+  let detTri = 0; ctx.edificios.detTri = () => detTri;
   const U = [mat.userData.U, matR.userData.U]; let lx = 1e9, lz = 1e9;
   ctx.frameHooks.push((noche, t, dt, p) => {
     const amb = .05 + .11 * (1 - noche);
     for (const u of U) { u.uNight.value = noche; u.uAmb.value = amb; u.uSunCol.value.copy(ctx.sun.color).multiplyScalar(ctx.sun.intensity * (ctx.sun.castShadow || !ctx.Q.alta ? 1 : .3)); }
-    let built = 0, pend = 0; const first = Math.hypot(p.x - lx, p.z - lz) > 250; lx = p.x; lz = p.z;   // salto (inicio o teletransporte): construye todo lo cercano ya
+    let built = 0, pend = 0, freed = 0; const first = Math.hypot(p.x - lx, p.z - lz) > 250; lx = p.x; lz = p.z;   // salto (inicio o teletransporte): construye todo lo cercano ya
     for (const d of detList) {
-      const dd = Math.hypot(d.cx - p.x, d.cz - p.z);
-      if (d.st === 0 && dd < 1000 && (built < 1 || first)) { buildDet(d); built++; }   // el primer cuadro construye todo lo cercano
-      if (d.st === 0 && dd < 620) pend++;
-      const vis = dd < 620; if (d.mesh) d.mesh.visible = vis; if (d.meshR) d.meshR.visible = vis;
+      const dd = d.dd = Math.hypot(d.cx - p.x, d.cz - p.z);
+      if (d.st === 1 && dd > R_SUELTA && (freed < 3 || first)) { freeDet(d); freed++; }   // se suelta lo que quedó atrás (pocas por cuadro, salvo tras un salto)
+      if (d.st === 0 && dd < R_CARGA && (dd < R_VIS || detTri < TOPE * .9) && (built < 1 || first)) { buildDet(d); detTri += d.tris; built++; }   // el primer cuadro construye todo lo cercano
+      if (d.st === 0 && dd < R_VIS) pend++;
+      const vis = dd < R_VIS; if (d.mesh) d.mesh.visible = vis; if (d.meshR) d.meshR.visible = vis;
     }
+    if (detTri > TOPE) { const vivas = detList.filter(d => d.st === 1 && d.dd > R_VIS).sort((a, b) => b.dd - a.dd); for (const d of vivas) { if (detTri <= TOPE) break; freeDet(d); } }   // tope duro: primero lo más lejano
     (ctx.pend || (ctx.pend = {})).edificios = pend;   // solo lectura: zonas de detalle visibles aún sin construir (ctx.pendientes)
   });
 }
@@ -887,7 +895,7 @@ function tendido(ctx, THREE, mat, shadows) {
       prev = { x, z, pts };
     }
     if (DBG) console.info('tendido', k0, k1, np, why.join('/'));
-    const m = G.mesh(THREE, mat, shadows); if (m) scene.add(m);
+    const m = G.mesh(THREE, mat, shadows); if (m) { m.userData.mem = 'edif-tendido'; scene.add(m); }
     if (L.length) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(L, 3)); g.computeBoundingSphere(); scene.add(new THREE.LineSegments(g, lineMat)); }
   }
 }

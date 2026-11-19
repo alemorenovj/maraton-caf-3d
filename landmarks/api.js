@@ -28,7 +28,8 @@ export function makeApi(THREE, D, o = {}) {
     /** punto de la ruta en el km oficial dado: posición, tangente unitaria (tx,tz) y normal izquierda (lx,lz) */
     routeAt(km) { const s = clamp(sOfKm(km), 0, TOTAL), f = s / STEP, i = Math.min(N - 2, Math.floor(f)), t = f - i, a = Math.max(0, i - 2), b = Math.min(N - 1, i + 3); let tx = R.x[b] - R.x[a], tz = R.z[b] - R.z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l; return { x: lerp(R.x[i], R.x[i + 1], t), y: (lerp(R.e[i], R.e[i + 1], t) - eMin) * EXG, z: lerp(R.z[i], R.z[i + 1], t), tx, tz, lx: tz, lz: -tx }; },
     /** textura dibujada en un canvas 2D (sRGB) */
-    canvasTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; },
+    canvasTex(w, h, draw) { const c = document.createElement('canvas'), k = o.texEscala || 1, red = k < 1 && w * h >= 65536;   // en teléfono (o.texEscala < 1) las texturas grandes se pintan a menor resolución: misma función de dibujo, lienzo escalado
+      c.width = red ? Math.max(1, Math.round(w * k)) : w; c.height = red ? Math.max(1, Math.round(h * k)) : h; const g = c.getContext('2d'); if (red) g.scale(c.width / w, c.height / h); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; },
     /** registra una función que se llama en cada cuadro con {noche: 0..1, t: segundos, dt} */
     onFrame(fn) { frame.push(fn); },
     tick(st) { for (const f of frame) f(st); },

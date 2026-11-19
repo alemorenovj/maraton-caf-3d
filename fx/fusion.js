@@ -88,7 +88,26 @@ export function fusionar(THREE, roots, tick, o = {}) {
       for (const h of n.children) baja(h); };
     baja(root); }
   st.descartables = LISTA.length;
-  st.cull = (x, z) => { let v = 0; for (const e of LISTA) { const dx = e.x - x, dz = e.z - z, on = dx * dx + dz * dz < e.l2; if (on !== e.on) { e.on = on; e.n.layers.mask = on ? e.m : 0; } if (on) v++; } return v; };
+  // ── 4. memoria: lo apagado suelta la GPU ──
+  // Una pieza apagada sigue ocupando la GPU: three sube su geometría y sus texturas la primera vez que la dibuja y no las suelta (los hitos
+  // traen ~260 texturas de canvas, ~200 MB). Cuando TODAS las piezas que usan una geometría o una textura quedan más lejos que lim · K2 + M2
+  // (mem.hitoK / mem.hitoM en cull; lim = distancia a la que se apagan), se libera (dispose(): los datos siguen en JavaScript y three los vuelve
+  // a subir al dibujarlos de nuevo). Solo recursos que no usa ningún objeto fuera de LISTA (lo que no se apaga nunca no debe re-subirse en
+  // cada vuelta). Las geometrías soltadas llevan userData.gpuLibre (lo lee el arnés fx/memoria.js).
+  const texDe = m => { const r = []; for (const mm of Array.isArray(m) ? m : [m]) { if (!mm) continue; for (const k in mm) { const t = mm[k]; if (t && t.isTexture && !t.isRenderTargetTexture) r.push(t); }
+    if (mm.uniforms) for (const k in mm.uniforms) { const t = mm.uniforms[k] && mm.uniforms[k].value; if (t && t.isTexture && !t.isRenderTargetTexture) r.push(t); } } return [...new Set(r)]; };
+  const usos = new Map(), suma = r => usos.set(r, (usos.get(r) || 0) + 1);
+  for (const root of roots) root.traverse(n => { if (n.geometry) suma(n.geometry); if (n.material) texDe(n.material).forEach(suma); });
+  const porR = new Map(), qDe = (r, tex) => { let q = porR.get(r); if (!q) porR.set(r, q = { r, tex, es: 0, lejos: 0, libre: false }); return q; };
+  for (const e of LISTA) { e.qs = [qDe(e.n.geometry, false), ...texDe(e.n.material).map(t => qDe(t, true))]; for (const q of e.qs) q.es++; }
+  const LIB = [...porR.values()].filter(q => q.es === usos.get(q.r)), enLIB = new Set(LIB); for (const e of LISTA) e.qs = e.qs.filter(q => enLIB.has(q));
+  st.liberables = LIB.length; st.liberadas = 0;
+  st.cull = (x, z, mem) => { let v = 0; const K2 = mem && mem.hitoK || 0, M2 = mem && mem.hitoM || 0;
+    for (const e of LISTA) { const dx = e.x - x, dz = e.z - z, d2 = dx * dx + dz * dz, on = d2 < e.l2;
+      if (on !== e.on) { e.on = on; e.n.layers.mask = on ? e.m : 0; if (on) for (const q of e.qs) if (q.libre) { q.libre = false; if (!q.tex) q.r.userData.gpuLibre = false; } } if (on) v++;
+      if (K2 && e.qs.length) { const r = Math.sqrt(e.l2) * K2 + M2, lejos = d2 > r * r; if (lejos !== !!e.lejos) { e.lejos = lejos; for (const q of e.qs) q.lejos += lejos ? 1 : -1; } } }
+    if (K2) for (const q of LIB) if (!q.libre && q.lejos === q.es) { q.libre = true; q.r.dispose(); if (!q.tex) q.r.userData.gpuLibre = true; st.liberadas++; }
+    return v; };
   st.ms = Math.round(performance.now() - t0);
   return st;
 }

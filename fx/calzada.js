@@ -311,8 +311,8 @@ export function install(ctx) {
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
     g.setAttribute('aMat', new THREE.BufferAttribute(aMat, 4)); g.setAttribute('aLane', new THREE.BufferAttribute(aLane, 4)); g.setAttribute('aX', new THREE.BufferAttribute(aX, 4)); g.setAttribute('aRC', new THREE.BufferAttribute(aRC, 4)); g.setAttribute('aY', new THREE.BufferAttribute(aY, 2));
     g.setIndex(idx); g.computeBoundingSphere();
-    const mesh = new THREE.Mesh(g, roadMat); mesh.receiveShadow = Q.alta; mesh.renderOrder = 2; scene.add(mesh);
-    let fence = null; if (fi.length) { const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3)); fg.setAttribute('uv', new THREE.Float32BufferAttribute(fu, 2)); fg.setIndex(fi); fg.computeVertexNormals(); fg.computeBoundingSphere(); fence = new THREE.Mesh(fg, fenceMat); fence.castShadow = fence.receiveShadow = Q.alta; scene.add(fence); }
+    const mesh = new THREE.Mesh(g, roadMat); mesh.userData.mem = 'calzada'; mesh.receiveShadow = Q.alta; mesh.renderOrder = 2; scene.add(mesh);
+    let fence = null; if (fi.length) { const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3)); fg.setAttribute('uv', new THREE.Float32BufferAttribute(fu, 2)); fg.setIndex(fi); fg.computeVertexNormals(); fg.computeBoundingSphere(); fence = new THREE.Mesh(fg, fenceMat); fence.userData.mem = 'calzada'; fence.castShadow = fence.receiveShadow = Q.alta; scene.add(fence); }
     return { mesh, fence, items: genItems(ci) };
   }
 

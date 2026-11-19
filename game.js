@@ -5,10 +5,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { makeApi, kmFns } from './landmarks/api.js?v=3';
+import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { makeApi, kmFns } from './landmarks/api.js?v=4';
 import HITOS_IDS from './landmarks/index.js';
-import { fusionar } from './fx/fusion.js?v=3';
+import { fusionar } from './fx/fusion.js?v=6';
 import FX_IDS from './fx/index.js';
 import FIX_IDS from './fx/correcciones/index.js';
 const VQ = new URL(import.meta.url).search;   // la versión de game.js (?v=N en index.html) se propaga a los módulos que se cargan en caliente: sin esto el navegador se queda con copias viejas
@@ -165,6 +165,12 @@ let NOCHE = 0; const MOON = new THREE.Vector3(.35, .8, .3).normalize(), frameHoo
 const Q = (() => { const u = new URLSearchParams(location.search).get('calidad'); let tier = null; if (u === 'fija') tier = 'alta'; else if (u === 'media' || u === 'ligera' || u === 'alta') tier = u; else { try { const v = localStorage.getItem('caf3d-calidad'); if (v === 'alta' || v === 'media' || v === 'ligera') tier = v; } catch (e) { } }
   if (!tier) tier = matchMedia('(pointer: coarse)').matches && Math.min(innerWidth, innerHeight) < 700 ? 'media' : 'alta';
   const q = { fija: u === 'fija', tier, alta: tier !== 'ligera', media: tier === 'media' }; if (q.media) { q.nivel = 5; q.sombras = false; q.post = false; renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25)); } return q; })();
+// Presupuesto de memoria por calidad (se mide con fx/memoria.js, ?mem=): radios de carga y de suelta (histéresis) de los mosaicos z18/z19 y de las
+// zonas de detalle de edificios, tope de triángulos de detalle residentes y a qué distancia extra sueltan sus búferes de GPU los hitos apagados
+// (lim · hitoK + hitoM, con lim la distancia a la que fusion.js los apaga). En alta los radios visibles son los de siempre.
+Q.mem = Q.media ? { z18: [900, 1350], z19: [420, 640], detCarga: 760, detVis: 620, detSuelta: 1000, detTri: 550000, hitoK: 1.2, hitoM: 250 }
+  : !Q.alta ? { z18: [700, 1050], z19: [360, 560], detCarga: 620, detVis: 520, detSuelta: 850, detTri: 380000, hitoK: 1.15, hitoM: 200 }
+  : { z18: [1500, 2600], z19: [520, 900], detCarga: 1000, detVis: 620, detSuelta: 1400, detTri: 900000, hitoK: 1.5, hitoM: 600 };
 renderer.shadowMap.enabled = Q.alta && !Q.media; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 sun.castShadow = Q.alta; sun.shadow.mapSize.set(2048, 2048); { const c = sun.shadow.camera; c.left = -170; c.right = 170; c.top = 170; c.bottom = -170; c.near = 60; c.far = 1500; } sun.shadow.bias = -.0006; sun.shadow.normalBias = .5;
 const sunDir = new THREE.Vector3(.6, .5, .3).normalize();
@@ -187,10 +193,10 @@ composer.addPass(new RenderPass(scene, camera)); composer.addPass(bloom); compos
 function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); if (Q.post !== false) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }   /* en calidad media no hay posproceso: sus búferes no se reservan (memoria en teléfonos) */ camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', () => { resize(); drawProfileBase(); }); resize();
 // API de los hitos modelados a mano (landmarks/*.js) y huellas genéricas que cada uno sustituye
-const api = makeApi(THREE, D, { EX, hT }), QUITA = [];
+const api = makeApi(THREE, D, { EX, hT, texEscala: Q.alta && !Q.media ? 1 : .5 }), QUITA = [];   // texEscala: en media y ligera las texturas de los hitos van a la mitad de lado (¼ de memoria)
 const HROOTS = []; let FUSION = null;
 const hitosListos = Promise.all(HITOS_IDS.map(id => import(`./landmarks/${id}.js${VQ}`).then(m => { (m.meta?.quita || []).forEach(q => { const p = api.xz(q[0], q[1]); QUITA.push([p.x, p.z, q[2]]); }); const o = m.build(THREE, api); o.traverse(n => { if (n.isMesh && !Q.alta) n.castShadow = false; }); scene.add(o); HROOTS.push(o); }).catch(e => console.error('hito ' + id, e)))).then(() => { if (new URLSearchParams(location.search).get('fusion') !== '0') try { FUSION = fusionar(THREE, HROOTS, st => api.tickSeguro(st)); console.info('fusion', JSON.stringify(FUSION)); } catch (e) { console.error('fusion', e); } });
-Object.assign(ctx, { scene, camera, renderer, composer, bloom, grade, ShaderPass, Q, api, sun, hemi, sunDir, skyU, skyMat, skyDome, frameHooks, P, hT, Y, kmOf, sOfKm, KM, TOTAL, STEP, N, R, ROAD_W, clamp, lerp, rnd, inTunnel, enElevado, cubierto, nearRoute, canvasTex, label, elevH, edifFix, relieve, EX, nearFade,
+Object.assign(ctx, { HROOTS, scene, camera, renderer, composer, bloom, grade, ShaderPass, Q, api, sun, hemi, sunDir, skyU, skyMat, skyDome, frameHooks, P, hT, Y, kmOf, sOfKm, KM, TOTAL, STEP, N, R, ROAD_W, clamp, lerp, rnd, inTunnel, enElevado, cubierto, nearRoute, canvasTex, label, elevH, edifFix, relieve, EX, nearFade,
   /** añade un pase de posproceso justo antes de la gradación de color */ addPass(p) { composer.insertPass(p, composer.passes.indexOf(grade)); } });
 const quitado = (x, z) => { for (const q of QUITA) if ((x - q[0]) ** 2 + (z - q[1]) ** 2 < q[2] * q[2]) return true; return false; };
 
@@ -216,7 +222,11 @@ const GAP = .3; // el suelo va apenas por debajo de la calzada
 const Z0 = 15, bx0 = Math.floor(tileX(lonOf(T.x0), Z0)), bx1 = Math.floor(tileX(lonOf(T.x0 + (T.nx - 1) * T.dx), Z0)), by0 = Math.floor(tileY(latOf(T.z0), Z0)), by1 = Math.floor(tileY(latOf(T.z0 + (T.nz - 1) * T.dx), Z0));
 const bnx = bx1 - bx0 + 1, bny = by1 - by0 + 1, TP = Math.min(256, Math.floor(4096 / bnx));
 const baseCv = document.createElement('canvas'); baseCv.width = bnx * TP; baseCv.height = bny * TP; const baseG = baseCv.getContext('2d', { willReadFrequently: false }); baseG.fillStyle = '#737a6c'; baseG.fillRect(0, 0, baseCv.width, baseCv.height);
-const baseTex = new THREE.CanvasTexture(baseCv); baseTex.colorSpace = THREE.SRGBColorSpace; baseTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+// En media y ligera la GPU recibe la imagen base a la mitad de lado (¼ de memoria; de cerca la tapan los mosaicos z18/z19). El lienzo completo
+// sigue en JavaScript para leer colores (sample: techos, verde), así la ciudad sale igual que en alta.
+const baseGPU = Q.alta && !Q.media ? baseCv : Object.assign(document.createElement('canvas'), { width: baseCv.width >> 1, height: baseCv.height >> 1 });
+const baseSube = () => { if (baseGPU !== baseCv) baseGPU.getContext('2d').drawImage(baseCv, 0, 0, baseGPU.width, baseGPU.height); baseTex.needsUpdate = true; };
+const baseTex = new THREE.CanvasTexture(baseGPU); baseTex.colorSpace = THREE.SRGBColorSpace; baseTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 const groundTint = new THREE.Color(0xffffff);
 let sampler = null; // lectura de color de la imagen (para techos y para saber dónde hay verde)
 function sample(x, z) { if (!sampler) return null; const u = (tileX(lonOf(x), Z0) - bx0) / bnx, v = (tileY(latOf(z), Z0) - by0) / bny; if (u < 0 || u >= 1 || v < 0 || v >= 1) return null; const i = (Math.floor(v * sampler.h) * sampler.w + Math.floor(u * sampler.w)) * 4, d = sampler.d; return [d[i], d[i + 1], d[i + 2]]; }
@@ -246,9 +256,9 @@ Object.assign(ctx, { ready, groundTint, baseTex, sample, isGreen, quitado, GAP, 
   jobs.sort((a, b) => a[2] - b[2]); let pending = jobs.length, dirty = false, done = false, ok = 0;
   const finish = () => { if (done) return; done = true; hitosListos.then(() => finish2()); }, finish2 = () => { try { if (ok > jobs.length * .5) { const c = document.createElement('canvas'); c.width = baseCv.width >> 1; c.height = baseCv.height >> 1; const g = c.getContext('2d'); g.drawImage(baseCv, 0, 0, c.width, c.height); sampler = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data }; } } catch (e) { console.warn('sin lectura de imagen', e); } ready.forEach(f => f()); ctx.baseLista = true; };
   const next = () => { const jb = jobs.shift(); if (!jb) return; const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { baseG.drawImage(im, jb[0] * TP, jb[1] * TP, TP, TP); dirty = true; ok++; end(); }; im.onerror = end; im.src = TILE(Z0, bx0 + jb[0], by0 + jb[1]); };
-  function end() { if (--pending <= 0) { baseTex.needsUpdate = true; finish(); } next(); }
+  function end() { if (--pending <= 0) { baseSube(); finish(); } next(); }
   for (let k = 0; k < 12; k++) next();
-  const iv = setInterval(() => { if (dirty) { baseTex.needsUpdate = true; dirty = false; } if (done) clearInterval(iv); }, 600);
+  const iv = setInterval(() => { if (dirty) { baseSube(); dirty = false; } if (done) clearInterval(iv); }, 600);
   setTimeout(finish, 15000); // sin red: sigue con colores por defecto
 })();
 // Capas de detalle, cargadas solo cerca del corredor: zoom 18 (0,6 m/px) en un pasillo de ±150 m y zoom 19 (0,3 m/px) sobre la propia vía
@@ -264,7 +274,7 @@ function makeLayer(z, offs, rLoad, rDrop, lift, order, maxPar, SEG) {
       loading--; if (t.st !== 1) { tex.dispose(); return; } tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const n = SEG + 1, pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2); for (let j = 0, k = 0; j < n; j++) for (let i = 0; i < n; i++, k++) { const x = xOfTile(t.tx + i / SEG, z), zz = zOfTile(t.ty + j / SEG, z); pos[k * 3] = x; pos[k * 3 + 1] = Y(hT(x, zz)) - GAP + lift; pos[k * 3 + 2] = zz; uv[k * 2] = i / SEG; uv[k * 2 + 1] = 1 - j / SEG; }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(hiIdx);
-      t.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, color: groundTint, polygonOffset: true, polygonOffsetFactor: -2 * order, polygonOffsetUnits: -4 * order })); t.mesh.renderOrder = order; scene.add(t.mesh); t.st = 2;
+      t.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, color: groundTint, polygonOffset: true, polygonOffsetFactor: -2 * order, polygonOffsetUnits: -4 * order })); t.mesh.renderOrder = order; t.mesh.userData.mem = 'mosaico' + z; scene.add(t.mesh); t.st = 2;
     }, undefined, () => { loading--; t.st = 3; });
   };
   const upd = (x, zc) => {
@@ -277,12 +287,12 @@ function makeLayer(z, offs, rLoad, rDrop, lift, order, maxPar, SEG) {
   upd.urls = (px, pz, r) => list.filter(t => t.st === 0 && Math.hypot(t.cx - px, t.cz - pz) < r).map(t => TILE(z, t.tx, t.ty));
   return upd;
 }
-const layers = [makeLayer(18, [-150, 0, 150], 1500, 2600, .1, 1, 8, REL.length ? 16 : 4), makeLayer(19, [-45, 0, 45], 520, 900, .2, 2, 10, REL.length ? 8 : 4)]; let hiNext = 0;
+const layers = [makeLayer(18, [-150, 0, 150], Q.mem.z18[0], Q.mem.z18[1], .1, 1, 8, REL.length ? 16 : 4), makeLayer(19, [-45, 0, 45], Q.mem.z19[0], Q.mem.z19[1], .2, 2, 10, REL.length ? 8 : 4)]; let hiNext = 0;
 // ctx.pendientes(): cuánto falta por cargar cerca del corredor (imagen base, mosaicos de detalle, calzada y edificios de detalle).
 // Solo lee el estado; la carga sigue igual. La usa ui/resumen.js para no levantar el fundido de un salto antes de tiempo.
 ctx.pendientes = () => { const p = P(S.s, {}), pe = ctx.pend || {}; return (ctx.baseLista ? 0 : 1) + (pe.calzada || 0) + (pe.edificios || 0) + layers[1].pend(p.x, p.z, 260) + layers[0].pend(p.x, p.z, 420); };
 ctx.tilesCerca = (x, z) => [...layers[1].urls(x, z, 260), ...layers[0].urls(x, z, 420)];
-function hiUpdate(x, z, now) { if (now < hiNext) return; hiNext = now + 200; for (const f of layers) f(x, z); if (FUSION && FUSION.cull) FUSION.cull(x, z); }
+function hiUpdate(x, z, now) { if (now < hiNext) return; hiNext = now + 200; for (const f of layers) f(x, z); if (FUSION && FUSION.cull) FUSION.cull(x, z, Q.mem); }
 
 // Calzada: asfalto translúcido (se ve la calle real debajo) con la línea azul del maratón
 (function road() {
@@ -481,21 +491,23 @@ const sideOf = (o, lado, off) => { const k = lado === 'izq' ? 1 : -1; return [o.
     for (const k of [1, -1]) { const c = new THREE.Mesh(new THREE.BoxGeometry(.6, 5.6, .6), conc); c.position.set(k * (L / 2 - .5), 2.8, 0); const st = new THREE.Mesh(new THREE.BoxGeometry(2, .4, 11), mat); st.position.set(k * (L / 2 - 1), 2.8, 5.5); st.rotation.x = .5; g.add(c, st); }
     g.position.set(o.x, o.y, o.z); g.rotation.y = Math.atan2(o.tx, o.tz); scene.add(g);
   } else if (e.tipo === 'cubierta') {
-    const s0 = sOfKm(e.km0), s1 = sOfKm(e.km1), H = e.alto || 7, hw = (e.ancho || ROAD_W + 10) / 2, tp = [], ti = []; let k = 0;
+    const s0 = sOfKm(e.km0), s1 = sOfKm(e.km1), H = e.alto || 7, hw = (e.ancho || ROAD_W + 10) / 2, tp = [], ti = [], cols = []; let k = 0;
     for (let s = s0; s <= s1 + .1; s += 5, k++) { P(s, o); const lx = o.tz, lz = -o.tx; tp.push(o.x + lx * hw, o.y + H, o.z + lz * hw, o.x - lx * hw, o.y + H, o.z - lz * hw); if (k) { const a = (k - 1) * 2; ti.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-      if (k % 4 === 0) for (const sd of [1, -1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.7, .7, H, 8), conc); c.position.set(o.x + lx * (ROAD_W / 2 + 2.5) * sd, o.y + H / 2, o.z + lz * (ROAD_W / 2 + 2.5) * sd); scene.add(c); } }
+      if (k % 4 === 0) for (const sd of [1, -1]) cols.push(new THREE.CylinderGeometry(.7, .7, H, 8).translate(o.x + lx * (ROAD_W / 2 + 2.5) * sd, o.y + H / 2, o.z + lz * (ROAD_W / 2 + 2.5) * sd)); }
+    if (cols.length) { scene.add(new THREE.Mesh(mergeGeometries(cols), conc)); cols.forEach(g => g.dispose()); }   // columnas: una sola malla por cubierta
     // cara inferior: concreto gris claro a la sombra (en el video no es un hueco negro), más oscura de noche
     const bajo = new THREE.MeshBasicMaterial({ color: 0xa4a5a0, side: THREE.DoubleSide }); frameHooks.push(n => { bajo.color.setHex(0xa4a5a0).multiplyScalar(1 - .7 * n); });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3)); g.setIndex(ti); scene.add(new THREE.Mesh(g, bajo));
     const g2 = g.clone(); g2.translate(0, 1.4, 0); scene.add(new THREE.Mesh(g2, new THREE.MeshBasicMaterial({ color: 0x8f918e, side: THREE.DoubleSide })));
   } else if (e.tipo === 'elevado') {
-    const i0 = Math.round(sOfKm(e.km0) / STEP), i1 = Math.round(sOfKm(e.km1) / STEP), hw = ROAD_W / 2 + .8, dp = [], du = [], di = [], sp = [], si = [], rp = [], ri = []; let k = 0;
+    const i0 = Math.round(sOfKm(e.km0) / STEP), i1 = Math.round(sOfKm(e.km1) / STEP), hw = ROAD_W / 2 + .8, dp = [], du = [], di = [], sp = [], si = [], rp = [], ri = [], pil = []; let k = 0;
     const deckTex = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#4d5057'; g.fillRect(0, 0, w, h); g.fillStyle = '#d9d9d2'; g.fillRect(w / 2 - 2, 0, 4, h * .5); g.fillRect(4, 0, 3, h); g.fillRect(w - 7, 0, 3, h); }); deckTex.wrapT = THREE.RepeatWrapping;
     for (let i = i0; i <= i1; i++, k++) { P(i * STEP, o); const lx = o.tz, lz = -o.tx, hh = elevH[i];
       dp.push(o.x + lx * hw, o.y - .05, o.z + lz * hw, o.x - lx * hw, o.y - .05, o.z - lz * hw); du.push(0, i * STEP / 12, 1, i * STEP / 12);
       for (const sd of [1, -1]) { const x = o.x + lx * hw * sd, z = o.z + lz * hw * sd; sp.push(x, o.y - .05, z, x, o.y - Math.min(hh + .4, 1.5), z); rp.push(x, o.y, z, x, o.y + 1.05, z); }
       if (k) { const a = (k - 1) * 2, b = (k - 1) * 4; di.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); for (const arr of [si, ri]) arr.push(b, b + 4, b + 1, b + 1, b + 4, b + 5, b + 2, b + 6, b + 3, b + 3, b + 6, b + 7); }
-      if (k % 3 === 0 && hh > 2.2) for (const sd of [1, -1]) { const c = new THREE.Mesh(new THREE.BoxGeometry(1.2, hh, 1.2), conc); c.position.set(o.x + lx * (hw - 1.5) * sd, o.y - hh / 2 - .3, o.z + lz * (hw - 1.5) * sd); scene.add(c); } }
+      if (k % 3 === 0 && hh > 2.2) for (const sd of [1, -1]) pil.push(new THREE.BoxGeometry(1.2, hh, 1.2).translate(o.x + lx * (hw - 1.5) * sd, o.y - hh / 2 - .3, o.z + lz * (hw - 1.5) * sd)); }
+    if (pil.length) { scene.add(new THREE.Mesh(mergeGeometries(pil), conc)); pil.forEach(g => g.dispose()); }   // pilares: una sola malla por elevado
     const G = (p, u, i) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); if (u) g.setAttribute('uv', new THREE.Float32BufferAttribute(u, 2)); g.setIndex(i); g.computeVertexNormals(); return g; };
     scene.add(new THREE.Mesh(G(dp, du, di), new THREE.MeshBasicMaterial({ map: deckTex, color: groundTint, side: THREE.DoubleSide })), new THREE.Mesh(G(sp, null, si), new THREE.MeshLambertMaterial({ color: 0x9c9d99, side: THREE.DoubleSide })));
     // paño amarillo de baranda: se omite con `baranda: false` en el elevado o si una zona lo cubre con `sinBaranda: [[km0, km1]]` (la zona dibuja la suya)
@@ -645,7 +657,7 @@ function updateHUD() {
 }
 
 // ───────── Simulación ─────────
-function seek(s) { S.s = clamp(s, 0, TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(D.hitos.filter(h => sOfKm(h.km) < S.s - 30).map(h => h.km)); }
+function seek(s) { if (Math.abs(s - S.s) > 400) precarga = 1; S.s = clamp(s, 0, TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(D.hitos.filter(h => sOfKm(h.km) < S.s - 30).map(h => h.km)); }
 function drink() { const km = kmOf(S.s), st = D.hidratacion.find(k => Math.abs(sOfKm(k) - S.s) < 70 && !S.drunk.has(k)); if (!st || S.mode !== 'race') return; S.drunk.add(st); const gat = (D.gatorade || []).includes(st); S.hyd = Math.min(100, S.hyd + 14); let m = '+14% hidratación'; if (gat) { S.energy = Math.min(100, S.energy + 2); m = 'Gatorade: +14% hidratación, +2% energía'; } if ((D.geles || []).includes(st)) { S.energy = Math.min(100, S.energy + 9); m += ' · gel GU: +9% energía'; } S.clock += 2; toast((gat ? '🟠' : '💧') + ' Bebiste en el km ' + km.toFixed(1), m, 2.5); }
 function step(dtReal) {
   const km = kmOf(S.s), g = gradeAt(S.s); let slow = 1;
@@ -779,7 +791,9 @@ function frame(now) {
   api.tick({ noche: NOCHE, t: now / 1000, dt }); frameHooks.forEach(f => f(NOCHE, now / 1000, dt, p));
   hiUpdate(p.x, p.z, now);
   if (S.running) updateHUD();
-  if (Q.alta && Q.post !== false) composer.render(); else renderer.render(scene, camera);
+  if (precarga && ctx.baseLista) {   // precarga por distancia (ver abajo): este cuadro se dibuja sin descarte por encuadre
+    precarga = 0; const fc = []; scene.traverse(o => { if (o.frustumCulled && o.visible && (o.isMesh || o.isSprite || o.isLine || o.isPoints)) { o.frustumCulled = false; fc.push(o); } }); dibuja(); for (const o of fc) o.frustumCulled = true;
+  } else dibuja();
   fpsEma = fpsEma * .95 + (1 / Math.max(dt, .001)) * .05; if (S.verFps && (fpsTick = (fpsTick + 1) % 20) === 0) $('fps').textContent = Math.round(fpsEma) + ' fps · ' + (Q.media ? 'media' : Q.alta ? 'alta' + (Q.nivel ? ' (ajuste ' + Q.nivel + ')' : '') : 'ligera') + ' · ' + triEsc.toLocaleString('es') + ' tri';
   // ajuste automático: si el equipo no da 28 fps sostenidos, baja primero resolución, luego sombras, luego posproceso
   if (Q.alta && !Q.fija && !document.hidden && S.running && !S.paused) { perfT += dt; perfN++; if (perfN >= 90) { const fps = perfN / perfT; perfT = perfN = 0; Q.fps = fps;
@@ -790,6 +804,11 @@ function frame(now) {
       console.info('calidad ajustada, nivel', Q.nivel, 'fps', fps.toFixed(0)); } else if (fps >= 40) perfBad = 0; } }
 }
 let perfT = 0, perfN = 0, perfBad = 0, fpsEma = 60, fpsTick = 0;
+function dibuja() { if (Q.alta && Q.post !== false) composer.render(); else renderer.render(scene, camera); }
+// Precarga por distancia: three sube a la GPU solo lo que entra en el encuadre, así que lo cargado (dentro de su radio) que quedaba a la espalda
+// se subía más tarde, al girar, y la memoria dependía de hacia dónde se había mirado. Un cuadro tras el arranque y tras cada salto (> 400 m)
+// se dibuja sin descarte por encuadre: lo de atrás queda recortado (la imagen es la misma), pero ya está en la GPU y lo residente lo decide la distancia.
+let precarga = 1;
 Object.assign(ctx, { S, hero, seek, start });
 for (const m of fxMods) { try { m.install?.(ctx); } catch (e) { console.error('fx install', m.meta?.id, e); } }
 window.__carga?.(1); $('load').style.display = 'none'; $('start').style.display = 'flex'; requestAnimationFrame(frame);
@@ -799,4 +818,18 @@ window.__caf = { get fusion() { return FUSION; }, cuadro: frame, hT, Y, ctx, sce
 // Producto (ui/): plan de carrera, resumen de 60 s y ayuda de primer uso. Si fallan, el juego sigue igual.
 Promise.all(['plan', 'resumen', 'ayuda'].map(id => import(`./ui/${id}.js${VQ}`))).then(([p, r, a]) => { const ui = window.__cafUI = {}; ui.plan = p.crearPlan(window.__caf); ui.resumen = r.crearResumen(window.__caf, ui); ui.ayuda = a.crearAyuda(window.__caf); }).catch(e => console.error('ui', e));
 // ?choques=km0,km1 → corre la auditoría de fx/choques.js (cosas atravesadas en la calzada) y la imprime en la consola como «CHOQUES»
+// Retomar tras perder el contexto gráfico: el script en línea de index.html guarda en sessionStorage (caf3d-rescate) el modo, el objetivo y el km,
+// y recarga con ?retoma=1 en una calidad más baja. Aquí se arranca ese modo en ese km (la carrera, con su reloj, energía, hidratación y puestos).
+{ let r = null; try { if (_q0.get('retoma')) r = JSON.parse(sessionStorage.getItem('caf3d-rescate') || 'null'); } catch (e) { }
+  if (r && r.pend && r.est) ready.push(() => setTimeout(() => { try { const e = r.est; r.pend = false; try { sessionStorage.setItem('caf3d-rescate', JSON.stringify(r)); } catch (x) { }
+    const race = e.modo === 'race'; if (e.target) S.target = e.target; start(race ? 'race' : 'tour'); seek(e.s || 0); setEffort(e.effort ?? 1); if (e.scale) setSpeed(e.scale);
+    if (race) Object.assign(S, { clock: e.clock || 0, energy: e.energy ?? 100, hyd: e.hyd ?? 100, missed: e.missed || 0, splits: e.splits || [], wall: !!e.wall, wallKm: e.wallKm ?? null, drunk: new Set(e.drunk || []) });
+    if (e.dia != null) { S.dia = e.dia; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; } if (e.cam != null && e.cam !== 4) { S.cam = e.cam; $('bCam').textContent = '🎥 ' + ['Seguimiento', 'Dron', 'Cenital', 'A bordo'][S.cam]; }
+    window.__cafUI?.resumen?.cubrirInicio(); toast('Seguimos en el km ' + kmOf(S.s).toFixed(1), 'El equipo se quedó sin memoria gráfica; se retomó en calidad ' + ({ media: 'Media', ligera: 'Ligera' }[Q.tier] || Q.tier) + '.', 6);
+  } catch (x) { console.error('retoma', x); } }, 400)); }
+// ?mem=1 → contador de memoria en pantalla; ?mem=km0,km1[,paso,cuadros,vueltas] → recorre la ruta y escribe una línea «MEMORIA» por km (fx/memoria.js, fx/memoria.sh)
+{ const q = new URLSearchParams(location.search).get('mem'); if (q) import('./fx/memoria.js' + VQ).then(m => { window.__mem = m; if (q === '1') return m.contador(window.__caf);
+  const [a, b, paso, cuadros, vueltas] = q.split(',').map(Number), espera = () => ctx.baseLista ? new Promise(r => setTimeout(r, 2500)) : new Promise(r => setTimeout(r, 300)).then(espera);
+  return espera().then(() => m.recorrer(window.__caf, { km0: a || 0, km1: isNaN(b) ? 42.19 : b, paso, cuadros, vueltas, log: f => console.info('MEMORIA ' + (f.vuelta ? 'v=' + f.vuelta + ' ' : '') + m.linea(f)) }))
+    .then(r => { console.info('MEMORIA DESGLOSE ' + JSON.stringify(m.desglose(window.__caf))); console.info('MEMORIA FIN ' + Q.tier + ' max ' + JSON.stringify(r.max)); }); }).catch(e => console.error('mem', e)); }
 { const q = new URLSearchParams(location.search).get('choques'); if (q) hitosListos.then(() => setTimeout(() => import('./fx/choques.js' + VQ).then(m => m.default(window.__caf, +q.split(',')[0], +q.split(',')[1])).then(r => console.info('CHOQUES ' + q + ' → ' + r.split('\n').join(' ¦ ') + ' ¦ FIN')).catch(e => console.error('choques', e)), 5000)); }
