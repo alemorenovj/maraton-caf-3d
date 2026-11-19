@@ -59,7 +59,16 @@ export default {
     { ll: [10.491202, -66.860907], a: 'VID', pisos: 7, col: '#5b88b0', nota: 'Torre 3M (izq.)' },
     { ll: [10.491024, -66.860374], a: 'BRI', pisos: 8, col: '#cdbfa4', nota: 'Torre Edifica' },
     { ll: [10.490648, -66.860462], a: 'RES', pisos: 12, alt: 1, col: '#d8c6a5', shop: 1, nota: 'Residencias VVZ, esquina del giro' },
-    { ll: [10.490405, -66.861036], a: 'RES', pisos: 17, alt: 1, col: '#a8705a', shop: 0, nota: 'Edificio Atrium: torre de ladrillo rojizo con ventanas en retícula (der. en el giro)' },
+    // Torre Atrium = sede de la Alcaldía de Chacao (OSM node 7283228387 «Alcaldía de Chacao», dentro de su huella). Video t=575,5–578 s
+    // (km 23,46–23,57): torre de ladrillo con terrazas en la esquina de la Av. Tamanaco y basamento de ladrillo de 3–4 pisos a lo largo de
+    // la calle hacia el sur, con las letras ATRIUM, el pilón del escudo de Chacao y pendones rojos (landmarks/zona_mercedes.js §22).
+    // La huella entera (una manzana de 83 m) salía como una sola torre de 17 pisos: se quita (el punto cae en una franja trasera de 2 m
+    // que no cubre ninguna de las dos piezas nuevas) y se rehace en torre al norte + basamento al sur.
+    { ll: [10.490200, -66.861155], quitar: true, nota: 'huella OSM entera del Atrium' },
+    { poly: [[10.490756, -66.861219], [10.490802, -66.860862], [10.490480, -66.860887], [10.490440, -66.861187]],
+      a: 'RES', pisos: 15, alt: 1, col: '#b4613c', shop: 0, mural: 0, nota: 'Torre Atrium: ladrillo con terrazas, esquina Av. Tamanaco (der. en el giro, t=574–576 s)' },
+    { poly: [[10.490440, -66.861160], [10.490480, -66.860887], [10.490056, -66.860919], [10.490005, -66.861118]],
+      a: 'COM', h: 13, col: '#b8643f', shop: 0, mural: 0, detalle: 0, nota: 'basamento de ladrillo de la Alcaldía de Chacao, km 23,48–23,57 der. (t=577–578 s)' },
     // ───── calle de la Alcaldía (sur) y Av. Venezuela (oeste)
     { ll: [10.489593, -66.861201], a: 'BRI', pisos: 17, col: '#c4c6c4', nota: 'torre gris de retícula a la der. de la cilíndrica' },
     { ll: [10.489350, -66.861209], a: 'BRI', pisos: 17, col: '#b9b7ae', nota: 'torre detrás' },

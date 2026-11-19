@@ -13,8 +13,10 @@ export function build(THREE, api) {
   const tun = D.tuneles || [], enTunel = km => tun.some(t => km > t.km0 - .02 && km < t.km3 + .02);
   let seed = 913; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // nada sobre la franja de 13 m de otra pasada de la ruta (retorno en U, vuelta por la otra calzada de la misma avenida)
-  const RR = D.ruta, otra = (x, z, km, m = HW + .3) => { const s0 = api.sOfKm(km); for (let i = 0; i < RR.x.length - 1; i++) { if (Math.abs(i * RR.step - s0) < 15 || Math.abs((i + 1) * RR.step - s0) < 15) continue; const ax = RR.x[i], az = RR.z[i]; if (Math.abs(ax - x) > m + 10 || Math.abs(az - z) > m + 10) continue;
+  const RR = D.ruta, otra0 = (x, z, km, m = HW + .3) => { const s0 = api.sOfKm(km); for (let i = 0; i < RR.x.length - 1; i++) { if (Math.abs(i * RR.step - s0) < 15 || Math.abs((i + 1) * RR.step - s0) < 15) continue; const ax = RR.x[i], az = RR.z[i]; if (Math.abs(ax - x) > m + 10 || Math.abs(az - z) > m + 10) continue;
     const ux = RR.x[i + 1] - ax, uz = RR.z[i + 1] - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1))); if (Math.hypot(ax + ux * t - x, az + uz * t - z) < m) return true; } return false; };
+  // ni sobre los tramos del 21K que el 42K no pisa (el retorno de Los Ilustres y Las Acacias hasta La Previsora: api.distConector, de game.js)
+  const otra = (x, z, km, m = HW + .3) => otra0(x, z, km, m) || (api.distConector ? api.distConector(x, z) < m + 4.5 : false);
 
   // material con atlas: cada instancia elige su celda con el atributo aOff (esquina inferior izquierda de la celda en UV)
   const atlas = (mat, cols, rows) => { const sx = (1 / cols).toFixed(6), sy = (1 / rows).toFixed(6);
@@ -56,6 +58,20 @@ export function build(THREE, api) {
     g.add(inst(geo, mat, signs));
     g.add(inst(new THREE.CylinderGeometry(.04, .04, Y0 + SH + .05, 6).translate(0, (Y0 + SH + .05) / 2, 0), api.concrete(0x9aa1a8, { metalness: .6, roughness: .4 }), posts));
   }
+
+  // ── 1b. carteles verdes del 21K (#47AB48, logo 21KCAF) donde el medio maratón ya no comparte el km con el 42K: del 17 a la meta.
+  // Están siempre en la calle, como en la carrera real (sobre la ruta compuesta api.ruta21; su P devuelve la Y del mundo)
+  { const R21 = api.ruta21; if (R21) { const SW = 1.2, SH = 1.8, Y0 = 1.25, poste = new THREE.CylinderGeometry(.04, .04, Y0 + SH + .05, 6).translate(0, (Y0 + SH + .05) / 2, 0), pm = api.concrete(0x9aa1a8, { metalness: .6, roughness: .4 }), posts = [];
+    for (let k = 17; k <= 21; k++) { const p = R21.P(R21.sOfKm(k), {}), q = { x: p.x, y: p.y, z: p.z, tx: p.tx, tz: p.tz, lx: p.tz, lz: -p.tx }, [x, z] = at(q, -(HW + 1.3));
+      const tx = api.canvasTex(CW, CH, c => { c.fillStyle = '#47AB48'; c.fillRect(0, 0, CW, CH); c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.moveTo(56, 34); c.lineTo(78, 20); c.lineTo(90, 30); c.lineTo(106, 14); c.lineTo(122, 28); c.lineTo(138, 22); c.stroke();
+        c.fillStyle = '#fff'; c.textAlign = 'center'; c.font = 'italic 900 26px Arial'; c.fillText('21KCAF', CW / 2, 58); c.font = '700 10px Arial'; c.fillText('CARACAS', CW / 2, 71);
+        c.font = '900 104px Arial'; const nw = c.measureText(String(k)).width; c.font = '900 46px Arial'; const kw = c.measureText('K').width, xs = CW / 2 - (nw + kw + 4) / 2; c.textAlign = 'left'; c.font = '900 104px Arial'; c.fillText(String(k), xs, 186); c.font = '900 46px Arial'; c.fillText('K', xs + nw + 4, 186);
+        c.fillStyle = '#C1F938'; c.beginPath(); c.moveTo(0, 214); c.lineTo(34, 248); c.lineTo(0, 248); c.fill(); c.fillStyle = '#4DC4DA'; c.beginPath(); c.moveTo(14, 248); c.lineTo(46, 216); c.lineTo(58, 248); c.fill();
+        c.fillStyle = '#fff'; c.fillRect(0, 248, CW, 40); c.font = '900 22px Arial'; c.fillStyle = '#0a4fa0'; c.fillText('C', 44, 276); c.fillStyle = '#3aaa35'; c.fillText('AF', 60, 276); });
+      const m = api.glow(0xffffff, { dia: 0, noche: .55, mat: { roughness: .55 } }); m.map = tx; m.emissiveMap = tx; m.needsUpdate = true;
+      const s = new THREE.Mesh(new THREE.BoxGeometry(SW, SH, .05), m); s.position.set(x, p.y + Y0 + SH / 2, z); s.rotation.y = yaw(q) + Math.PI; g.add(s);
+      for (const sd of [-1, 1]) posts.push([x + q.lx * sd * (SW / 2 - .08), p.y, z + q.lz * sd * (SW / 2 - .08), 0]); }
+    g.add(inst(poste, pm, posts)); } }
 
   // ── 2. pendones "MARATÓN CAF · CALLE CERRADA" en postes, cada ~150 m, alternando lados ──
   const texPend = api.canvasTex(128, 384, (c, w, h) => { c.fillStyle = '#1b3f95'; c.fillRect(0, 0, w, h); c.fillStyle = '#C1F938'; c.fillRect(0, 0, w, 8); c.fillRect(0, h - 8, w, 8);

@@ -527,6 +527,11 @@ function build(ctx, THREE, D) {
   const inPoly = (x, z, f, n) => { let c = false; for (let i = 0, j = n - 1; i < n; j = i++) { const xi = f[i * 2], zi = f[i * 2 + 1], xj = f[j * 2], zj = f[j * 2 + 1]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
   const stats = { arch: [0, 0, 0, 0, 0, 0, 0], near: 0 }, vallas = new Set();
   const DUP = duplicadas(E, D.nOsm || 0, ctx, quitado, inPoly); stats.dup = DUP.size;
+  // calzada de los tramos del 21K que el 42K no pisa (ctx.conectores, ver fx/ruta21k.js): una huella que la pisa no se dibuja
+  const CP = []; for (const c of ctx.conectores || []) { let L = 0; for (let i = 1; i < c.length; i++) L += Math.hypot(c[i][0] - c[i - 1][0], c[i][1] - c[i - 1][1]); const hw = L < 80 ? 4.5 : 7.5;
+    for (let i = 1; i < c.length; i++) { const [ax, az] = c[i - 1], ux = c[i][0] - ax, uz = c[i][1] - az, l = Math.hypot(ux, uz) || 1; for (let a = 0; a <= l; a += 2) for (let d = -hw; d <= hw + .01; d += 1.5) CP.push(ax + ux * a / l - uz / l * d, az + uz * a / l + ux / l * d); } }
+  let cpx0 = Infinity, cpx1 = -Infinity, cpz0 = Infinity, cpz1 = -Infinity; for (let i = 0; i < CP.length; i += 2) { cpx0 = Math.min(cpx0, CP[i]); cpx1 = Math.max(cpx1, CP[i]); cpz0 = Math.min(cpz0, CP[i + 1]); cpz1 = Math.max(cpz1, CP[i + 1]); }
+  const pisaConector = (f, n, x0, x1, z0, z1) => { if (!CP.length || x1 < cpx0 || x0 > cpx1 || z1 < cpz0 || z0 > cpz1) return false; for (let i = 0; i < CP.length; i += 2) if (CP[i] >= x0 && CP[i] <= x1 && CP[i + 1] >= z0 && CP[i + 1] <= z1 && inPoly(CP[i], CP[i + 1], f, n)) return true; return false; };
 
   for (let bi = 0; bi < E.length; bi++) {
     const [h0, , f, vc] = E[bi], n = f.length / 2; if (n < 3) continue;
@@ -535,6 +540,7 @@ function build(ctx, THREE, D) {
     cx /= n; cz /= n; if (quitado(cx, cz)) continue;
     // corrección validada contra el video para esta huella (fx/correcciones): manda sobre todo lo que sigue
     if (DUP.has(bi)) continue;   // huella duplicada (OSM + IA, o dos mapas de IA): se dibuja solo la que gana en duplicadas()
+    if (pisaConector(f, n, minx, maxx, minz, maxz)) { stats.conector = (stats.conector || 0) + 1; continue; }
     const fx0 = ctx.edifFix ? ctx.edifFix(cx, cz, f, n) : null; if (fx0 && fx0.quitar) continue;
     const area = Math.abs(A2) / 2, sgn = A2 > 0 ? 1 : -1, h = Math.max(3, fx0 && fx0.h ? fx0.h : fx0 && fx0.pisos ? fx0.pisos * FH + 1 : h0);
     // la base baja hasta el suelo más bajo que se dibuja bajo el perímetro (ctx.sueloMin: malla base hundida junto al relieve lateral, o retícula de las capas finas

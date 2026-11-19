@@ -10,6 +10,7 @@
 //   oso de alambre de la redoma t=477 = 19,15 · Farmatodo t=481 = 19,29 (el resto, en la cabecera de la sección nueva de zona_ucv_acacias.js).
 // La ruta va por Los Ilustres/Las Acacias (ida por la calzada oeste, vuelta por la este, ejes a 25–33 m) y da la vuelta por el
 // Paseo Los Próceres (ida por la calzada NO, vuelta por la SE, a ±33 m del eje del paseo). En ambos sentidos el parque queda a la izquierda.
+// Puente sobre la Autopista Valle-Coche (19-nov, 2.ª ronda): relieve aquí; tablero, trinchera, pérgola de vigas y autopista en zona_proceres.js §4.
 // Lo singular (isla central de Los Ilustres, parque de atracciones, viaducto de la Valle-Coche, barandas del puente, urnas, farolas,
 // palmas reales, ciclovía, muro de piedra, estacionamiento EPA, hongos, letrero BDV) va a mano en landmarks/zona_proceres.js.
 export default {
@@ -59,6 +60,9 @@ export default {
     { ll: [10.481894, -66.893556], a: 'RES', pisos: 22, col: '#e2cea6', shop: 0, alt: 1, nota: 'Edificio Carolina: torre crema tras el puente (f_0189)' },
     // 19-nov (bajada): al salir del puente el video (t=471–472,5) muestra a la derecha una nave de un piso, paredes claras y techo de tejas
     // naranja en dientes de sierra detrás de una reja gris, no un bloque de 4 pisos. El techo y la reja van en landmarks/zona_proceres.js
+    // casetas de 18 y 44 m² sobre la trinchera de la Valle-Coche (bajo ellas el relieve baja 8 m): en la foto es la pérgola de vigas
+    { ll: [10.480799, -66.894691], quitar: true, nota: 'caseta sobre la trinchera, km 18,82 izq.' },
+    { ll: [10.480725, -66.894880], quitar: true, nota: 'caseta sobre la trinchera, km 18,82 izq.' },
     { ll: [10.481711, -66.894375], a: 'COM', h: 3.4, col: '#ebe5d6', shop: 0, detalle: 0, nota: 'nave de techo de tejas tras la reja, km 18,86–18,93 der.' },
   ],
   via: [
@@ -75,11 +79,27 @@ export default {
     // con copa .45 la torre quedaba tapada desde la ruta
     { km0: 17.88, km1: 18.30, set: { 'R.tipo': 'residencial', 'veg.R': .12, 'veg.denR': 1, 'veg.palR': .15 } },
     { km0: 18.30, km1: 18.75, set: { 'R.tipo': 'residencial', 'veg.R': .45, 'veg.denR': 2, 'veg.palR': 0 } },
+    // 19-nov (2): puente de Los Ilustres sobre la Autopista Valle-Coche. El motor siembra sus árboles laterales a la cota de la vía: sobre la
+    // trinchera quedarían flotando. Sin árboles del generador en el puente (ida y vuelta); los de alrededor salen del suelo (lista `arboles`).
+    { km0: 18.74, km1: 18.86, set: { 'veg.L': 0, 'veg.R': 0, 'veg.palL': 0, 'veg.palR': 0, 'veg.denL': 0, 'veg.denR': 0 } },
+    { km0: 15.55, km1: 15.67, set: { 'veg.L': 0, 'veg.R': 0, 'veg.palL': 0, 'veg.palR': 0, 'veg.denL': 0, 'veg.denR': 0 } },
   ],
   relieve: [
     // el edificio blanco del km 17,3 está en una terraza: muro de piedra de ~2,6 m (a mano) y el terreno arriba
     { km0: 17.28, km1: 17.50, lado: 'R', d0: 16, d1: 18, dh: 2.6, d2: 75, d3: 95, rampa: 20, nota: 'terraza del edificio blanco tras el muro de piedra (f_0163)' },
+    // 19-nov (2): PUENTE DE LOS ILUSTRES SOBRE LA AUTOPISTA VALLE-COCHE (el dueño: «pasamos por arriba de la autopista»). OSM: Av. Las Acacias
+    // bridge=yes layer=3, vuelta km 18,7645–18,837 / ida 15,572–15,6415; por debajo, a ~60° de la ruta, la calzada norte de la Valle-Coche
+    // (vuelta 18,7946 / ida 15,625), la Rampa de La Bandera (18,8148 / 15,602) y la calzada sur (18,8235 / 15,592). Video: tablero a t=470–471,5 s.
+    // UN SOLO relieve, definido con la vuelta: la ida corre 22–24 m a su izquierda sobre el mismo vano, así que el hoyo vale para las dos pasadas
+    // a la vez (no hay cota distinta por pasada: la ruta no se toca, solo baja el terreno). Baja también bajo las calzadas (d0 −1): la autopista
+    // pasa por debajo de los tableros; el canto, la losa inferior y las vigas los dibuja el módulo de zona. Lo que queda fuera de la trinchera de la autopista
+    // lo tapa a nivel de calle la losa de landmarks/zona_proceres.js (§4); debe coincidir con PU0/PU1 de ese módulo.
+    { km0: 18.748, km1: 18.862, lado: 'R', d0: -1, d1: -.5, dh: -8, d2: 40, d3: 70, rampa: 9, nota: 'Puente de Los Ilustres: Valle-Coche abajo (der. de la vuelta)' },
+    { km0: 18.748, km1: 18.862, lado: 'L', d0: -1, d1: -.5, dh: -8, d2: 55, d3: 85, rampa: 9, nota: 'Puente de Los Ilustres: Valle-Coche abajo (izq. de la vuelta: isla y tablero de la ida)' },
   ],
+  // el guardarriel oscuro de data/ (18,9–19,1, «puente corto con baranda negra») es este puente corrido por el desfase del índice: va a mano
+  quitaEstructuras: [[18.85, 18.95]],
+  sinCebra: [[18.74, 18.86], [15.55, 15.67]],
   estructuras: [],
   // 19-nov: perfil de la bajada de Los Símbolos a los estadios (km 18,84–19,60). El SRTM del juego dejaba la cresta de la Redoma de
   // Los Símbolos ~2 m baja y la bajada repartida a 1,1 %. SRTM 30 m crudo y Copernicus GLO-30 (envolvente baja a ±24 m, sin techos ni
@@ -93,6 +113,10 @@ export default {
   // 19-nov: árboles de la isla central de Los Ilustres (ida 15,70–16,34, se ven también desde la vuelta 18,1–18,7). Antes eran copas a mano
   // de elipsoides lisos verde claro que de lejos parecían globos; ahora son árboles del motor en las mismas posiciones (f_0151–0155, f_0182–0186)
   arboles: [
+    // 19-nov (2): arboledas junto a la trinchera de la Valle-Coche (foto satelital), sobre la losa a nivel de calle de zona_proceres.js §4a
+    { ll: [10.480573, -66.894158], especie: 'saman', alto: 13 }, { ll: [10.480680, -66.894078], especie: 'caobo', alto: 14 }, { ll: [10.480520, -66.893997], especie: 'mango', alto: 15 },
+    { ll: [10.480440, -66.894131], especie: 'mijao', alto: 16 }, { ll: [10.480201, -66.894588], especie: 'saman', alto: 17 }, { ll: [10.480214, -66.894481], especie: 'caobo', alto: 13 },
+    { ll: [10.481012, -66.894534], especie: 'mango', alto: 14 }, { ll: [10.480932, -66.894615], especie: 'mijao', alto: 15 },
     { ll: [10.479679, -66.894534], especie: 'saman', alto: 14 }, { ll: [10.479597, -66.89457], especie: 'caobo', alto: 15 }, { ll: [10.479511, -66.894592], especie: 'mijao', alto: 16 },
     { ll: [10.479428, -66.894621], especie: 'saman', alto: 17 }, { ll: [10.47934, -66.894632], especie: 'caobo', alto: 18 }, { ll: [10.479265, -66.894686], especie: 'saman', alto: 19 },
     { ll: [10.479171, -66.894677], especie: 'caobo', alto: 14 }, { ll: [10.479098, -66.894732], especie: 'mijao', alto: 15 }, { ll: [10.479009, -66.89474], especie: 'saman', alto: 16 },

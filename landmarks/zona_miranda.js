@@ -10,6 +10,7 @@
 // - Pasarela de Parque del Este: columnas amarillo y negro, cajón de acero gris (km 36,18; f_0332).
 // - Letras verdes «BIENVENIDOS A SUCRE» con tres astas en la isla (km 36,27; f_0333) y la marquesina de celosía azul
 //   de la estación Miranda (km 36,30–36,42; f_0333–0334).
+// - Parque del Este (km 35,72–36,62, izq.): reja sobre murete, accesos, grama, caminerías, lagunas y Planetario (§13, 23-nov).
 export const meta = {
   id: 'zona_miranda', nombre: 'Zona miranda',
   quita: [[10.486463, -66.821942, 30], [10.494351, -66.832695, 12]],
@@ -297,5 +298,95 @@ export function build(THREE, api) {
     barras(curb, .24, gris);
     // el paño amarillo del motor de este elevado lo apaga `sinBaranda` en fx/correcciones/miranda.js
   } }
+  // ───────── 13. Parque del Este (Parque Generalísimo Francisco de Miranda), km 35,72–36,62 a la IZQUIERDA (23-nov) ─────────
+  //  «El parque del este a la izquierda lo detallaría más, que se vean las rejas y adentro que está el parque» (Alejandro).
+  //  Lindero, caminerías y lagunas: OpenStreetMap (relación 13279347, way 988453461; copia en fx/correcciones/miranda.js, que siembra
+  //  el arbolado con `arboles`). Video f_0331–f_0333: tras la calzada contraria, acera con troncos encalados y la reja de barrotes
+  //  verde oscuro sobre murete; adentro grama en talud bajo árboles altos. El lindero real va a 16,5–21,6 m del eje, pero el motor no
+  //  dibuja la calzada contraria de 3 canales más angosta que hasta 21,2 m (+2,6 de acera): la reja va a 24,2 m salvo donde el lindero
+  //  se retira (plaza del Metro y la entrada principal, 36,21–36,56) o bajo el elevado (35,72–35,95), donde sigue a OSM.
+  //  Accesos: la pasarela (36,18) baja a la plaza de la estación Miranda (boca «Parque del Este» de OSM, 36,34 a 35 m); la entrada
+  //  principal (OSM entrance=main, 36,406 a 29 m) con marquesina y taquillas; el portón vehicular con barrera (36,545).
+  //  Adentro, lo que se ve desde la avenida y desde el dron: grama al pie de la reja, caminerías de concreto, la laguna grande y la de
+  //  plantas acuáticas, y el Planetario Humboldt con su cúpula (a 330 m, solo desde el dron).
+  {
+    const PQ_CAM = [[[10.494240,-66.836862],[10.494422,-66.836817],[10.494854,-66.836817],[10.494928,-66.836768],[10.495057,-66.836642],[10.495052,-66.836506],[10.495065,-66.836395],[10.495100,-66.836277],[10.495152,-66.836197],[10.495218,-66.836135],[10.495287,-66.836141]],[[10.495603,-66.836959],[10.495688,-66.837053],[10.495746,-66.837181],[10.495759,-66.837334],[10.495735,-66.837648],[10.495574,-66.838228],[10.495540,-66.838348],[10.495443,-66.838470],[10.495450,-66.838555],[10.495538,-66.838919]],[[10.495443,-66.838470],[10.495332,-66.838330],[10.495192,-66.838239],[10.494983,-66.838172],[10.494910,-66.838175]],[[10.495073,-66.838957],[10.495102,-66.838903],[10.495155,-66.838863],[10.495197,-66.838842],[10.495279,-66.838839],[10.495456,-66.838874],[10.495556,-66.838930],[10.495619,-66.838989],[10.495798,-66.839064],[10.495878,-66.839052],[10.496350,-66.838871],[10.496294,-66.839123],[10.496289,-66.839886],[10.496171,-66.839889],[10.496184,-66.840402],[10.496128,-66.840668],[10.496099,-66.841323],[10.496137,-66.841463],[10.496174,-66.841485],[10.496322,-66.841490],[10.496388,-66.841525],[10.496428,-66.841566],[10.496450,-66.841635],[10.496438,-66.841728],[10.496308,-66.841867]],[[10.495588,-66.841303],[10.495652,-66.841292]],[[10.496308,-66.841867],[10.495754,-66.841867],[10.495703,-66.841586],[10.495679,-66.841541],[10.495571,-66.841504]],[[10.495652,-66.841292],[10.495656,-66.841229],[10.495672,-66.841202],[10.495714,-66.841179],[10.495787,-66.841163],[10.496110,-66.841158]],[[10.495679,-66.841541],[10.495652,-66.841292]],[[10.496443,-66.841693],[10.496682,-66.841760]],[[10.495450,-66.838555],[10.495411,-66.838671],[10.495342,-66.838755],[10.495197,-66.838842]],[[10.496138,-66.842248],[10.496174,-66.842176],[10.496280,-66.842110],[10.496294,-66.842088],[10.496308,-66.841867]],[[10.496350,-66.838871],[10.496365,-66.838708]],[[10.496569,-66.841172],[10.496569,-66.841172]],[[10.496110,-66.841158],[10.496236,-66.841094],[10.496381,-66.841065],[10.496504,-66.841093],[10.496786,-66.841051]],[[10.495986,-66.839684],[10.496135,-66.839685]],[[10.495986,-66.839684],[10.495934,-66.839686],[10.495933,-66.839437],[10.495828,-66.839436]],[[10.496135,-66.839685],[10.496285,-66.839683]],[[10.496285,-66.839683],[10.496420,-66.839687],[10.496449,-66.841080]]], PQ_LAGUNA = [[10.494827,-66.838934],[10.494843,-66.838859],[10.494829,-66.838832],[10.494782,-66.838800],[10.494711,-66.838691],[10.494724,-66.838639],[10.494771,-66.838599],[10.494798,-66.838594],[10.494890,-66.838620],[10.494932,-66.838604],[10.494969,-66.838561],[10.495001,-66.838451],[10.494977,-66.838374],[10.494945,-66.838347],[10.494929,-66.838304],[10.494956,-66.838229],[10.495001,-66.838210],[10.495059,-66.838221],[10.495083,-66.838245],[10.495098,-66.838387],[10.495154,-66.838425],[10.495185,-66.838435],[10.495230,-66.838419],[10.495309,-66.838360],[10.495357,-66.838368],[10.495380,-66.838387],[10.495373,-66.838449],[10.495288,-66.838500],[10.495301,-66.838577],[10.495286,-66.838615],[10.495257,-66.838637],[10.495207,-66.838626],[10.495146,-66.838588],[10.495064,-66.838580],[10.495035,-66.838591],[10.494953,-66.838693],[10.494949,-66.838769],[10.495007,-66.838909],[10.495001,-66.838936],[10.494908,-66.839023],[10.494890,-66.839100],[10.494896,-66.839136],[10.494948,-66.839205],[10.494961,-66.839245],[10.494951,-66.839284],[10.494862,-66.839323],[10.494858,-66.839288],[10.494840,-66.839271],[10.494782,-66.839267],[10.494740,-66.839304],[10.494746,-66.839361],[10.494702,-66.839404],[10.494641,-66.839410],[10.494595,-66.839367],[10.494666,-66.839253],[10.494644,-66.839107],[10.494675,-66.839060],[10.494754,-66.839053],[10.494792,-66.839031]], PQ_ACUAT = [[10.493872,-66.839927],[10.493968,-66.839886],[10.494008,-66.839883],[10.494073,-66.839928],[10.494099,-66.839903],[10.494115,-66.839850],[10.494117,-66.839818],[10.494063,-66.839727],[10.494034,-66.839601],[10.493990,-66.839577],[10.493975,-66.839534],[10.494009,-66.839394],[10.494007,-66.839354],[10.494046,-66.839303],[10.494023,-66.839190],[10.493992,-66.839193],[10.493954,-66.839222],[10.493901,-66.839298],[10.493728,-66.839433],[10.493631,-66.839490],[10.493650,-66.839517],[10.493831,-66.839581],[10.493865,-66.839619],[10.493874,-66.839688],[10.493860,-66.839734],[10.493787,-66.839762],[10.493751,-66.839792],[10.493740,-66.839837],[10.493748,-66.839879],[10.493783,-66.839912]];
+    const Y = (x, z) => api.ground(x, z);
+    const RT = (km, d) => { const r = api.routeAt(km); return { x: r.x + r.lx * d, z: r.z + r.lz * d }; };
+    // lindero de la reja como (km, distancia a la izquierda); se interpola en km
+    const tramo = (pares, paso = .004) => { const out = []; for (let i = 1; i < pares.length; i++) { const [k0, d0] = pares[i - 1], [k1, d1] = pares[i], n = Math.max(1, Math.ceil(Math.abs(k1 - k0) / paso), Math.ceil(Math.abs(d1 - d0) / 3));
+      for (let j = i > 1 ? 1 : 0; j <= n; j++) { const t = j / n; out.push(RT(k0 + (k1 - k0) * t, d0 + (d1 - d0) * t)); } } return out; };
+    const tramos = [
+      tramo([[35.725, 17.0], [35.81, 17.3], [35.91, 20.0], [35.95, 21.5], [35.966, 24.2], [36.168, 24.2]]),
+      tramo([[36.208, 36.5], [36.357, 56.3], [36.357, 26.6], [36.386, 28.1], [36.396, 28.6]]),
+      tramo([[36.416, 29.4], [36.496, 36.4], [36.534, 37.4]]),
+      tramo([[36.549, 37.8], [36.559, 26], [36.566, 24.2], [36.62, 24.2]]),
+    ];
+    // tira vertical sobre una polilínea, de y0 a y1 sobre el suelo de cada punto; uLen m por repetición. Caras frontales a los dos lados.
+    const tira = (pts, y0, y1, mat, uLen) => { const P = [], U = []; let s = 0;
+      for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.z - a.z), ya = Y(a.x, a.z), yb = Y(b.x, b.z), u0 = s / uLen, u1 = (s + L) / uLen; s += L;
+        const q = [[a.x, ya + y0, a.z, u0, 0], [b.x, yb + y0, b.z, u1, 0], [b.x, yb + y1, b.z, u1, 1], [a.x, ya + y1, a.z, u0, 1]];
+        for (const t of [[0, 1, 2], [0, 2, 3], [0, 2, 1], [0, 3, 2]]) for (const k of t) { P.push(q[k][0], q[k][1], q[k][2]); U.push(q[k][3], q[k][4]); } }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); ge.computeVertexNormals();
+      return add(ge, mat, 0, 0, 0); };
+    // cinta horizontal sobre el suelo a lo largo de una polilínea (ancho w centrado, o de 0 a w hacia un lado con lado ≠ 0)
+    const piso = (pts, w, mat, dy = .1, lado = 0, uLen = 4) => { const P = [], U = [], I = []; let s = 0;
+      pts.forEach((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], L = Math.hypot(b.x - a.x, b.z - a.z) || 1, nx = -(b.z - a.z) / L, nz = (b.x - a.x) / L;
+        if (i) s += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
+        const e0 = lado ? 0 : -w / 2, e1 = lado ? w * lado : w / 2;
+        for (const e of [e0, e1]) { const x = p.x + nx * e, z = p.z + nz * e; P.push(x, Y(x, z) + dy, z); U.push(s / uLen, e === e0 ? 0 : 1); }
+        if (i) { const o = (i - 1) * 2; I.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); } });
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); ge.setIndex(I); ge.computeVertexNormals();
+      if (ge.attributes.normal.array[1] < 0) { for (let k = 0; k < I.length; k += 3) { const t = I[k + 1]; I[k + 1] = I[k + 2]; I[k + 2] = t; } ge.setIndex(I); ge.computeVertexNormals(); }
+      return add(ge, mat, 0, 0, 0); };
+    // materiales
+    const verdeReja = api.concrete(0x2b4433, { roughness: .55, metalness: .35 }), murM = api.concrete(0xcfccc3);
+    const rejaT = api.canvasTex(64, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = '#2b4433'; for (let x = 4; x < w; x += 16) c.fillRect(x, 0, 5, h); c.fillRect(0, 0, w, 6); c.fillRect(0, h * .52, w, 4); c.fillRect(0, h - 7, w, 7);
+      for (let x = 4; x < w; x += 16) { c.beginPath(); c.moveTo(x - 2, 0); c.lineTo(x + 2.5, -9); c.lineTo(x + 7, 0); c.fill(); } });
+    rejaT.wrapS = THREE.RepeatWrapping;
+    const rejaM = new THREE.MeshStandardMaterial({ map: rejaT, alphaTest: .5, roughness: .55, metalness: .3 });
+    const gramaT = api.canvasTex(128, 128, (c, w, h) => { c.fillStyle = '#5d7a3c'; c.fillRect(0, 0, w, h); let s = 5; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 900; i++) { const v = r(); c.fillStyle = v < .4 ? '#6f8c45' : v < .75 ? '#4f6c33' : '#7d9450'; c.fillRect(r() * w, r() * h, 2 + r() * 3, 2 + r() * 3); } });
+    gramaT.wrapS = gramaT.wrapT = THREE.RepeatWrapping;
+    const grama = new THREE.MeshStandardMaterial({ map: gramaT, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    const caminoM = new THREE.MeshStandardMaterial({ color: 0xc2bdb0, roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    // reja: murete de 0,55 m, paño de barrotes de 2,3 m con lanzas, parales cada 2,5 m; grama de 9 m al pie por dentro
+    const postes = [];
+    for (const pts of tramos) {
+      tira(pts, -.3, .55, murM, 6); tira(pts, .55, 2.85, rejaM, .64);
+      let acc = 0; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.z - a.z); acc += L; if (acc >= 2.5 || i === 1 || i === pts.length - 1) { acc = 0; const y = Y(b.x, b.z); postes.push([[b.x, y + .5, b.z], [b.x, y + 2.95, b.z]]); } }
+      piso(pts, 9, grama, .12, -1, 6);
+    }
+    barras(postes, .1, verdeReja);
+    // caminerías de concreto (OSM, highway=footway/pedestrian, superficie concreto)
+    for (const c of PQ_CAM) piso(c.map(([a, b]) => api.xz(a, b)), 2.6, caminoM, .14);
+    // lagunas: espejo de agua opaco a la cota más baja de su orilla
+    const agua = new THREE.MeshStandardMaterial({ color: 0x3f5f52, roughness: .12, metalness: .35 });
+    for (const P0 of [PQ_LAGUNA, PQ_ACUAT]) { const P = P0.map(([a, b]) => api.xz(a, b)), y = Math.min(...P.map(p => Y(p.x, p.z))) + .25;
+      const ge = new THREE.ShapeGeometry(new THREE.Shape(P.map(p => new THREE.Vector2(p.x, -p.z)))); ge.rotateX(-Math.PI / 2); add(ge, agua, 0, y, 0);
+      tira(P.concat([P[0]]), -.6, .35, api.concrete(0xb9b3a4), 6); }
+    // Planetario Humboldt (OSM way 278930857; Carlos Guinand Sandoz, 1961): tambor blanco y cúpula plateada
+    { const p = ll(10.492745, -66.837569), dome = api.concrete(0xdfe2e3, { roughness: .35, metalness: .45 });
+      add(new THREE.CylinderGeometry(18, 18.5, 6.5, 40), blanco, p.x, p.y + 3, p.z);
+      add(new THREE.CylinderGeometry(13.2, 13.2, 1.2, 40), grisC, p.x, p.y + 6.8, p.z);
+      add(new THREE.SphereGeometry(12.6, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), dome, p.x, p.y + 7.3, p.z); }
+    // entrada principal (36,406): dos pilares, marquesina de concreto con el nombre hacia la avenida, dos taquillas y el portón abierto
+    { const G = grupo(36.406, 30.2), cartel = new THREE.MeshStandardMaterial({ map: api.canvasTex(512, 64, (c, w, h) => { c.fillStyle = '#e9e7e0'; c.fillRect(0, 0, w, h); c.fillStyle = '#1f4f35'; c.font = 'bold 30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('PARQUE DEL ESTE', w / 2, h / 2 + 2); }), roughness: .7 });
+      add(new THREE.BoxGeometry(6, .5, 16), [blanco, cartel, blanco, grisC, blanco, blanco], -1, 4.2, 0, G);
+      for (const z of [-7.4, 7.4]) add(new THREE.BoxGeometry(.9, 4, .9), grisC, -1, 2, z, G);
+      for (const z of [-4.6, 4.6]) { add(new THREE.BoxGeometry(2.4, 2.6, 2.2), blanco, .5, 1.3, z, G); add(new THREE.BoxGeometry(.06, .9, 1.6), api.concrete(0x2b3338), -.72, 1.6, z, G); }
+      add(new THREE.BoxGeometry(5, .12, 18), api.concrete(0xb3aea2), -1, .06, 0, G); }
+    // boca del Metro «Parque del Este» (36,337 a 35 m): baranda de la escalera y tótem con la M
+    { const G = grupo(36.337, 35), M = new THREE.MeshStandardMaterial({ map: api.canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#f07c1b'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 50px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('M', w / 2, h / 2 + 3); }), roughness: .6 });
+      for (const x of [-1.6, 1.6]) add(new THREE.BoxGeometry(.25, 1.1, 8), grisC, x, .55, 0, G);
+      add(new THREE.BoxGeometry(3.4, 1.1, .25), grisC, 0, .55, -4, G);
+      add(new THREE.CylinderGeometry(.08, .08, 3.4, 8), grisC, -2.3, 1.7, 4.4, G);
+      add(new THREE.BoxGeometry(.2, 1, 1), [M, M, grisC, grisC, grisC, grisC], -2.3, 3.6, 4.4, G); }
+    // portón vehicular (36,545): barrera roja y blanca y caseta
+    { const G = grupo(36.541, 37.6), barT = api.canvasTex(64, 8, (c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#ffffff' : '#d42a22'; c.fillRect(i * 8, 0, 8, h); } });
+      add(new THREE.BoxGeometry(.12, .12, 6.5), new THREE.MeshStandardMaterial({ map: barT, roughness: .6 }), 0, 1.05, 0, G);
+      add(new THREE.BoxGeometry(.5, 1.1, .5), amarillo, 0, .55, 3.6, G); add(new THREE.BoxGeometry(2.2, 2.6, 2.2), blanco, 2.2, 1.3, 5.2, G); }
+  }
+
   return api.sombras(g);
 }

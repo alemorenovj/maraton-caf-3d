@@ -167,10 +167,12 @@ export default {
     { ll: [10.484490, -66.935314], a: 'RES', pisos: 8, col: '#d9d6cc', shop: 1 },
     { ll: [10.484642, -66.935154], a: 'COM', h: 5, col: '#e0dbd0', shop: 1, nota: 'Expomarca' },
     { ll: [10.484928, -66.935113], a: 'RES', pisos: 11, col: '#e4e6e6', shop: 0, rail: 1, alt: 0, nota: 'Edificio Villa Madrid: gris claro de balcones con franjas azules y base de piedra, km 9,83 der. (f_0098, cartel 10K)' },
-    { ll: [10.485222, -66.934776], a: 'COM', h: 4, col: '#e0662c', shop: 0, rail: 1, detalle: 0, nota: 'tapia naranja de obra, km 9,89 der. (f_0099)' },
+    { ll: [10.485222, -66.934776], a: 'COM', h: 4, col: '#e0662c', shop: 0, rail: 1, detalle: 0, nota: "Arturo's (OSM w289493893): fachada roja-naranja con carteles y reja naranja, km 9,89 der. (s 246,5)" },
     { ll: [10.485956, -66.934834], a: 'COM', h: 7, col: '#e6dfd2', shop: 1, nota: 'Río Supermarket' },
     { ll: [10.486125, -66.934630], a: 'COM', h: 7, col: '#d6402f', shop: 1, nota: 'Gama Express: rojo, km 9,97 izq. (f_0099)' },
     // ── km 10,0–10,35 (f_0100–f_0102): vidrio y madera de Salón Cantón, cruce con semáforo y torres beige a la izq.; verde oliva a la der.
+    // C.C. Multiplaza Paraíso (OSM w203598348, shop=mall): no tenía huella; frente retranqueado a 13 m del eje. Torre de vidrio, toldo y letrero en zona_paez (s 247–249)
+    { poly: [[10.485603, -66.93462], [10.486341, -66.93381], [10.486015, -66.933503], [10.485264, -66.934387]], h: 23, a: 'COM', alt: 1, col: '#b4644a', shop: 1, nota: 'C.C. Multiplaza Paraíso: caja color ladrillo de ~6 pisos, km 9,93–10,05 der.' },
     { ll: [10.486322, -66.934412], a: 'COM', h: 12, col: '#b89070', shop: 1, alt: 1, nota: 'Salón Cantón: moderno de vidrio y madera, km 10,00 izq. (f_0100)' },
     { ll: [10.486543, -66.934102], a: 'COM', h: 5, col: '#e2ded5', shop: 1 },
     { ll: [10.486773, -66.933859], a: 'COM', h: 5, col: '#e8e6e0', shop: 1, nota: 'Estación Lago El Paraíso' },
@@ -245,6 +247,9 @@ export default {
     // dos quintas blancas viejas con balaustrada junto a la acera, km 11,90–11,96 der. (f_0112): no están en OSM
     { poly: [[10.490420, -66.919438], [10.490357, -66.919314], [10.490283, -66.919348], [10.490346, -66.919473]], pisos: 2, a: 'CASA', col: '#f0eee8', nota: 'quinta blanca con balaustrada (f_0112)' },
     { poly: [[10.490288, -66.919160], [10.490248, -66.919031], [10.490169, -66.919050], [10.490211, -66.919186]], pisos: 2, a: 'CASA', col: '#ebe8e0', nota: 'quinta blanca de techo de teja (f_0112)' },
+    // 19-nov (auditoría El Paraíso): estacionamiento gris de pisos con antepechos corridos junto a la acera, tras la reja, km 11,85–11,90 der. (s 277,4);
+    // es el podio del Conjunto Victoria. Antes ahí no había nada (el recinto de OSM se había quitado).
+    { poly: [[10.490599, -66.919864], [10.490443, -66.919497], [10.490267, -66.919581], [10.490418, -66.919936]], pisos: 5, a: 'BRI', col: '#8e8d88', shop: 0, nota: 'podio-estacionamiento gris del Conjunto Victoria, km 11,88 der. (s 277,4)' },
   ],
   via: [
     // Av. Páez: una sola calzada de 4 canales (2 por sentido) con doble raya amarilla, sin isla, túnel de copas casi continuo (f_0086–f_0098)
@@ -254,8 +259,10 @@ export default {
     { km0: 8.80, km1: 8.98, set: { 'R.tipo': 'comercial bajo con santamarías', 'veg.R': .4, 'veg.denR': 2 } },
     // izq. 9,22–9,34: Plaza Washington con el parque infantil (f_0092)
     { km0: 9.22, km1: 9.34, set: { 'L.tipo': 'parque', 'veg.L': .55, 'veg.denL': 2 } },
+    // 19-nov: der. 9,02–9,36 menos copa: en el video se ven las fachadas pegadas a la acera y cielo abierto (s 225–228)
+    { km0: 9.02, km1: 9.36, set: { 'veg.R': .4, 'veg.denR': 2 } },
     // 9,88–10,22: tramo corto con brocal amarillo central, cruce con semáforo (f_0099–f_0101)
-    { km0: 9.88, km1: 10.22, set: { sep: 'brocal amarillo', calzadas: 2, canales: 2, ancho: 18, 'veg.L': .5, 'veg.R': .45, 'veg.palL': 0, 'veg.palR': 0, 'L.tipo': 'residencial', 'R.tipo': 'residencial' } },
+    { km0: 9.88, km1: 10.22, set: { sep: 'brocal amarillo', calzadas: 2, canales: 2, ancho: 18, 'veg.L': .3, 'veg.R': .45, 'veg.palL': 0, 'veg.palR': 0, 'L.tipo': 'residencial', 'R.tipo': 'residencial' } },
     // 10,22–10,60: otra vez sin isla, bajo el elevado de la Autopista Norte-Sur (f_0102–f_0104); copa densa a la izq.
     { km0: 10.22, km1: 10.60, set: { sep: 'ninguno', calzadas: 2, canales: 2, ancho: 16, 'veg.L': .7, 'veg.denL': 3, 'veg.R': .5, 'veg.palL': 0, 'veg.palR': 0 } },
     // 10,60–11,00: comercios bajos a ambos lados (Gran Corona, toldos), no muro/terreno (f_0105–f_0106)
@@ -272,7 +279,9 @@ export default {
   ],
   relieve: [
     // cerro de la calle Las Flores: sube a la der. justo antes de los ramales (f_0113, cuadro 281 s)
-    { km0: 12.06, km1: 12.19, lado: 'R', d0: 16, d1: 30, dh: 12, d2: 90, d3: 120, rampa: 25, nota: 'cerro de la calle Las Flores' },
+    // 19-nov: empezaba en el 12,06 con 12 m a 16 m del eje y se veía como un paño negro inclinado; en el video a la altura del 12,10 hay quintas
+    // y árboles a nivel (s 279), y la ladera asoma detrás del muro de Las Flores desde el 12,15 (s 281)
+    { km0: 12.15, km1: 12.19, lado: 'R', d0: 20, d1: 42, dh: 7, d2: 90, d3: 120, rampa: 25, nota: 'cerro de la calle Las Flores, detrás del muro' },
   ],
   estructuras: [],
   // el tablero de autopista de los datos estaba en 10,31–10,36: el elevado real (Autopista Norte-Sur + ramales de La Araña) cruza en 10,46–10,50

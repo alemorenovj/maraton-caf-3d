@@ -11,6 +11,8 @@
 //  · km 11,65–12,19: rampas del Distribuidor Baralt que suben a la izq. y pasan por encima (trazado OSM; f_0111, f_0113, cuadro 281 s).
 //    La zona roca_victoria pone la cubierta de 12,195–12,235 (alto 8): la rampa de aquí llega a esa misma altura y se corta en el 12,19.
 //  · km 12,07–12,19 der.: muro blanco viejo de la calle Las Flores al pie del cerro (cuadro 281 s).
+//  19-nov (auditoría El Paraíso, build/investigacion/auditoria_paraiso.md): C.C. Multiplaza Paraíso (9,93–10,05 der.), pasarela verde de celosía
+//  al salir del elevado (10,527), barreras pintadas bajo el elevado y la New Jersey de la rampa del Baralt (11,86–11,99 izq.).
 export const meta = { id: 'zona_paez', nombre: 'Zona paez', quita: [] };
 
 export function build(THREE, api) {
@@ -30,9 +32,12 @@ export function build(THREE, api) {
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(ix); geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, mat); g.add(m); return m; };
   const rep = t => { t.wrapS = THREE.RepeatWrapping; return t; };
+  // segunda cara de un paño (vértices propios, triángulos invertidos y normales opuestas): las dos caras quedan frontales para la oclusión ambiental
+  const dos = m => { const gm = m.geometry.clone(), ix = gm.index.array.slice(); for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; }
+    gm.setIndex(Array.from(ix)); const n = gm.attributes.normal; for (let i = 0; i < n.array.length; i++) n.array[i] *= -1; const b = new THREE.Mesh(gm, m.material); m.parent.add(b); return m; };
 
   // ───────── Viaductos (elevado de 10,47 y rampas del Distribuidor Baralt) ─────────
-  const fascia = api.concrete(0x8f8a80), sofito = api.concrete(0x55524d), asfalto = api.concrete(0x4a4b4d), njersey = api.concrete(0xa6a197), colMat = api.concrete(0x8a867d);
+  const fascia = api.concrete(0x7c786f), sofito = api.concrete(0x55524d), asfalto = api.concrete(0x4a4b4d), njersey = api.concrete(0xa6a197), colMat = api.concrete(0x8a867d);
   // polilínea lat/lon → muestras cada 5 m con la altura del intradós dada por fh(s, x, z, largo)
   const viaducto = (ll, ancho, fh, keep, colCada = 34) => {
     const P = ll.map(([a, b]) => LL(a, b)); const S = []; let tot = 0;
@@ -73,6 +78,50 @@ export function build(THREE, api) {
     viaducto([[10.490984, -66.921604], [10.491044, -66.921332], [10.491088, -66.921197], [10.491151, -66.921057], [10.49126, -66.920913], [10.491372, -66.920789], [10.491435, -66.920747], [10.491513, -66.920708], [10.491586, -66.920677], [10.491661, -66.920644], [10.491827, -66.920601], [10.491945, -66.920571], [10.491991, -66.920559], [10.492169, -66.920517], [10.492265, -66.920491], [10.492482, -66.920432]], 8, rampa(7.5), hasta1219);
     viaducto([[10.492482, -66.920432], [10.492135, -66.920438], [10.491962, -66.920422], [10.491796, -66.920384], [10.491672, -66.920344], [10.491566, -66.920309], [10.491418, -66.920234], [10.491202, -66.92007], [10.491118, -66.919971], [10.491086, -66.91992], [10.491003, -66.919775], [10.490933, -66.919625], [10.490872, -66.919435]], 8, rampa(7.5, true), hasta1219);
     viaducto([[10.490506, -66.918059], [10.490529, -66.917797], [10.490582, -66.917648], [10.490651, -66.917504], [10.490761, -66.917337], [10.490862, -66.917184], [10.490983, -66.917055], [10.491175, -66.916897], [10.491726, -66.916447]], 8.5, rampa(8), hasta1219, 20);
+  }
+
+  // ───────── C.C. Multiplaza Paraíso (9,93–10,05 der.; OSM w203598348; video s 247–249) ─────────
+  // Caja de ~6 pisos color ladrillo (huella en fx/correcciones/paez.js), locales con toldo azul en planta baja y, en la esquina del cruce
+  // (10,05), la torre curva de vidrio azul. No había huella: el tramo de la derecha estaba vacío.
+  { const A = LL(10.485603, -66.93462), B = LL(10.486341, -66.93381), C = LL(10.486015, -66.933503), Dd = LL(10.485264, -66.934387);
+    const W = Math.hypot(B.x - A.x, B.z - A.z), D = Math.hypot(C.x - B.x, C.z - B.z), ang = Math.atan2(B.z - A.z, B.x - A.x);
+    const cx = (A.x + B.x + C.x + Dd.x) / 4, cz = (A.z + B.z + C.z + Dd.z) / 4, gy = Math.min(api.ground(A.x, A.z), api.ground(B.x, B.z), api.ground(cx, cz));
+    const M = new THREE.Group(); M.position.set(cx, gy, cz); M.rotation.y = -ang; g.add(M);
+    const zw = [-Math.sin(ang), Math.cos(ang)], fr = Math.sign((A.x + B.x) / 2 - cx) * zw[0] + Math.sign((A.z + B.z) / 2 - cz) * zw[1] >= 0 ? 1 : -1;   // lado de la vía en z local
+    const H = 23;
+    const lado = api.concrete(0xa9604a);
+    // la caja la dibuja el generador (poly en fx/correcciones/paez.js, así entra en sus zonas de detalle); aquí van la torre, el toldo y el letrero
+    // torre curva de vidrio azul en la esquina del cruce y su remate
+    const vid = api.glass(0x2f6fb8, { roughness: .12 });
+    add(new THREE.CylinderGeometry(8.5, 8.5, H + 5, 28), vid, W / 2 - 8.5, (H + 5) / 2, fr * (D / 2 - 8.5), M);
+    add(new THREE.CylinderGeometry(8.9, 8.9, .8, 28), api.concrete(0xd9d6cf), W / 2 - 8.5, H + 5.2, fr * (D / 2 - 8.5), M);
+    // toldo azul corrido de los locales
+    add(new THREE.BoxGeometry(W - 22, .25, 2.2), api.concrete(0x2d5c9a), -9, 3.6, fr * (D / 2 + 1.1), M);
+    // letrero MULTIPLAZA en la fachada
+    const lt = api.canvasTex(256, 48, (k, w, h) => { k.fillStyle = '#f4f2ee'; k.fillRect(0, 0, w, h); k.fillStyle = '#c4262e'; k.font = 'bold 30px sans-serif'; k.textAlign = 'center'; k.fillText('MULTIPLAZA', w / 2, 34); });
+    add(new THREE.BoxGeometry(14, 2.6, .3), [lado, lado, lado, lado, new THREE.MeshStandardMaterial({ map: lt, roughness: .6 }), new THREE.MeshStandardMaterial({ map: lt, roughness: .6 })], 18, H - 4, fr * (D / 2 + .2), M).rotation.y = fr > 0 ? 0 : Math.PI;
+  }
+
+  // ───────── Pasarela verde de celosía al salir del elevado (10,525; video s 256,5–257,3) ─────────
+  // No está en OSM: el video la muestra a ~30 m de la última losa, cerchas verdes con paños triangulares y escaleras a ambos lados.
+  { const r = api.routeAt(10.527), P = new THREE.Group(), gy = r.y; P.position.set(r.x, gy, r.z); P.rotation.y = Math.atan2(r.tx, r.tz); g.add(P);
+    const verde = api.concrete(0x2f9a6a, { roughness: .6 }), panel = api.concrete(0x3fb383, { roughness: .7 }), Hh = 5.6, L = 26;   // local: x = lateral (−x = izquierda… se usa simétrico), z = sentido de carrera
+    for (const sz of [-1.2, 1.2]) { add(new THREE.BoxGeometry(L, .18, .18), verde, 0, Hh, sz, P); add(new THREE.BoxGeometry(L, .14, .14), verde, 0, Hh + 2.2, sz, P);
+      const n = 11; for (let i = 0; i < n; i++) { const x = -L / 2 + (i + .5) * L / n, s = i % 2 ? 1 : -1;
+        const d = add(new THREE.BoxGeometry(.1, 2.6, .1), verde, x, Hh + 1.1, sz, P); d.rotation.z = s * .78;
+        const p = add(new THREE.BoxGeometry(1.5, 1.1, .05), panel, x, Hh + 1.1 + s * .3, sz * 1.02, P); p.rotation.z = s * .35; } }
+    add(new THREE.BoxGeometry(L, .15, 2.4), verde, 0, Hh + .05, 0, P);
+    for (const x of [-L / 2 + .3, L / 2 - .3]) for (const z of [-1.1, 1.1]) add(new THREE.BoxGeometry(.3, Hh, .3), verde, x, Hh / 2, z, P);
+    // escaleras paralelas a la vía, una por lado, bajando hacia quien llega
+    for (const x of [-L / 2 + 1.2, L / 2 - 1.2]) { const len = Math.hypot(Hh, 10), e = add(new THREE.BoxGeometry(1.5, .22, len), verde, x, Hh / 2, -6.2, P); e.rotation.x = -Math.atan2(Hh, 10);
+      for (const s of [-.75, .75]) { const b = add(new THREE.BoxGeometry(.05, .05, len), verde, x + s, Hh / 2 + 1, -6.2, P); b.rotation.x = e.rotation.x; }
+      add(new THREE.BoxGeometry(.2, Hh / 2, .2), verde, x, Hh / 4, -6.2, P); }
+  }
+
+  // ───────── Bajo el elevado: barreras New Jersey pintadas en bloques amarillo, blanco y azul (10,455–10,51; s 256,8–257,0) ─────────
+  { const t = rep(api.canvasTex(128, 32, (k, w, h) => { const c = ['#f0c419', '#f2f1ec', '#2f62b0', '#f2f1ec']; for (let i = 0; i < 4; i++) { k.fillStyle = c[i]; k.fillRect(i * w / 4, 0, w / 4, h); } }));
+    const bm = new THREE.MeshStandardMaterial({ map: t, roughness: .85 });
+    dos(cinta(10.452, 10.512, -9.6, 0, 1.15, bm, 6)); dos(cinta(10.452, 10.512, 9.4, 0, 1.15, bm, 6));
   }
 
   // ───────── Pendones rojos de la avenida (8,6–11,5, acera derecha) ─────────
@@ -143,6 +192,11 @@ export function build(THREE, api) {
     const der = rep(api.canvasTex(256, 128, (k, w, h) => { k.fillStyle = '#f1f1ee'; k.fillRect(0, 0, w, h); k.fillStyle = '#1d4fb0'; k.fillRect(0, h * .58, w, h * .42); k.fillRect(0, 0, w, h * .12); k.fillStyle = '#e2622b'; k.fillRect(0, h * .5, w, h * .08); }));
     cinta(11.645, 11.80, -9.2, -.3, 6.2, new THREE.MeshStandardMaterial({ map: der, roughness: .85, side: THREE.DoubleSide }), 26);
     { const r = api.routeAt(11.735), x = r.x - r.lx * 9.05, z = r.z - r.lz * 9.05; add(new THREE.BoxGeometry(4.2, 3.6, .2), api.concrete(0x2a9a86), x, api.ground(x, z) + 1.8, z).rotation.y = Math.atan2(r.tx, r.tz) + Math.PI / 2; }
+  }
+
+  // ───────── Barrera New Jersey de la rampa del Distribuidor Baralt a la izq. (11,86–11,99; s 277,4–278,2): gris con marcas amarillas ─────────
+  { const t = rep(api.canvasTex(64, 32, (k, w, h) => { k.fillStyle = '#9b988f'; k.fillRect(0, 0, w, h); k.fillStyle = '#e8c21e'; k.fillRect(w - 7, 0, 7, h); k.fillStyle = '#7d7a72'; k.fillRect(0, h - 4, w, 4); }));
+    dos(cinta(11.86, 11.99, 7.2, -.2, 1.25, new THREE.MeshStandardMaterial({ map: t, roughness: .9 }), 3.2));
   }
 
   // ───────── Muro blanco de la calle Las Flores (12,07–12,19 der.) ─────────

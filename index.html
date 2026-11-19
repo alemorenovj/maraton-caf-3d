@@ -125,7 +125,7 @@ kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-fami
 <div id="fps" style="display:none;position:fixed;right:14px;bottom:150px;z-index:5;font:12px Inter,system-ui;color:#fff;background:rgba(0,0,0,.6);padding:4px 8px;border-radius:6px"></div>
 <div id="hud">
   <div id="stats" class="panel">
-    <div class="km"><span id="sKm">0.0</span> <small>/ 42.2 km</small></div>
+    <div class="km"><span id="sKm">0.0</span> <small id="sKmT">/ 42.2 km</small></div>
     <div class="row">
       <div><div class="k">Reloj</div><div class="v" id="sClock">0:00:00</div></div>
       <div><div class="k">Ritmo</div><div class="v" id="sPace">5:41/km</div></div>
@@ -169,6 +169,7 @@ kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-fami
       <div class="mode" data-m="race"><span class="badge">Juego</span><h3>Correr la carrera</h3><p>Arma tu estrategia (geles, agua y ritmo) y córrela a toques: mantén la aguja en verde, bebe y toma el gel a tiempo, y llega a meta sin chocar con el muro.</p></div>
     </div>
     <div class="opts">
+      <div class="opt-dist"><label>Distancia</label><div class="seg" id="segDist"><button data-dist="42" class="on">42K · Maratón</button><button data-dist="21">21K · Media</button></div></div>
       <div><label>Tiempo objetivo</label><div class="seg" id="segT"><button data-t="3.25">3:15</button><button data-t="3.5">3:30</button><button data-t="4" class="on">4:00</button><button data-t="4.5">4:30</button><button data-t="5">5:00</button></div><div id="objStart"></div></div>
       <div class="opt-dur"><label>Duración del recorrido</label><div class="seg" id="segD"><button data-s="60">≈4 min</button><button data-s="30" class="on">≈8 min</button><button data-s="10">≈24 min</button></div></div>
       <div><label>Gráficos</label><div class="seg" id="segQ"><button data-q="alta" title="Sombras, reflejos, bloom y gradación de color">Alta</button><button data-q="media" title="La misma ciudad sin sombras ni efectos: para teléfonos">Media</button><button data-q="ligera" title="Ciudad simplificada, para equipos modestos">Ligera</button></div><div class="qnota">Alta: sombras y efectos. Media: la misma ciudad sin ellos (teléfonos). Ligera: lo mínimo, para equipos lentos.</div></div>
@@ -193,7 +194,7 @@ b.appendChild(r);document.body.appendChild(b);}
    recarga UNA vez sola en el nivel de calidad de abajo con ?retoma=1; game.js retoma desde ahí. Si ya hubo una recarga automática hace menos de
    10 min, si la página ya venía de una (?retoma) o si sessionStorage no funciona, no se recarga sola: se ofrece con un botón (sin bucles). */
 function perdido(){var g=window.__caf,S=g&&g.S,Q=g&&g.Q,u=new URL(location.href),tier=(Q&&Q.tier)||u.searchParams.get('calidad')||'alta',baja={alta:'media',fija:'media',media:'ligera'}[tier]||null,est=null,prev=null,ok=false;
-try{if(S&&S.running){est={modo:S.resumen?'tour':S.mode,s:S.s,km:g.ctx.kmOf(S.s),clock:S.clock,target:S.target,energy:S.energy,hyd:S.hyd,effort:S.effort,scale:S.scale,cam:S.cam,dia:S.dia,missed:S.missed,splits:S.splits,wall:S.wall,wallKm:S.wallKm,drunk:Array.from(S.drunk||[]),carrera:(window.__cafUI&&__cafUI.carrera&&__cafUI.carrera.estado())||null};}}catch(x){}
+try{if(S&&S.running){est={modo:S.resumen?'tour':S.mode,dist:(g.A&&g.A.id)||'42',s:S.s,km:(g.A||g.ctx).kmOf(S.s),clock:S.clock,target:S.target,energy:S.energy,hyd:S.hyd,effort:S.effort,scale:S.scale,cam:S.cam,dia:S.dia,missed:S.missed,splits:S.splits,wall:S.wall,wallKm:S.wallKm,drunk:Array.from(S.drunk||[]),carrera:(window.__cafUI&&__cafUI.carrera&&__cafUI.carrera.estado())||null};}}catch(x){}
 try{prev=JSON.parse(sessionStorage.getItem('caf3d-rescate')||'null');}catch(x){}
 var reg={t:Date.now(),de:tier,a:baja,est:est,pend:!!est},km=est?' desde el km '+est.km.toFixed(1):'';
 var guarda=function(){try{sessionStorage.setItem('caf3d-rescate',JSON.stringify(reg));if(baja)localStorage.setItem('caf3d-calidad',baja);return true;}catch(x){return false;}};
@@ -212,6 +213,6 @@ window.__aviso=aviso;})();
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script src="data/caf-data.js?v=55"></script>
 <script>window.__carga && __carga(.62, 'Levantando la ciudad');</script>
-<script type="module" src="game.js?v=104"></script>
+<script type="module" src="game.js?v=107"></script>
 </body>
 </html>

@@ -138,6 +138,13 @@ export function install(ctx) {
   for (let r = 0; r < NR; r++) if (kind[r]) { gapR[r] = gapL[r] = gapM[r] = 0; }
 
   for (let r = 0; r < NR; r++) if (kind[r] === 1 || kind[r] === 2) sepN[r] = '';
+  // Aberturas para los tramos del 21K que el 42K no pisa (ctx.aberturas, en m de la ruta de referencia; las pone game.js): en el retorno
+  // de Los Ilustres el separador se abre (asfalto corrido entre las dos calzadas, como el enlace real) y en las esquinas de Las Acacias el
+  // lado por donde sigue el 21K queda sin brocal ni acera (bocacalle). Se ven en las dos distancias: son parte de la calle.
+  const abre = new Uint8Array(NR);
+  for (const a of ctx.aberturas || []) for (let r = Math.max(0, Math.ceil(a.s0 / DS)); r <= Math.min(NR - 1, Math.floor(a.s1 / DS)); r++) { abre[r] = 1;
+    if (a.sep) { if (par[r] > 8) W2[r] += sepN[r] ? sw[r] : 0; sw[r] = sH[r] = fenH[r] = sepG[r] = sepY[r] = 0; sepN[r] = ''; gapM[r] = 1; flags[r] &= ~(F.carD | F.carI | F.bus | F.sem | F.cebra | F.flecha); }
+    if (a.L) gapL[r] = 1; if (a.R) gapR[r] = 1; }
   // oscuridad real bajo techo de túnel (solo el tramo cubierto km1–km2, rampa de 25 m desde cada boca) y pintura vieja/nueva por calle
   const dark = A(), paint = A();
   for (let r = 0; r < NR; r++) { const s = r * DS; for (const t of D.tuneles || []) { const a = sOfKm(t.km1), b = sOfKm(t.km2); if (s > a && s < b) dark[r] = Math.max(dark[r], Math.min(1, (s - a) / 25, (b - s) / 25)); }
@@ -147,7 +154,7 @@ export function install(ctx) {
   // ── API pública: perfil por s y rejilla de ocupación
   // Isla central entre la ida y la vuelta cuando la vuelta va por la calzada de la derecha (el perfil solo sabe poner isla a la izquierda)
   { const T3 = ctx.THREE, vp = [], vi = [], gp = [], gi = []; let prev = false;
-    for (let r = 0; r < NR; r++) { const w = -par[r] - ROAD_W - 1.4, ok = par[r] < -8 && parQ[r] > r && w >= .9 && !kind[r] && !skip[r]; if (!ok) { prev = false; continue; }
+    for (let r = 0; r < NR; r++) { const w = -par[r] - ROAD_W - 1.4, ok = par[r] < -8 && parQ[r] > r && w >= .9 && !kind[r] && !skip[r] && !abre[r]; if (!ok) { prev = false; continue; }
       P(r * DS, o); const rx = -o.tz, rz = o.tx, c = -par[r] / 2, hw = Math.min(w, 5) / 2, a = c - hw, b = c + hw, y0 = o.y + .02, y1 = o.y + .2, k = vp.length / 3, g = gp.length / 3;
       vp.push(o.x + rx * a, y0, o.z + rz * a, o.x + rx * a, y1, o.z + rz * a, o.x + rx * (a + .22), y1, o.z + rz * (a + .22), o.x + rx * (b - .22), y1, o.z + rz * (b - .22), o.x + rx * b, y1, o.z + rz * b, o.x + rx * b, y0, o.z + rz * b);
       gp.push(o.x + rx * (a + .22), y1 + .01, o.z + rz * (a + .22), o.x + rx * (b - .22), y1 + .01, o.z + rz * (b - .22));
@@ -175,6 +182,10 @@ export function install(ctx) {
   { const occ = new Set(), CS = 2, key = (x, z) => Math.floor(x / CS) * 131072 + Math.floor(z / CS);
     for (let r = 0; r < NR; r++) { if (skip[r]) continue; for (let h = 0; h < 2; h++) { P(r * DS + h * DS / 2, o); const lx = o.tz, lz = -o.tx, dR = -(hwR[r] + .25), dL = hwL[r] + sw[r] + W2[r] + .25;
         for (let d = dR; d <= dL + .01; d += 1.2) occ.add(key(o.x + lx * d, o.z + lz * d)); occ.add(key(o.x + lx * dL, o.z + lz * dL)); } }
+    // conectores del 21K (fx/ruta21k.js dibuja su asfalto): tampoco se siembran árboles, gente ni mobiliario encima
+    for (const c of ctx.conectores || []) { let L = 0; for (let i = 1; i < c.length; i++) L += Math.hypot(c[i][0] - c[i - 1][0], c[i][1] - c[i - 1][1]); const hw = L < 80 ? 5 : 8.5;
+      for (let i = 1; i < c.length; i++) { const [ax, az] = c[i - 1], ux = c[i][0] - ax, uz = c[i][1] - az, l = Math.hypot(ux, uz) || 1, nx = -uz / l, nz = ux / l;
+        for (let a = 0; a <= l; a += 1) for (let d = -hw; d <= hw; d += 1) occ.add(key(ax + ux * a / l + nx * d, az + uz * a / l + nz * d)); } }
     ctx.calzadaLibre = (x, z) => !occ.has(key(x, z)); }
 
   // ───────── 2. Texturas procedurales ─────────
@@ -431,7 +442,8 @@ export function install(ctx) {
 
   // ───────── 9. Por cuadro ─────────
   let lastS = 0; const near = new Int32Array(16), nearD = new Float32Array(16);
-  const findS = p => { const N = ctx.N, R = ctx.R, st = ctx.STEP; let i0 = Math.round(lastS / st), best = -1, bd = 1e18; const loc = Math.hypot(R.x[Math.min(N - 1, i0)] - p.x, R.z[Math.min(N - 1, i0)] - p.z) < 60;
+  const findS = p => { if (ctx.S && ctx.S.running && ctx.A && ctx.A.id !== '42') return (lastS = ctx.S.sr);   // 21K: la s de referencia la da la ruta activa
+    const N = ctx.N, R = ctx.R, st = ctx.STEP; let i0 = Math.round(lastS / st), best = -1, bd = 1e18; const loc = Math.hypot(R.x[Math.min(N - 1, i0)] - p.x, R.z[Math.min(N - 1, i0)] - p.z) < 60;
     const a = loc ? Math.max(0, i0 - 12) : 0, b = loc ? Math.min(N - 1, i0 + 12) : N - 1; for (let i = a; i <= b; i++) { const d = (R.x[i] - p.x) ** 2 + (R.z[i] - p.z) ** 2; if (d < bd) { bd = d; best = i; } } lastS = best * st; return lastS; };
   ctx.frameHooks.push((n, t, dt, p) => {
     (ctx.pend || (ctx.pend = {})).calzada = started ? 0 : 1;   // solo lectura (ctx.pendientes): trozos aún sin construir

@@ -213,25 +213,9 @@ export function build(THREE, api) {
     const blanco = api.concrete(0xf1eee6);
     const hongo = (k, lat, hex, H = 3.2, R = 1.9) => { const s = sitio(k, lat), o = new THREE.Group(); const t = new THREE.Mesh(tallo, blanco); t.scale.set(1, H * .62, 1); t.position.y = H * .31;
       const c = new THREE.Mesh(som, lunares(hex)); c.scale.set(R, R * .62, R); c.position.y = H * .58; const b = new THREE.Mesh(new THREE.CircleGeometry(R * .98, 20), blanco); b.rotation.x = Math.PI / 2; b.position.y = H * .58; o.add(t, c, b); o.position.set(s.x, s.y, s.z); o.rotation.y = s.r; g.add(o); };
-    hongo(19.335, 12, '#2fb3b8', 3.4, 2);          // f_0193, izquierda
-    hongo(19.93, -9.5, '#e2365a', 2.4, 1.4);       // f_0198, junto al concesionario
-    hongo(19.965, 10.5, '#f2c81e', 2.2, 2.1);      // f_0199, plaza de las banderas
-    hongo(19.975, 12.5, '#2fb3b8', 2.8, 1.6);
-    hongo(19.985, 11, '#d93a3a', 1.6, 1.1);
+    hongo(19.335, 12, '#2fb3b8', 3.4, 2);          // f_0193, izquierda (los de la plaza de las banderas y la bajada, en la sección de la 2.ª ronda)
     hongo(20.075, 10.5, '#36b6c0', 3.4, 2.1);      // f_0200, frente al edificio gris de la UCV
     hongo(20.08, 13.5, '#5fb846', 1.2, .8); }
-
-  // banderas alrededor de la Plaza Las Tres Gracias (video f_0199): mástiles blancos con la bandera nacional y la de Caracas
-  { const C = api.xz(10.488139, -66.889170), cy = suelo(C.x, C.z), mast = new THREE.CylinderGeometry(.06, .09, 10, 6), blanco = api.concrete(0xf4f4f0);
-    const ve = api.canvasTex(96, 64, (c, w, h) => { c.fillStyle = '#f2c51e'; c.fillRect(0, 0, w, h / 3); c.fillStyle = '#1f4ea0'; c.fillRect(0, h / 3, w, h / 3); c.fillStyle = '#cf1f2f'; c.fillRect(0, h * 2 / 3, w, h / 3); c.fillStyle = '#fff'; for (let i = 0; i < 8; i++) { const a = Math.PI * (.15 + .7 * i / 7); c.beginPath(); c.arc(w / 2 - Math.cos(a) * 14, h / 2 + 8 - Math.sin(a) * 12, 1.6, 0, 7); c.fill(); } });
-    const cc = api.canvasTex(96, 64, (c, w, h) => { c.fillStyle = '#c3202a'; c.fillRect(0, 0, w, h); c.fillStyle = '#f2c51e'; c.beginPath(); c.arc(w * .3, h * .5, 12, 0, 7); c.fill(); c.fillStyle = '#2e8b3a'; c.fillRect(0, h - 8, w, 8); });
-    const mV = new THREE.MeshStandardMaterial({ map: ve, side: THREE.DoubleSide, roughness: .8 }), mC = new THREE.MeshStandardMaterial({ map: cc, side: THREE.DoubleSide, roughness: .8 });
-    const tela = new THREE.PlaneGeometry(2.1, 1.4, 6, 1); tela.translate(1.05, 0, 0); { const pa = tela.attributes.position; for (let i = 0; i < pa.count; i++) pa.setZ(i, Math.sin(pa.getX(i) * 2.2) * .18); }
-    const ruta = []; for (let k = 19.9; k <= 20.05; k += .005) ruta.push(RA(k));
-    let n = 0; for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, x = C.x + Math.cos(a) * 18, z = C.z + Math.sin(a) * 18;
-      if (ruta.some(p => Math.hypot(p.x - x, p.z - z) < 10)) continue;
-      const m = new THREE.Mesh(mast, blanco); m.position.set(x, cy + 5, z); g.add(m);
-      const f = new THREE.Mesh(tela, n++ % 3 === 1 ? mC : mV); f.position.set(x, cy + 9.1, z); f.rotation.y = .9 + Math.sin(i) * .25; g.add(f); } }
 
   // oso de alambre (figura navideña de alambre blanco con lazo rojo) en la isla de la redoma, video f_0191–0192
   { const s = sitio(19.175, 11), o = new THREE.Group(), alambre = new THREE.MeshBasicMaterial({ color: 0xe8ecef, wireframe: true, transparent: true, opacity: .85 });
@@ -383,6 +367,123 @@ export function build(THREE, api) {
         k.fillStyle = '#dcdcd8'; k.fillRect(0, 240, w, 3); k.fillStyle = '#2b2d33'; k.font = '17px sans-serif'; ['Ventas', 'Repuestos', 'Servicio'].forEach((s, i) => { k.fillText(s, w / 2, 300 + i * 46); k.fillRect(10, 316 + i * 46, w - 20, 2); }); }));
       for (const x of [-.75, .75]) mesh(new THREE.BoxGeometry(.25, 9.2, .25), blanco, x, 4.6, 0, 0, T);
       mesh(new THREE.BoxGeometry(1.25, 5.4, .3), [blanco, blanco, blanco, blanco, cara, cara], 0, 6.2, 0, 0, T); }
+  }
+
+  // ═════════ UCV (km 19,2–20,1), 2.ª ronda del 19-nov: hongos-farola, esculturas, plaza de las banderas, Plaza Las Tres Gracias y reja de Cars ═════════
+  // Video (capó visible): t=479,5 farola-hongo turquesa der. · t=480 hongo rojo der. junto a la parada · t=481,5 turquesa der. · t=482 rojo en la isla der. ·
+  // t=482,5 verde der. y hongo rojo en el parque izq. · t=483 hongo azul izq. · t=486,3 amarillo izq. y farola de hongo rojo con lunares der. ·
+  // t=487,3 farola de hongo rosado der. · t=488,3 hongo azul grande izq. · t=492,7 hongo rojo izq. · t=493,3 flor azul izq. · t=493,7 farola rosada der.
+  // Plaza de las banderas frente a la estación Ciudad Universitaria (OSM), izq. km 19,95 (t=494–497, cámara girada): ~16 astas altas con la bandera
+  // nacional y la tricolor roja, azul y verde; hongo amarillo con huecos, flor roja, hongo turquesa, flor azul, palmas.
+  // Plaza Las Tres Gracias (OSM leisure=park, Q6080014): la «placita» del cruce a la derecha del km 19,91 (Calle Las Tres Gracias) que vio el dueño,
+  // entre esa calle y la Av. Bellas Artes (19,97). Foto satelital: franja de ~26 × 75 m con árboles y un estanque alargado. La escultura de las
+  // tres gracias va por el nombre (no se ve en el video ni en la foto).
+  { const tex = (w, h, draw) => { const t = api.canvasTex(w, h, draw); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+    const XZ = (la, lo) => api.xz(la, lo), G = suelo, nrm = (x, z) => { const l = Math.hypot(x, z) || 1; return [x / l, z / l]; };
+    const ladoP = (k, d) => { const r = RA(k); return { x: r.x + r.lx * d, z: r.z + r.lz * d, y: r.y, r, ry: Math.atan2(r.tx, r.tz) }; };
+    const mesh = (geo, mat, x, y, z, ry = 0, p = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; p.add(m); return m; };
+    const blanco = api.concrete(0xf1eee6), verdeF = api.concrete(0x1f3a2c, { roughness: .5, metalness: .35 });
+    const capCache = {}, capMat = (hex, pun) => capCache[hex + pun] || (capCache[hex + pun] = new THREE.MeshStandardMaterial({ roughness: .4, metalness: .12, map: api.canvasTex(128, 64, (c, w, h) => { c.fillStyle = hex; c.fillRect(0, 0, w, h);
+      c.fillStyle = pun; for (let i = 0; i < 16; i++) { c.beginPath(); c.arc((i * 37) % w, 6 + (i * 23) % (h - 18), 4 + (i % 3) * 2, 0, 7); c.fill(); } }) }));
+    const somG = new THREE.SphereGeometry(1, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2), talloG = new THREE.CylinderGeometry(.42, .62, 1, 12), discoG = new THREE.CircleGeometry(.98, 18); discoG.rotateX(Math.PI / 2);
+    // hongo escultura: tallo claro y sombrero (H alto total, Rc radio del sombrero); pun = color de los lunares o huecos
+    const hongo = (x, y, z, hex, pun, H, Rc, tallo = 0xf1eee6) => { const t = mesh(talloG, api.concrete(tallo), x, y + H * .3, z); t.scale.set(Rc * .45, H * .6, Rc * .45);
+      const c = mesh(somG, capMat(hex, pun), x, y + H * .58, z); c.scale.set(Rc, Rc * .62, Rc); const b = mesh(discoG, blanco, x, y + H * .58, z); b.scale.set(Rc, 1, Rc); };
+    // flor de seis pétalos sobre su vara (de cara a la ruta)
+    const petG = new THREE.SphereGeometry(1, 10, 6); petG.scale(.32, .55, .1); petG.translate(0, .55, 0);
+    const flor = (x, y, z, hex, H, ry) => { const F = new THREE.Group(); F.position.set(x, y, z); F.rotation.y = ry; g.add(F); mesh(new THREE.CylinderGeometry(.05, .07, H, 6), verdeF, 0, H / 2, 0, 0, F);
+      const pm = api.concrete(hex, { roughness: .45 }); for (let i = 0; i < 6; i++) { const p = mesh(petG, pm, 0, H, 0, 0, F); p.rotation.z = i * Math.PI / 3; p.scale.setScalar(1.5); }
+      const c = mesh(new THREE.SphereGeometry(.3, 10, 8), api.concrete(0xf2c230), 0, H, .08, 0, F); c.scale.z = .5; };
+    // farola de la avenida coronada con un hongo (poste verde oscuro)
+    const farola = (k, lat, hex, pun) => { const p = ladoP(k, lat), y = Math.max(p.y, G(p.x, p.z)); mesh(new THREE.CylinderGeometry(.09, .13, 4.6, 8), verdeF, p.x, y + 2.3, p.z);
+      mesh(new THREE.CylinderGeometry(.2, .2, .3, 8), verdeF, p.x, y + .15, p.z); hongo(p.x, y + 4.3, p.z, hex, pun, 1.2, .62, 0xe9e6dc); };
+    farola(19.228, -9.4, '#2fb3b8', '#e9f6f6'); farola(19.252, -9.6, '#d8262f', '#fbf3ea'); farola(19.318, -9.4, '#2fb3b8', '#e9f6f6');
+    farola(19.36, -8.9, '#d8262f', '#fbf3ea'); farola(19.378, -9.4, '#6cc04a', '#e8f7df'); farola(19.628, -9.5, '#d8262f', '#ffffff');
+    farola(19.69, -9.5, '#e85a9a', '#ffffff'); farola(19.905, -9.6, '#e85a9a', '#ffffff');
+    // esculturas en el parque de la izquierda (Paseo Los Ilustres)
+    const enParque = (k, lat) => { const p = ladoP(k, lat); return [p.x, G(p.x, p.z), p.z, p.ry]; };
+    { let [x, y, z] = enParque(19.376, 11); hongo(x, y, z, '#d8262f', '#fbf3ea', 2.6, 1.5);
+      [x, y, z] = enParque(19.405, 13.5); hongo(x, y, z, '#2a62c9', '#e8eefc', 2.8, 1.6);
+      [x, y, z] = enParque(19.628, 10.5); hongo(x, y, z, '#f2c81e', '#c99a10', 2.4, 1.7);
+      [x, y, z] = enParque(19.732, 10); hongo(x, y, z, '#2a7fc9', '#d7ecfb', 3.4, 2.1);
+      [x, y, z] = enParque(19.872, 10.5); hongo(x, y, z, '#d8262f', '#fbf3ea', 2.2, 1.3);
+      let ry; [x, y, z, ry] = enParque(19.892, 11.5); flor(x, y, z, '#2a6fd0', 2.2, ry + Math.PI); }
+
+    // ── plaza de las banderas (izq. km 19,92–20,0): astas en corona alrededor del óvalo de grama, esculturas y palmas
+    { const C = XZ(10.488139, -66.889170), mast = new THREE.CylinderGeometry(.07, .11, 13, 6), bl = api.concrete(0xf4f4f0);
+      const ve = api.canvasTex(96, 64, (c, w, h) => { c.fillStyle = '#f2c51e'; c.fillRect(0, 0, w, h / 3); c.fillStyle = '#1f4ea0'; c.fillRect(0, h / 3, w, h / 3); c.fillStyle = '#cf1f2f'; c.fillRect(0, h * 2 / 3, w, h / 3); c.fillStyle = '#fff'; for (let i = 0; i < 8; i++) { const a = Math.PI * (.15 + .7 * i / 7); c.beginPath(); c.arc(w / 2 - Math.cos(a) * 14, h / 2 + 8 - Math.sin(a) * 12, 1.6, 0, 7); c.fill(); } });
+      const tri = api.canvasTex(96, 64, (c, w, h) => { c.fillStyle = '#d0202c'; c.fillRect(0, 0, w, h); c.fillStyle = '#2a8a3a'; c.beginPath(); c.moveTo(w, 0); c.lineTo(w, h); c.lineTo(w * .35, h); c.fill(); c.fillStyle = '#2050b0'; c.beginPath(); c.moveTo(0, 0); c.lineTo(w * .55, h * .5); c.lineTo(0, h); c.fill(); });
+      const mV = new THREE.MeshStandardMaterial({ map: ve, side: THREE.DoubleSide, roughness: .8 }), mT = new THREE.MeshStandardMaterial({ map: tri, side: THREE.DoubleSide, roughness: .8 });
+      const tela = new THREE.PlaneGeometry(2.7, 1.8, 6, 1); tela.translate(1.35, 0, 0); { const pa = tela.attributes.position; for (let i = 0; i < pa.count; i++) pa.setZ(i, Math.sin(pa.getX(i) * 2) * .22); }
+      const ruta = []; for (let k = 19.88; k <= 20.06; k += .005) ruta.push(RA(k));
+      let n = 0; for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2, x = C.x + Math.cos(a) * 19, z = C.z + Math.sin(a) * 19; if (ruta.some(p => Math.hypot(p.x - x, p.z - z) < 11)) continue;
+        const yb = G(x, z); mesh(mast, bl, x, yb + 6.5, z); const f = mesh(tela, n++ % 2 ? mT : mV, x, yb + 12, z); f.rotation.y = .7 + Math.sin(i * 1.7) * .3; }}
+    { const pl = (k, lat) => { const p = ladoP(k, lat); return [p.x, G(p.x, p.z), p.z, p.ry]; };
+      let [x, y, z, ry] = pl(19.958, 11.5); hongo(x, y, z, '#f2c81e', '#b8890c', 2.6, 2.1);
+      [x, y, z] = pl(19.968, 14); flor(x, y, z, '#d8262f', 2.6, ry + Math.PI);
+      [x, y, z] = pl(19.976, 12.5); hongo(x, y, z, '#26b3bf', '#cfeff2', 2.9, 1.6);
+      [x, y, z] = pl(19.99, 15); flor(x, y, z, '#2a6fd0', 2.3, ry + Math.PI);
+      [x, y, z] = pl(20.03, 12); hongo(x, y, z, '#f07a2a', '#fde3c8', 2.6, 1.7);
+      [x, y, z] = pl(20.04, 15); hongo(x, y, z, '#e85a9a', '#ffffff', 1.6, 1.0); }
+
+    // ── Cars / Toyota (19,80–19,905 der.): reja gris de barrotes a lo largo de la acera (t=489,3–493,5)
+    { const barro = new THREE.BoxGeometry(.05, 1, .05), gris = api.concrete(0x9a9ea1, { metalness: .5, roughness: .5 }), mats = [], M4 = new THREE.Matrix4();
+      for (let k = 19.80; k <= 19.903; k += .00018) { const p = ladoP(k, -9.7), y = Math.max(p.y, G(p.x, p.z)); M4.makeScale(1, 2.2, 1).setPosition(p.x, y + 1.1, p.z); mats.push(M4.clone()); }
+      const im = new THREE.InstancedMesh(barro, gris, mats.length); mats.forEach((m, i) => im.setMatrixAt(i, m)); g.add(im);
+      for (const hy of [.12, 2.15]) muro(19.80, 19.903, -9.72, (k, p) => p.y + hy + .1, gris, 1, (k, p) => p.y + hy);
+      const poste = new THREE.BoxGeometry(.12, 2.4, .12); for (let k = 19.80; k <= 19.904; k += .0025) { const p = ladoP(k, -9.7); mesh(poste, gris, p.x, Math.max(p.y, G(p.x, p.z)) + 1.2, p.z); } }
+
+    // ── Jardinera de la esquina de la Calle Codazzi (19,75 der., t=488,7): murete con flores rojas (las palmas van en `arboles`)
+    { const p = ladoP(19.752, -12), y = Math.max(p.y, G(p.x, p.z)); mesh(new THREE.BoxGeometry(3.2, .7, 7), api.concrete(0xd9d3c4), p.x, y + .35, p.z, p.ry);
+      const fl = mesh(new THREE.BoxGeometry(2.8, .5, 6.6), api.concrete(0x2f6b2a, { roughness: 1 }), p.x, y + .8, p.z, p.ry); fl.scale.y = 1;
+      const roja = api.concrete(0xc8202a, { roughness: .9 }); for (let i = 0; i < 9; i++) mesh(new THREE.SphereGeometry(.35, 8, 6), roja, p.x + p.r.tx * (i - 4) * .7 + p.r.lx * ((i % 2) - .5) * .9, y + 1.15, p.z + p.r.tz * (i - 4) * .7 + p.r.lz * ((i % 2) - .5) * .9); }
+
+    // ── Plaza Las Tres Gracias y sus dos bocacalles (Calle Las Tres Gracias, 19,91 der.; Av. Bellas Artes, 19,97 der.)
+    { const rutaP = []; for (let k = 19.85; k <= 20.05; k += .004) rutaP.push(RA(k));
+      const dRuta = (x, z) => { let b = 1e9; for (const p of rutaP) b = Math.min(b, Math.hypot(p.x - x, p.z - z)); return b; };
+      const asf = api.concrete(0x55565a, { roughness: .95 });
+      const calle = (ll, w) => { const p0 = ll.map(([a, b]) => XZ(a, b)), p = []; for (let i = 0; i < p0.length - 1; i++) { const L = Math.hypot(p0[i + 1].x - p0[i].x, p0[i + 1].z - p0[i].z), n = Math.max(1, Math.round(L / 2.5)); for (let j = 0; j < n; j++) p.push({ x: p0[i].x + (p0[i + 1].x - p0[i].x) * j / n, z: p0[i].z + (p0[i + 1].z - p0[i].z) * j / n }); } p.push(p0[p0.length - 1]);
+        const pos = []; let prev = null;
+        for (let i = 0; i < p.length; i++) { const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)], [tx, tz] = nrm(b.x - a.x, b.z - a.z), q = p[i]; if (dRuta(q.x, q.z) < 7.6) { prev = null; continue; }
+          const L = { x: q.x + tz * w / 2, z: q.z - tx * w / 2 }, Rr = { x: q.x - tz * w / 2, z: q.z + tx * w / 2 }; L.y = G(L.x, L.z) + .2; Rr.y = G(Rr.x, Rr.z) + .2;
+          if (prev) { const [A, B] = prev; for (const T of [[A, B, L], [B, Rr, L]]) { const [u, v, w2] = T, ny = (v.z - u.z) * (w2.x - u.x) - (v.x - u.x) * (w2.z - u.z); for (const V of ny >= 0 ? [u, v, w2] : [u, w2, v]) pos.push(V.x, V.y, V.z); } } prev = [L, Rr]; }
+        const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.computeVertexNormals(); const m = new THREE.Mesh(ge, asf); m.receiveShadow = true; g.add(m); };
+      calle([[10.4878, -66.889348], [10.487723, -66.889136], [10.487026, -66.88875]], 8);
+      calle([[10.488055, -66.888858], [10.487846, -66.888856], [10.487795, -66.888833], [10.487701, -66.88878], [10.487175, -66.888485]], 7.5);
+      // la plaza: losa de adoquín con franjas de grama junto a las calles, brocal gris, estanque alargado, árboles (lista `arboles`), bancos y farolas
+      const POL = [[10.48776, -66.889095], [10.487838, -66.888902], [10.487774, -66.888874], [10.487679, -66.88882], [10.48724, -66.888574], [10.4871, -66.888739]].map(([a, b]) => XZ(a, b));
+      const POOL = [[10.487691, -66.888985], [10.487665, -66.888922], [10.487576, -66.888869], [10.487505, -66.888842], [10.487496, -66.888869], [10.487567, -66.888913], [10.487629, -66.888967]].map(([a, b]) => XZ(a, b));
+      const dentro = (P0, x, z) => { let c = false; for (let i = 0, j = P0.length - 1; i < P0.length; j = i++) { const a = P0[i], b = P0[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
+      const dBorde = (P0, x, z) => { let b = 1e9; for (let i = 0; i < P0.length; i++) { const a = P0[i], c = P0[(i + 1) % P0.length], ux = c.x - a.x, uz = c.z - a.z, t = Math.max(0, Math.min(1, ((x - a.x) * ux + (z - a.z) * uz) / (ux * ux + uz * uz))); b = Math.min(b, Math.hypot(a.x + ux * t - x, a.z + uz * t - z)); } return b; };
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; POL.forEach(p => { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); });
+      const adoq = new THREE.MeshStandardMaterial({ roughness: .95, map: tex(128, 128, (k, w, h) => { k.fillStyle = '#b9a690'; k.fillRect(0, 0, w, h); k.strokeStyle = 'rgba(90,70,55,.35)'; k.lineWidth = 2; for (let i = 0; i <= 8; i++) { k.beginPath(); k.moveTo(0, i * 16); k.lineTo(w, i * 16); k.stroke(); k.beginPath(); k.moveTo(i * 16, 0); k.lineTo(i * 16, h); k.stroke(); } }) });
+      const grama = new THREE.MeshStandardMaterial({ roughness: 1, map: tex(128, 128, (k, w, h) => { k.fillStyle = '#5f8a3c'; k.fillRect(0, 0, w, h); for (let i = 0; i < 400; i++) { k.fillStyle = `rgba(${70 + Math.random() * 50},${105 + Math.random() * 50},45,.6)`; k.fillRect(Math.random() * w, Math.random() * h, 2, 3); } }) });
+      const agua = new THREE.MeshStandardMaterial({ color: 0x3f7f8c, roughness: .12, metalness: .3 });
+      const capas = { a: [], gr: [], w: [] }, D1 = 1.5;
+      for (let x = x0; x < x1; x += D1) for (let z = z0; z < z1; z += D1) { const cx = x + D1 / 2, cz = z + D1 / 2; if (!dentro(POL, cx, cz)) continue;
+        const k = dentro(POOL, cx, cz) ? 'w' : dBorde(POL, cx, cz) < 3.2 ? 'gr' : 'a', dy = k === 'w' ? .08 : k === 'gr' ? .32 : .2;
+        const q = [[x, z], [x, z + D1], [x + D1, z + D1], [x + D1, z]].map(([a, b]) => [a, G(a, b) + dy, b]); capas[k].push(...q[0], ...q[1], ...q[2], ...q[0], ...q[2], ...q[3]); }
+      for (const [k, mat] of [['a', adoq], ['gr', grama], ['w', agua]]) { if (!capas[k].length) continue; const ge = new THREE.BufferGeometry(); const pos = capas[k], uv = [];
+        for (let i = 0; i < pos.length; i += 3) uv.push(pos[i] / 3, pos[i + 2] / 3); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.computeVertexNormals();
+        if (ge.attributes.normal.getY(0) < 0) { const P0 = ge.attributes.position.array; for (let t = 0; t < P0.length; t += 9) for (let j = 0; j < 3; j++) { const a = P0[t + 3 + j]; P0[t + 3 + j] = P0[t + 6 + j]; P0[t + 6 + j] = a; } ge.computeVertexNormals(); }
+        const m = new THREE.Mesh(ge, mat); m.receiveShadow = true; g.add(m); }
+      // brocales: borde de la plaza y murete del estanque
+      const gris = api.concrete(0xc9c5bb), bm = [], M4 = new THREE.Matrix4(), Qq = new THREE.Quaternion(), Ee = new THREE.Euler(), Sv = new THREE.Vector3(), Pv = new THREE.Vector3();
+      const tramoB = (a, b, w, h, y) => { const L = Math.hypot(b.x - a.x, b.z - a.z); Ee.set(0, Math.atan2(-(b.z - a.z), b.x - a.x), 0); Qq.setFromEuler(Ee); bm.push(M4.compose(Pv.set((a.x + b.x) / 2, y + h / 2, (a.z + b.z) / 2), Qq, Sv.set(L + .1, h, w)).clone()); };
+      for (const [P0, h] of [[POL, .4], [POOL, .5]]) for (let i = 0; i < P0.length; i++) { const a = P0[i], b = P0[(i + 1) % P0.length], n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.z - a.z) / 3));
+        for (let j = 0; j < n; j++) { const p = { x: a.x + (b.x - a.x) * j / n, z: a.z + (b.z - a.z) * j / n }, q = { x: a.x + (b.x - a.x) * (j + 1) / n, z: a.z + (b.z - a.z) * (j + 1) / n }; tramoB(p, q, .3, h, Math.min(G(p.x, p.z), G(q.x, q.z)) - .05); } }
+      { const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), gris, bm.length); bm.forEach((m, i) => im.setMatrixAt(i, m)); g.add(im); }
+      // las tres gracias: tres figuras de piedra clara de espaldas, tomadas de las manos, sobre un pedestal en una pila redonda al norte del estanque
+      { const c = XZ(10.48773, -66.888965), y = G(c.x, c.z), piedra = api.concrete(0xe6e1d4, { roughness: .7 });
+        mesh(new THREE.CylinderGeometry(2.6, 2.7, .5, 24), gris, c.x, y + .25, c.z); mesh(new THREE.CircleGeometry(2.35, 24).rotateX(-Math.PI / 2), agua, c.x, y + .45, c.z);
+        mesh(new THREE.CylinderGeometry(.9, 1.05, 1.5, 12), piedra, c.x, y + 1.2, c.z);
+        for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3, F = new THREE.Group(); F.position.set(c.x + Math.cos(a) * .42, y + 1.95, c.z + Math.sin(a) * .42); F.rotation.y = -a + Math.PI / 2; g.add(F);
+          mesh(new THREE.CylinderGeometry(.2, .3, 1.15, 10), piedra, 0, .58, 0, 0, F); mesh(new THREE.CylinderGeometry(.17, .22, .7, 10), piedra, 0, 1.45, 0, 0, F);
+          mesh(new THREE.SphereGeometry(.15, 10, 8), piedra, 0, 1.95, 0, 0, F); const br = mesh(new THREE.CylinderGeometry(.05, .05, .75, 6), piedra, .28, 1.5, 0, 0, F); br.rotation.z = 1.1; } }
+      // bancos y farolas
+      for (const [la, lo, r] of [[10.48762, -66.889035, .4], [10.48745, -66.88893, .4], [10.48758, -66.88882, .4], [10.48738, -66.88878, .4]]) { const p = XZ(la, lo), y = G(p.x, p.z) + .2; mesh(new THREE.BoxGeometry(1.8, .45, .6), gris, p.x, y + .22, p.z, r + 2.6); }
+      const globo = api.glow(0xf6f3e8, { dia: .25, noche: 2 });
+      for (const [la, lo] of [[10.48779, -66.88899], [10.48752, -66.88898], [10.48745, -66.88875], [10.48725, -66.88871]]) { const p = XZ(la, lo), y = G(p.x, p.z) + .2; mesh(new THREE.CylinderGeometry(.08, .12, 4, 8), verdeF, p.x, y + 2, p.z); mesh(new THREE.SphereGeometry(.3, 10, 8), globo, p.x, y + 4.2, p.z); } }
   }
 
   return api.sombras(g);

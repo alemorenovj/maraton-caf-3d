@@ -116,7 +116,8 @@ export function build(THREE, api) {
   placeOn(new THREE.Mesh(flat(9.5, 3.2), paint({ map: tex21, transparent: true, depthWrite: false })), rt(KM - .022), LAT21, .05);
 
   // canal sur (21K): un trozo de calzada propio junto a la meta, para que el arco verde no quede sobre tierra
-  { const pts = []; for (let km = KM - .12; km <= KM; km += .005) pts.push(rt(km)); for (let d = 5; d <= 60; d += 5) pts.push(cp(LB - d));
+  // desde el km 41,94: por aquí entra el 21K a su canal (data/ruta-21k.js, llegada km 41,96–42,07 del 42K)
+  { const pts = []; for (let km = KM - .26; km <= KM; km += .005) pts.push(rt(km)); for (let d = 5; d <= 60; d += 5) pts.push(cp(LB - d));
     g.add(new THREE.Mesh(ribbon(pts, LAT21 - HW, LAT21 + HW, .03), paint({ color: 0x55575a, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
     const dash = []; for (let i = 0; i < pts.length; i += 2) dash.push(pts[i]); }
 

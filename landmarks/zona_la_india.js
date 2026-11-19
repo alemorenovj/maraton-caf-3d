@@ -51,6 +51,21 @@ export function build(THREE, api) {
   pasarela(7.20, 25, 10.5, true, true, false);
   pasarela(8.02, 22, 11.5, false, true, true);
 
+  // ───────── Pórtico de señales antes de la redoma (km 8,17; video s 207) ─────────
+  // Celosía de acero gris sobre la calzada con tres letreros verdes: «← AV. PÁEZ / EL PARAÍSO», «AV. GUZMÁN BLANCO / LA VEGA ↓↓»,
+  // «AV. TEHERÁN / MONTALBÁN / ANTÍMANO ↗» y uno pequeño a la derecha (texto ilegible en el video: va sin texto).
+  { const P = enRuta(8.17), acero = api.concrete(0x8d9196, { roughness: .6 }), verdeV = api.concrete(0x1e6b4a), H0 = 6.3, x0 = -7.6, x1 = 10.4, L = x1 - x0, cx = (x0 + x1) / 2;
+    for (const x of [x0, x1]) { add(new THREE.BoxGeometry(.45, H0 + 1.6, .45), acero, x, (H0 + 1.6) / 2, 0, P); add(new THREE.BoxGeometry(1.2, .3, 1.2), api.concrete(0x9a978f), x, .15, 0, P); }
+    for (const y of [H0, H0 + 1.4]) for (const z of [-.35, .35]) add(new THREE.BoxGeometry(L, .12, .12), acero, cx, y, z, P);
+    const nd = 12; for (let i = 0; i < nd; i++) { const d = add(new THREE.BoxGeometry(.08, 1.75, .08), acero, x0 + (i + .5) * L / nd, H0 + .7, .35, P); d.rotation.z = i % 2 ? .62 : -.62; }
+    const letrero = (x, w, lineas, flecha) => { const t = api.canvasTex(256, 96, (k, cw, ch) => { k.fillStyle = '#1e6b4a'; k.fillRect(0, 0, cw, ch); k.strokeStyle = '#f2f2ee'; k.lineWidth = 3; k.strokeRect(4, 4, cw - 8, ch - 8);
+        k.fillStyle = '#f2f2ee'; k.font = 'bold 19px sans-serif'; k.textAlign = 'center'; const n = lineas.length; lineas.forEach((l, i) => k.fillText(l, cw / 2 + (flecha === '←' ? 14 : flecha ? -14 : 0), ch / 2 + 7 + (i - (n - 1) / 2) * 22));
+        if (flecha) { k.font = 'bold 30px sans-serif'; k.fillText(flecha, flecha === '←' ? 26 : cw - 26, ch / 2 + 10); } });
+      const m = new THREE.MeshStandardMaterial({ map: t, roughness: .6 });
+      add(new THREE.BoxGeometry(w, 1.55, .12), [verdeV, verdeV, verdeV, verdeV, m, verdeV], x, H0 + .7, .5, P); };
+    letrero(-4.6, 4.6, ['AV. PÁEZ', 'EL PARAÍSO'], '←'); letrero(.6, 4.6, ['AV. GUZMÁN BLANCO', 'LA VEGA'], '↓'); letrero(5.6, 4.4, ['AV. TEHERÁN', 'MONTALBÁN', 'ANTÍMANO'], '↗'); letrero(9.0, 2.2, [], '');
+  }
+
   // ───────── Bombas de gasolina ─────────
   const bomba = (P, ancho, fondo, franja, letrero, rotulo) => {
     const H = 5.2; add(new THREE.BoxGeometry(ancho, .35, fondo), api.concrete(0xf1f0ec), 0, H, 0, P);

@@ -80,6 +80,28 @@ export default {
     { ll: [10.476786, -66.828447], a: 'RES', col: '#ded7c8', shop: 0, nota: 'km 29,26 der.' },
     // torre de 81 m detrás del bosque del talud (km 30,0 der.)
     { ll: [10.473757, -66.822372], a: 'RES', pisos: 22, col: '#d9cdb5', shop: 0, nota: 'torre residencial sobre el talud, km 30,0 der.' },
+    // ── Macaracuay, km 30,2–30,6 der. (23-nov, «en Macaracuay no hay un edificio tan grande como ese; hay uno que dice Parmalat», Alejandro).
+    //  Video t=719–723 s (descarga a 2 cps; el f_0290 del índice, t=722,5, ya trae la bomba al lado: índice ≈ +0,05 km aquí). En orden:
+    //  muro gris oscuro con malla alta de cancha (30,22–30,28), la bomba de techo rojo (Full Gas en OSM, 30,30–30,35, va en el módulo),
+    //  detrás la Torre Parmalat (OSM way «Torre Parmalat», office): bloque de concreto gris claro de ~8 pisos y 61 m de largo con ventanas
+    //  en bandas, y más allá la Torre California (OSM, office, 8 niveles) con testeros de ladrillo, y dos torres grises al fondo.
+    //  La torre «oscura de vidrio muy grande» era la huella del Edificio Margarita (63 m de Google Open Buildings, sin altura en OSM): a 63 m el
+    //  generador la hace torre de vidrio; en el video las torres del fondo son residenciales grises de ~16 pisos. Los «locales COLA» eran las
+    //  huellas de la bomba (tienda, autolavado, casetas) dibujadas como comercio de santamarías.
+    { ll: [10.473398, -66.818676], a: 'RES', alt: 1, pisos: 8, col: '#c4c3bd', shop: 0, mural: 0, nota: 'Torre Parmalat: bloque gris de oficinas, el letrero va en el módulo (km 30,37 der.)' },
+    { ll: [10.473810, -66.818160], a: 'RES', alt: 1, pisos: 10, col: '#a9634a', shop: 0, mural: 0, nota: 'Torre California: oficinas con testeros de ladrillo (km 30,44 der., t=721)' },
+    { ll: [10.473993, -66.817274], a: 'RES', alt: 1, pisos: 16, col: '#c3c1ba', shop: 0, mural: 0, nota: 'Edificio Margarita: torre residencial gris, no de vidrio (km 30,54 der.; la vuelta lo ve a 35 m en el 31,95)' },
+    // vistas en la captura de comprobación (km 30,30): la torre oscura que sobresalía era otra huella de Google, 102 m a 160 m de la vía
+    // (km 30,51 der.); en la satelital ahí hay bloques residenciales de sombra corta, y en el video solo asoman torres grises de ~15 pisos
+    { ll: [10.473108, -66.817287], a: 'RES', alt: 1, pisos: 12, col: '#d3cec2', shop: 0, mural: 0, nota: 'bloque residencial en la ladera, km 30,51 der. (era una torre de vidrio de 102 m)' },
+    { ll: [10.474391, -66.815744], a: 'RES', alt: 1, pisos: 13, col: '#a8694a', shop: 0, mural: 0, nota: 'Edificio Planilunio (OSM): torre de ladrillo de la esquina de Santa Margarita, km 30,74 der. (f_0293)' },
+    { ll: [10.474219, -66.813838], a: 'RES', col: '#cdbb97', shop: 0, mural: 0, nota: 'torres beige de balcones sobre la autopista, km 30,94 der. (en la vuelta, f_0296); residenciales, no de vidrio' },
+    { ll: [10.473764, -66.819238], quitar: true, nota: 'tienda Full Gas: va en el módulo con la marquesina' },
+    { ll: [10.473769, -66.819043], quitar: true, nota: 'techo rojo del autolavado de la bomba: va en el módulo' },
+    { ll: [10.473725, -66.818966], quitar: true, nota: 'caseta del fondo de la bomba' },
+    { ll: [10.473730, -66.819472], quitar: true, nota: 'caseta en el patio de la bomba' },
+    { ll: [10.473844, -66.819699], quitar: true, nota: 'caseta de 14 m² a 9 m del eje, sobre la acera (en el video no hay nada)' },
+    { ll: [10.473704, -66.819627], a: 'COM', h: 3.6, col: '#56595b', shop: 0, mural: 0, detalle: 0, nota: 'muro gris oscuro de la cancha, km 30,29 der. (t=719,5); la malla alta va en el módulo' },
   ],
   via: [
     // Av. Araure: calle de 2 canales, quintas y residencias tras rejas negras y muros, árboles grandes; paleta crema/blanco/ladrillo

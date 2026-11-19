@@ -34,6 +34,13 @@ export function build(THREE, api) {
     const L = (km1 - km0) * 1000, n = Math.max(1, Math.floor(L / paso)), im = new THREE.InstancedMesh(geo, mat, n), q = new THREE.Object3D();
     for (let i = 0; i < n; i++) { const km = km0 + (km1 - km0) * (i + .5) / n, p = at(km, d); q.position.set(p.x, p.y + y0 + h / 2, p.z); q.rotation.set(0, Math.atan2(p.tx, p.tz), 0); q.updateMatrix(); im.setMatrixAt(i, q.matrix); }
     g.add(im); return im; };
+  // paño con DOS caras frontales (triángulos duplicados al revés, vértices propios): la oclusión ambiental descarta las caras traseras
+  // y un paño que mostrara su cara trasera a la vía se llenaría de manchas negras (ver dos() en zona_mercedes.js)
+  const dosCaras = (m) => { const s0 = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, p = s0.attributes.position.array, uv = s0.attributes.uv.array, n = p.length / 3;
+    const P = new Float32Array(p.length * 2), U = new Float32Array(uv.length * 2); P.set(p); U.set(uv);
+    for (let t = 0; t < n; t += 3) for (let j = 0; j < 3; j++) { const a = t + 2 - j, b = n + t + j; P[b * 3] = p[a * 3]; P[b * 3 + 1] = p[a * 3 + 1]; P[b * 3 + 2] = p[a * 3 + 2]; U[b * 2] = uv[a * 2]; U[b * 2 + 1] = uv[a * 2 + 1]; }
+    const o = new THREE.BufferGeometry(); o.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); o.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); o.computeVertexNormals();
+    m.geometry.dispose(); m.geometry = o; m.material.side = THREE.FrontSide; return m; };
 
   // ───────── Muro de piedra y muro de contención acanalado, con reja negra encima (km 29,42–29,76 der.) ─────────
   const piedra = api.canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#9a958a'; c.fillRect(0, 0, w, h); let s = 11; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -165,6 +172,68 @@ export function build(THREE, api) {
     rotulo([[10.48216, -66.845869], [10.482138, -66.845769], [10.48237, -66.845714], [10.482394, -66.845817]], 27.208, 9, 1.3, 5.0,
       tex(512, 72, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#1d3f94'; x.fillRect(0, h - 10, w, 10); x.fillStyle = '#e3262e'; x.fillRect(22, 14, 34, 34); x.fillStyle = '#fff'; x.fillRect(35, 18, 8, 26); x.fillRect(26, 27, 26, 8);
         x.fillStyle = '#1d3f94'; x.font = 'bold 44px Arial, sans-serif'; x.textBaseline = 'middle'; x.fillText('Farmatodo', 74, h / 2 - 2); }), crema);
+  }
+
+  // ───────── Macaracuay (km 30,22–30,40 der., 23-nov): bomba de techo rojo, malla de la cancha y el letrero de la Torre Parmalat ─────────
+  //  Video t=719–723 s. La bomba (Full Gas en OSM): marquesina de borde rojo con plafón blanco y columnas rojas (techo «roof» de OSM),
+  //  tienda gris al fondo, autolavado de techo rojo y patio de concreto con brocales amarillos. La Torre Parmalat (OSM) lleva su nombre
+  //  en lo alto de la cara que mira a la avenida (lo confirma Alejandro, que corre esa ruta).
+  {
+    const LL = (a, b) => api.xz(a, b), GY = (x, z) => api.ground(x, z) * EX;
+    const blancoB = api.concrete(0xf2f1ed), rojoB = api.concrete(0xc9242b), grisB = api.concrete(0x8e9092), patioB = api.concrete(0x9a9892, { roughness: .95 });
+    // losa extruida de un polígono lat/lon entre y0 e y1 (top, lados)
+    const losa = (poly, y0, y1, top, side) => { const P = poly.map(([a, b]) => LL(a, b)), cx = P.reduce((s, p) => s + p.x, 0) / P.length, cz = P.reduce((s, p) => s + p.z, 0) / P.length;
+      const m = new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(P.map(p => new THREE.Vector2(p.x - cx, -(p.z - cz)))), { depth: y1 - y0, bevelEnabled: false }), [top, side]);
+      m.rotation.x = -Math.PI / 2; m.position.set(cx, y0, cz); g.add(m); return m; };
+    const minG = (poly) => Math.min(...poly.map(([a, b]) => { const p = LL(a, b); return GY(p.x, p.z); }));
+    const caja = (w, h, d, mat, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.rotation.y = ry; g.add(m); return m; };
+    const r0 = at(30.33, 0), ry = Math.atan2(r0.tx, r0.tz), yV = Math.max(at(30.30, 0).y, at(30.36, 0).y);
+    // patio: de la acera (−9,5 m) a −40 m entre el 30,300 y el 30,362, a la cota de la vía
+    const ROOF = [[10.473935, -66.819402], [10.473978, -66.81916], [10.473851, -66.819137], [10.473802, -66.819378]];
+    const FG = [[10.473689, -66.819358], [10.473717, -66.819111], [10.473838, -66.819163], [10.47382, -66.819326], [10.473757, -66.819366]];
+    const LAV = [[10.473744, -66.819096], [10.473768, -66.81896], [10.473835, -66.818986], [10.473824, -66.819097]];
+    let gPat = 1e9; for (let k = 30.300; k <= 30.362; k += .01) for (const d of [-10, -22, -36]) { const p = at(k, d); gPat = Math.min(gPat, GY(p.x, p.z)); }
+    const yP = yV + .15;
+    { const a0 = at(30.300, -24.5), a1 = at(30.362, -24.5), L = Math.hypot(a1.x - a0.x, a1.z - a0.z);
+      caja(30, yP - Math.min(gPat, yP - .3) + .5, L, patioB, (a0.x + a1.x) / 2, (yP + Math.min(gPat, yP - .3) - .5) / 2, (a0.z + a1.z) / 2, ry); }
+    // marquesina: borde rojo de 1,2 m con filete blanco, plafón blanco, a 5,2 m
+    { const borde = new THREE.MeshStandardMaterial({ map: api.canvasTex(256, 32, (x, w, h) => { x.fillStyle = '#c9242b'; x.fillRect(0, 0, w, h); x.fillStyle = '#f4f2ee'; x.fillRect(0, h * .78, w, h * .22); }), roughness: .6 });
+      borde.map.wrapS = THREE.RepeatWrapping; borde.map.repeat.set(6, 1);
+      losa(ROOF, yP + 5.2, yP + 6.4, blancoB, borde);
+      const luz = api.glow(0xffffff, { dia: .3, noche: 2.2 }); const c = ROOF.map(([a, b]) => LL(a, b));
+      for (const [u, v] of [[.25, .3], [.5, .3], [.75, .3], [.25, .7], [.5, .7], [.75, .7]]) { const x = c[0].x + (c[1].x - c[0].x) * u + (c[3].x - c[0].x) * v, z = c[0].z + (c[1].z - c[0].z) * u + (c[3].z - c[0].z) * v; caja(1.4, .06, .7, luz, x, yP + 5.17, z, ry); }
+      // columnas rojas y dos islas de surtidores
+      const surT = new THREE.MeshStandardMaterial({ map: api.canvasTex(64, 128, (x, w, h) => { x.fillStyle = '#f2f1ed'; x.fillRect(0, 0, w, h); x.fillStyle = '#c9242b'; x.fillRect(0, 0, w, h * .22); x.fillStyle = '#1d2226'; x.fillRect(w * .2, h * .32, w * .6, h * .2); x.fillStyle = '#3a3d40'; x.fillRect(w * .15, h * .62, w * .7, h * .1); }), roughness: .5 });
+      for (const v of [.3, .7]) { const ax = c[0].x + (c[3].x - c[0].x) * v, az = c[0].z + (c[3].z - c[0].z) * v, bx = c[1].x + (c[2].x - c[1].x) * v, bz = c[1].z + (c[2].z - c[1].z) * v, ri = Math.atan2(bx - ax, bz - az);
+        for (const u of [.18, .82]) caja(.55, 5.2, .55, rojoB, ax + (bx - ax) * u, yP + 2.6, az + (bz - az) * u, ri);
+        caja(1.2, .25, 14, api.concrete(0xd8d5cc), (ax + bx) / 2, yP + .12, (az + bz) / 2, ri);
+        for (const u of [.38, .62]) caja(.6, 1.8, 1.1, [surT, surT, blancoB, blancoB, blancoB, blancoB], ax + (bx - ax) * u, yP + 1.15, az + (bz - az) * u, ri); } }
+    // tienda: gris con vidriera y faja roja; autolavado: techo rojo sobre cuatro postes
+    { const yT = Math.max(yP, minG(FG)), y0T = minG(FG) - .3, tT = api.canvasTex(256, 64, (x, w, h) => { x.fillStyle = '#d9d8d3'; x.fillRect(0, 0, w, h); x.fillStyle = '#c9242b'; x.fillRect(0, h * .08, w, h * .16); x.fillStyle = '#2b3338'; x.fillRect(w * .05, h * .38, w * .9, h * .5); x.fillStyle = '#9a9c9e'; for (let i = 1; i < 6; i++) x.fillRect(w * .05 + i * w * .15, h * .38, 3, h * .5); });
+      // las caras laterales de ExtrudeGeometry llevan UV en metros (u a lo largo, v en altura): una repetición cada 8 m y una sola en altura
+      tT.wrapS = tT.wrapT = THREE.RepeatWrapping; tT.repeat.set(1 / 8, 1 / (yT + 4.2 - y0T));
+      losa(FG, y0T, yT + 4.2, api.concrete(0x7d7f80), new THREE.MeshStandardMaterial({ map: tT, roughness: .7 }));
+      const yL = Math.max(yP, minG(LAV)); losa(LAV, yL + 3.8, yL + 4.4, api.concrete(0xb33a2c), rojoB);
+      LAV.forEach(([a, b]) => { const p = LL(a, b); caja(.3, 3.8, .3, grisB, p.x, yL + 1.9, p.z, ry); }); }
+    // tótem de la bomba en la esquina de la acera (t=718,5: panel rojo y azul en lo alto)
+    { const p = at(30.302, -10.6); caja(.6, 8, .6, grisB, p.x, p.y + 4, p.z, ry);
+      caja(2.2, 2.6, .45, [grisB, grisB, grisB, grisB, new THREE.MeshStandardMaterial({ map: api.canvasTex(64, 80, (x, w, h) => { x.fillStyle = '#f2f1ed'; x.fillRect(0, 0, w, h); x.fillStyle = '#c9242b'; x.beginPath(); x.arc(w / 2, h * .42, w * .3, 0, 7); x.fill(); x.fillStyle = '#1f4ea3'; x.fillRect(0, h * .8, w, h * .2); }), roughness: .6 }), grisB], p.x, p.y + 8.8, p.z, ry + Math.PI); }
+    // muro gris de la cancha (la huella del 30,29 sube a 3,6 m) con malla alta encima: paño de alambre con alphaTest, caras frontales a los dos lados
+    { const malla = api.canvasTex(64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = '#9da3a6'; x.lineWidth = 2; for (let i = -64; i < 128; i += 10) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 64, 64); x.stroke(); x.beginPath(); x.moveTo(i + 64, 0); x.lineTo(i, 64); x.stroke(); } });
+      malla.wrapS = malla.wrapT = THREE.RepeatWrapping;
+      malla.repeat.set(1, 1.6);
+      const k0 = 30.232, k1 = 30.292, d = -10.2, m = cinta(k0, k1, d, 3.4, 8.2, new THREE.MeshStandardMaterial({ map: malla, alphaTest: .5, roughness: .6, metalness: .3 }), 3);
+      dosCaras(m);
+      barrotes(k0, k1, d, 3.4, 4.8, 3.2, new THREE.CylinderGeometry(.05, .05, 4.8, 6), grisB); }
+    // letrero de la Torre Parmalat: tablero blanco con el nombre en azul en lo alto de la cara norte (la que mira a la avenida)
+    { const PM = [[10.47341, -66.818392], [10.473392, -66.818511], [10.473259, -66.818491], [10.473228, -66.818692], [10.473342, -66.81871], [10.473312, -66.818907], [10.473387, -66.818918], [10.473382, -66.81895], [10.473448, -66.818961], [10.473452, -66.818933], [10.473491, -66.818939], [10.473568, -66.818429], [10.473503, -66.818419], [10.473505, -66.818406]];
+      const A = LL(10.473491, -66.818939), B = LL(10.473568, -66.818429), L = Math.hypot(B.x - A.x, B.z - A.z); let nx = (B.z - A.z) / L, nz = -(B.x - A.x) / L;
+      const q = at(30.37, 0); if ((q.x - A.x) * nx + (q.z - A.z) * nz < 0) { nx = -nx; nz = -nz; }
+      const top = minG(PM) + 8 * 3.2 + 1, cx = (A.x + B.x) / 2 + (B.x - A.x) / L * 6, cz = (A.z + B.z) / 2 + (B.z - A.z) / L * 6;
+      const tx = new THREE.MeshStandardMaterial({ map: api.canvasTex(512, 96, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = '#1b4fa8'; x.font = 'bold italic 76px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Parmalat', w / 2 + 22, h / 2 + 4);
+        x.fillStyle = '#1b4fa8'; for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; x.beginPath(); x.ellipse(70 + Math.cos(a) * 14, 26 + Math.sin(a) * 14, 9, 6, a, 0, 7); x.fill(); } }), emissive: 0x222222, roughness: .6 });
+      const fondo = api.concrete(0xdedcd6), m = new THREE.Mesh(new THREE.BoxGeometry(16, 3, .3), [fondo, fondo, fondo, fondo, tx, fondo]);
+      m.position.set(cx + nx * .35, top - 2.6, cz + nz * .35); m.rotation.y = Math.atan2(nx, nz); g.add(m); }
   }
 
   return api.sombras(g);

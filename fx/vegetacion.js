@@ -473,6 +473,6 @@ export function install(ctx) {
     ctx.camera.getWorldDirection(fwd);
     dapMat.opacity = .36 * clamp((ctx.sunDir.y - .1) * 4, 0, 1) * (1 - noche); dap.visible = dapMat.opacity > .01;
     if (dirty || lastPos.distanceToSquared(ctx.camera.position) > 22 * 22 || fwd.dot(lastFwd) < .965 || lastSun.distanceToSquared(ctx.sunDir) > .002) { dirty = false; rebuild(); }
-    const sNow = ctx.S ? ctx.S.s : 0; if (placeGrass.ready && Math.abs(sNow - lastGS) > 25) placeGrass(sNow);
+    const sNow = ctx.S ? ctx.S.sr ?? ctx.S.s : 0; if (placeGrass.ready && Math.abs(sNow - lastGS) > 25) placeGrass(sNow);
   });
 }

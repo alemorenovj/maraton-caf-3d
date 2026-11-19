@@ -1,1 +1,1 @@
-export default ['calzada', 'edificios', 'vegetacion', 'gente', 'atmosfera', 'sonido'];
+export default ['calzada', 'ruta21k', 'edificios', 'vegetacion', 'gente', 'atmosfera', 'sonido'];

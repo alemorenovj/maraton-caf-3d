@@ -460,14 +460,14 @@ export function makeGente(n, ctx) {
       let grade = 0, km = 0;
       if (S && ctx.P) {
         if (i === 0 && !S.paused) { tAcc += dtF; for (let g = 0; g < G.off.length; g++) { G.off[g] += G.v[g] * dtF * 2; if (G.off[g] > 250) G.off[g] = -70; if (G.off[g] < -70) G.off[g] = 250; } }
-        km = ctx.kmOf(S.s); const kd = .45 + .55 * Math.min(1, km / 9), g = sG[i];
+        const A = ctx.A || ctx; km = A.kmOf(S.s); const kd = .45 + .55 * Math.min(1, km / 9), g = sG[i];   // pelotón sobre la ruta activa (42K o 21K); la calzada, por la s de referencia
         let off = (G.off[g] + sOff[i] + Math.sin(tAcc * .3 + sPh[i]) * .5) * kd;
-        const s1 = Math.max(0, Math.min(ctx.TOTAL, S.s + off)); ctx.P(s1, q);
-        let L = ctx.ROAD_W / 2 - .8, Rr = L; if (ctx.calzada) { const c = ctx.calzada(s1); L = Math.max(2, c.izq - c.sepAncho - c.contraria.ancho - .7); Rr = Math.max(2, c.der - .7);
+        const s1 = Math.max(0, Math.min(A.TOTAL, S.s + off)); A.P(s1, q);
+        let L = ctx.ROAD_W / 2 - .8, Rr = L; if (ctx.calzada) { const c = ctx.calzada(A.sRef ? A.sRef(s1) : s1); L = Math.max(2, c.izq - c.sepAncho - c.contraria.ancho - .7); Rr = Math.max(2, c.der - .7);
           // otra pasada cerca (la otra pierna de un retorno, la vuelta por la otra calzada): cada pelotón se queda en su mitad
           if (c.libreIzq < 99) L = Math.min(L, Math.max(.5, c.libreIzq - .5)); if (c.libreDer < 99) Rr = Math.min(Rr, Math.max(.5, c.libreDer - .5)); }
         let lat = (L - Rr) / 2 + G.lat[g] * (L + Rr) * .38 + sLat[i] + Math.sin(tAcc * .21 + sPh[i] * 1.7) * .25; lat = Math.max(-Rr, Math.min(L, lat));
-        if (S.cam === 3 && off > -6 && off < 5 && Math.abs(lat) < 1.6) { off += 9; ctx.P(Math.min(ctx.TOTAL, S.s + off), q); }
+        if (S.cam === 3 && off > -6 && off < 5 && Math.abs(lat) < 1.6) { off += 9; A.P(Math.min(A.TOTAL, S.s + off), q); }
         else if (S.cam !== 3 && Math.abs(off) < 1.3 && Math.abs(lat) < .8) lat += lat < 0 ? -.9 : .9;
         x = q.x + q.tz * lat; z = q.z - q.tx * lat; y = q.y; rumbo = Math.atan2(q.tx, q.tz); grade = q.grade || 0;
       }
@@ -554,7 +554,7 @@ export function install(ctx) {
     }
     pool.pubCount = n;
   }
-  ctx.frameHooks.push(() => { const s = ctx.S ? ctx.S.s : 0; if (Math.abs(s - lastS) > 40) place(s); });
+  ctx.frameHooks.push(() => { const s = ctx.S ? ctx.S.sr ?? ctx.S.s : 0; if (Math.abs(s - lastS) > 40) place(s); });   // público: s de referencia
   // Solo para pruebas: ?fxcam=dist,alto,ángulo(grados),fov,mirar pone una cámara de retrato alrededor del protagonista
   const m = /[?&]fxcam=([-\d.,]+)/.exec(location.search); if (!m) return;
   const [d, h, ang, fov, lk] = m[1].split(',').map(Number), cam = ctx.camera;

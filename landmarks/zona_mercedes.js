@@ -12,6 +12,8 @@
 //  11. CCCT (podio en terrazas y Pirámide Invertida) y Cubo Negro, sobre sus huellas OSM (Chuao, a la izquierda del puente).
 //  12. Rampa (26,11–26,40): murete y muro de contención solo hasta el paso bajo la autopista, reja blanca, corte de roca, muro verde a la
 //      izquierda y el paso bajo la Autopista Prados del Este (km 26,21).
+//  22 (19-nov). Alcaldía de Chacao en la Torre Atrium (km 23,46–23,57 der.): letras ATRIUM, pilón con el escudo y CHACAO, pendones rojos
+//      y DESPACIO / ALCALDÍA pintados en el asfalto (video t=575,5–578 s).
 //  19–21 (22-nov). Estación Texaco a la derecha al entrar a Las Mercedes (24,63–24,68) con el esqueleto en obra detrás; lote arbolado
 //      con lámina y reja (24,57–24,63 der.); rótulo del CVA y gálibo amarillo «ALTURA MÁXIMA 3,70 m» (24,115).
 // El terreno lateral (muro de la rampa, valle bajo el puente, cerro del Tamanaco) lo ponen fx/correcciones/mercedes.js (relieve).
@@ -744,6 +746,44 @@ export function build(THREE, api) {
     add(new THREE.CylinderGeometry(.16, .18, q.y + 5.4 - gyp, 10), amar, pp.x, (q.y + 5.4 + gyp) / 2, pp.z);
     add(new THREE.BoxGeometry(.18, .18, 7.4), amar, q.x + q.lx * 5, q.y + 5.3, q.z + q.lz * 5, ang(q.lx, q.lz));
     const tb = add(new THREE.BoxGeometry(4.2, 1.05, .1), [neg, neg, neg, neg, gt, neg], q.x + q.lx * 4.4, q.y + 4.55, q.z + q.lz * 4.4); tb.rotation.y = Math.atan2(-q.tx, -q.tz);
+  }
+  // ═════════ 22. Alcaldía de Chacao en la Torre Atrium (calle hacia el sur, km 23,46–23,57 der.; video t=575,5–578 s) ═════════
+  //  OSM node 7283228387 «Alcaldía de Chacao» cae dentro de la huella del Atrium. Lo que se ve desde la vía: el basamento de ladrillo con
+  //  las letras ATRIUM, el pilón de ladrillo con el escudo blanco y «CHACAO» en la plazoleta de la acera, pendones rojos en los postes de
+  //  los dos lados y «DESPACIO» / «ALCALDÍA» pintados en el asfalto al entrar a la calle. No se ven astas con banderas: no se ponen.
+  {
+    const lad = api.concrete(0xb8643f, { roughness: .9 }), gris = api.concrete(0x8a8d90, { roughness: .5, metalness: .4 });
+    // cara del basamento que mira a la calle (borde este de la huella OSM)
+    const NE = LL(10.490480, -66.860887), SE = LL(10.490056, -66.860919);
+    const enFachada = (k) => { const q = RA(k), ex = SE.x - NE.x, ez = SE.z - NE.z, L = Math.hypot(ex, ez), t = Math.max(.05, Math.min(.95, ((q.x - NE.x) * ex + (q.z - NE.z) * ez) / (L * L)));
+      const X = NE.x + ex * t, Z = NE.z + ez * t; let nx = ez / L, nz = -ex / L; if ((q.x - X) * nx + (q.z - Z) * nz < 0) { nx = -nx; nz = -nz; } return { X, Z, nx, nz, ry: Math.atan2(nx, nz), y: GY(X, Z) }; };
+    // letras ATRIUM en relieve plateado sobre un paño de ladrillo
+    { const f = enFachada(23.505), t = valla(512, 96, (x, w, h) => { x.fillStyle = '#b8643f'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(70,30,15,.2)'; for (let y = 4; y < h; y += 7) x.fillRect(0, y, w, 1);
+        x.font = 'bold 76px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#3b3b3b'; x.fillText('ATRIUM', w / 2 + 3, h / 2 + 5); x.fillStyle = '#d9dcdf'; x.fillText('ATRIUM', w / 2, h / 2 + 2); });
+      add(new THREE.BoxGeometry(11, 2.1, .3), [lad, lad, lad, lad, t, lad], f.X + f.nx * .2, f.y + 4.2, f.Z + f.nz * .2, f.ry); }
+    // pilón con el escudo y CHACAO, en la plazoleta, de cara a quien baja por la calle
+    { const q = RA(23.532), px = q.x - q.lx * 12.5, pz = q.z - q.lz * 12.5, y = GY(px, pz), dx = -q.tx + q.lx * .8, dz = -q.tz + q.lz * .8;
+      const t = valla(256, 288, (x, w, h) => { x.fillStyle = '#c0673f'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(70,30,15,.18)'; for (let yy = 4; yy < h; yy += 7) x.fillRect(0, yy, w, 1);
+        const cx = w / 2, top = 46, sw = 74, sh = 96; x.beginPath(); x.moveTo(cx - sw / 2, top); x.lineTo(cx + sw / 2, top); x.lineTo(cx + sw / 2, top + sh * .55); x.quadraticCurveTo(cx + sw / 2, top + sh * .9, cx, top + sh); x.quadraticCurveTo(cx - sw / 2, top + sh * .9, cx - sw / 2, top + sh * .55); x.closePath();
+        x.fillStyle = '#f4f2ee'; x.fill(); x.fillStyle = '#b3262c'; x.beginPath(); x.moveTo(cx - 20, top + 22); x.lineTo(cx + 20, top + 22); x.lineTo(cx + 20, top + 52); x.quadraticCurveTo(cx + 20, top + 70, cx, top + 78); x.quadraticCurveTo(cx - 20, top + 70, cx - 20, top + 52); x.closePath(); x.fill();
+        x.fillStyle = '#f4f2ee'; x.font = 'bold 50px Arial, sans-serif'; x.textAlign = 'center'; x.fillText('CHACAO', cx, 214); });
+      add(new THREE.BoxGeometry(5.2, 6.4, 1.1), [lad, lad, lad, lad, t, lad], px, y + 3.2, pz, Math.atan2(dx, dz));
+      add(new THREE.BoxGeometry(6.6, .5, 2.2), api.concrete(0x9c9a94), px, y + .25, pz, Math.atan2(dx, dz)); }
+    // postes con pendones rojos «TODO» a los dos lados (cara roja hacia quien llega, la de atrás lisa)
+    { const pend = new THREE.MeshStandardMaterial({ roughness: .8, map: api.canvasTex(64, 224, (x, w, h) => { x.fillStyle = '#c4262b'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.fillRect(6, 10, w - 12, 3); x.fillRect(6, h - 16, w - 12, 3);
+        x.save(); x.translate(w / 2 + 6, h / 2); x.rotate(-Math.PI / 2); x.font = 'bold 40px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('TODO', 0, 0); x.restore(); }) });
+      const rojo = api.concrete(0xb0242a, { roughness: .8 });
+      for (const [k, s] of [[23.468, -1], [23.494, -1], [23.52, -1], [23.546, -1], [23.48, 1], [23.51, 1], [23.54, 1]]) {
+        const q = RA(k), px = q.x + q.lx * 7.3 * s, pz = q.z + q.lz * 7.3 * s, y = GY(px, pz), ry = Math.atan2(-q.tx, -q.tz);
+        add(new THREE.CylinderGeometry(.09, .12, 8, 8), gris, px, y + 4, pz);
+        add(new THREE.BoxGeometry(.06, .06, 1.1), gris, px - q.lx * .5 * s, y + 6.6, pz - q.lz * .5 * s, ang(q.lx, q.lz));
+        add(new THREE.BoxGeometry(.8, 2.6, .04), [rojo, rojo, rojo, rojo, pend, rojo], px - q.lx * .55 * s, y + 5.25, pz - q.lz * .55 * s, ry); } }
+    // DESPACIO y ALCALDÍA pintados en el asfalto (se leen al entrar a la calle)
+    { const piso = (txt, k) => { const t = api.canvasTex(512, 96, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#f2f2ee'; x.font = 'bold 86px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.save(); x.scale(1, 1.15); x.fillText(txt, w / 2, h / 2 / 1.15 + 2); x.restore(); });
+        const m = new THREE.MeshStandardMaterial({ map: t, alphaTest: .5, roughness: .8, polygonOffset: true, polygonOffsetFactor: -10, polygonOffsetUnits: -20 });
+        const q = RA(k), ge = new THREE.PlaneGeometry(6.4, 1.7); ge.rotateX(-Math.PI / 2);
+        const me = add(ge, m, q.x, q.y + .05, q.z, Math.atan2(-q.tx, -q.tz)); me.receiveShadow = true; return me; };
+      piso('DESPACIO', 23.487); piso('ALCALDÍA', 23.497); }
   }
   return api.sombras(g);
 }

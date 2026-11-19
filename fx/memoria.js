@@ -70,13 +70,13 @@ export async function recorrer(c, o = {}) {
   const cede = () => new Promise(res => { const ch = new MessageChannel(); ch.port1.onmessage = () => res(); ch.port2.postMessage(0); });
   let t = performance.now() + 1000; const filas = [], max = {};
   const tramo = async (a, b, etiqueta) => {
-    const s0 = ctx.sOfKm(a), s1 = ctx.sOfKm(b), dir = s1 >= s0 ? 1 : -1, nP = Math.max(1, Math.round(Math.abs(s1 - s0) / paso));
+    const RA = ctx.A || ctx, s0 = RA.sOfKm(a), s1 = RA.sOfKm(b), dir = s1 >= s0 ? 1 : -1, nP = Math.max(1, Math.round(Math.abs(s1 - s0) / paso));
     let marca = null;
     for (let k = 0; k <= nP; k++) {
       const s = s0 + (s1 - s0) * k / nP; c.seek(s);
       for (let i = 0; i < n; i++) { t += 250; c.cuadro(t); }
       await cede();
-      const km = ctx.kmOf(s), m = dir > 0 ? Math.floor(km / cada + 1e-6) : Math.ceil(km / cada - 1e-6);
+      const km = RA.kmOf(s), m = dir > 0 ? Math.floor(km / cada + 1e-6) : Math.ceil(km / cada - 1e-6);
       if (marca === null || m !== marca || k === nP) { marca = m; const f = { km, ...foto(c) }; if (etiqueta) f.vuelta = etiqueta; filas.push(f);
         for (const q of ['geo', 'tex', 'tri', 'mallas', 'heap']) if (f[q] != null) max[q] = Math.max(max[q] || 0, f[q]);
         log(f); }
@@ -93,6 +93,6 @@ export function contador(c) {
   const d = document.createElement('div'); d.id = 'memC';
   d.style.cssText = 'position:fixed;left:6px;bottom:calc(6px + env(safe-area-inset-bottom));z-index:98;pointer-events:none;font:10px/1.3 ui-monospace,Menlo,monospace;color:#cfe;background:rgba(0,0,0,.55);padding:3px 6px;border-radius:5px;white-space:pre';
   document.body.appendChild(d);
-  const tick = () => { try { const f = foto(c), km = c.ctx.kmOf(c.S.s); d.textContent = `km ${km.toFixed(1)} · ${c.Q.tier}\ngeo ${f.geo} tex ${f.tex} prog ${f.prog}\ntri ${(f.tri / 1e6).toFixed(2)}M vis ${f.vis}/${f.mallas}` + (f.heap != null ? `\nheap ${f.heap} MB` : ''); } catch (e) { d.textContent = 'mem: ' + e.message; } };
+  const tick = () => { try { const f = foto(c), km = (c.ctx.A || c.ctx).kmOf(c.S.s); d.textContent = `km ${km.toFixed(1)} · ${c.Q.tier}\ngeo ${f.geo} tex ${f.tex} prog ${f.prog}\ntri ${(f.tri / 1e6).toFixed(2)}M vis ${f.vis}/${f.mallas}` + (f.heap != null ? `\nheap ${f.heap} MB` : ''); } catch (e) { d.textContent = 'mem: ' + e.message; } };
   tick(); return setInterval(tick, 1000);
 }

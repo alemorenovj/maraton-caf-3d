@@ -10,7 +10,7 @@ const PUNTOS = [
   [8.30, -1, ['CACIQUE', 'RUNNERS'], '#b3261e', '#ffffff', '#ffffff'],
   [12.70, -1, ['PECA', 'RUN'], '#5a2d91', '#ffffff', '#C1F938'],
   [17.25, -1, ['LOS PRÓCERES', '¡FUERZA!'], '#0f6b3a', '#ffffff', '#f5d50a'],
-  [21.10, -1, ['MEDIO', 'MARATÓN'], '#47AB48', '#ffffff', '#204DA2'],
+  [20.97, -1, ['MEDIO', 'MARATÓN'], '#47AB48', '#ffffff', '#204DA2'],   // 19-nov: en 21,10 quedaba recién pasado el giro y quien llegaba por Las Acacias veía el pendón por detrás (en espejo)
   [25.10, -1, ['LAS MERCEDES', 'TE APOYA'], '#e8448f', '#ffffff', '#ffffff'],
   [31.20, 1, ['MACARACUAY', 'RETORNO'], '#f06a1e', '#ffffff', '#1b1b1b'],
   [37.30, -1, ['ALTAMIRA', '¡YA CASI!'], '#0a4fa0', '#ffffff', '#4DC4DA'],
@@ -53,8 +53,10 @@ export function build(THREE, api) {
   const plat = [], banners = [], banIdx = [], posts = [], truss = [], leds = [], spk = [], flags = [], flagIdx = [], fpole = [], vallas = [], ppl = [];
   // nada sobre la franja de 13 m de otra pasada de la ruta (retorno en U, vuelta por la otra calzada de la misma avenida): a menos de
   // HW + 0,5 m de su eje no van vallas, público ni banderas, y la tarima se pasa al otro lado si el suyo cae sobre la otra pasada
-  const RR = api.D.ruta, otra = (x, z, km) => { const s0 = api.sOfKm(km), m = HW + .5; for (let i = 0; i < RR.x.length - 1; i++) { if (Math.abs(i * RR.step - s0) < 40) continue; const ax = RR.x[i], az = RR.z[i]; if (Math.abs(ax - x) > m + 10 || Math.abs(az - z) > m + 10) continue;
+  const RR = api.D.ruta, otra0 = (x, z, km) => { const s0 = api.sOfKm(km), m = HW + .5; for (let i = 0; i < RR.x.length - 1; i++) { if (Math.abs(i * RR.step - s0) < 40) continue; const ax = RR.x[i], az = RR.z[i]; if (Math.abs(ax - x) > m + 10 || Math.abs(az - z) > m + 10) continue;
     const ux = RR.x[i + 1] - ax, uz = RR.z[i + 1] - az, t = Math.max(0, Math.min(1, ((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1))); if (Math.hypot(ax + ux * t - x, az + uz * t - z) < m) return true; } return false; };
+  // tampoco sobre los tramos del 21K que el 42K no pisa (api.distConector, de game.js)
+  const otra = (x, z, km) => otra0(x, z, km) || (api.distConector ? api.distConector(x, z) < HW + 5 : false);
   PUNTOS.forEach((pt, i) => {
     const K = pt[0]; let s = pt[1]; if (tun.some(t => K > t.km0 - .06 && K < t.km3 + .03)) return;
     { const p0 = R(K); if (otra(...at(p0, s * (HW + 5.6)), K) && !otra(...at(p0, -s * (HW + 5.6)), K)) s = -s; }

@@ -9,6 +9,43 @@ export function kmFns(D) {
   const map = (v, a, b) => { let j = 1; while (j < K.length - 1 && v > K[j][a]) j++; const p = K[j - 1], q = K[j]; return p[b] + (q[b] - p[b]) * (v - p[a]) / (q[a] - p[a]); };
   return { kmOf: s => map(s, 0, 1), sOfKm: k => map(k, 1, 0) };
 }
+// Ruta activa compuesta (21K, data/ruta-21k.js): trozos de la ruta de referencia copiados punto a punto (misma x, z y cota: continuidad por
+// construcción) más conectores remuestreados cada ~10 m sobre nodos OSM, con la cota interpolada entre las de sus extremos. Pura: corre en node.
+// R = la ruta de referencia con las cotas ya corregidas (game.js la pasa después de perfil, igualación, elevados y túneles).
+// Devuelve { x, z, e, ref (s de referencia o −1), lat (desplazamiento lateral), N, STEP, TOTAL, KM, kmOf, sOfKm, sRef, mapKm, calle, err }.
+export function componerRuta(D, def, R = D.ruta) {
+  const ST = R.step, NR = R.x.length, G = D.meta.geo, rf = kmFns(D), err = [];
+  const xz = (la, lo) => [(lo - G.lon0) * G.kx, -(la - G.lat0) * G.kz];
+  const idx = (km, ll) => { let i = Math.max(0, Math.min(NR - 1, Math.round(rf.sOfKm(km) / ST))); if (!ll) return i;
+    const [x, z] = xz(ll[0], ll[1]); let b = 1e18, bi = i; for (let j = Math.max(0, i - 30); j <= Math.min(NR - 1, i + 30); j++) { const d = (R.x[j] - x) ** 2 + (R.z[j] - z) ** 2; if (d < b) { b = d; bi = j; } }
+    if (Math.sqrt(b) > 15) err.push(`extremo km ${km}: el trazado está a ${Math.sqrt(b).toFixed(0)} m del punto previsto`); return bi; };
+  const P = def.piezas, rs = P.map(p => p.ref ? [idx(p.ref[0], p.ll && p.ll[0]), idx(p.ref[1], p.ll && p.ll[1])] : null);
+  const X = [], Z = [], E = [], REF = [], NOM = [];
+  P.forEach((p, k) => {
+    if (p.ref) { const [i0, i1] = rs[k]; for (let i = i0; i <= i1; i++) { X.push(R.x[i]); Z.push(R.z[i]); E.push(R.e[i]); REF.push(i * ST); NOM.push(null); } return; }
+    const ax = X[X.length - 1], az = Z[Z.length - 1], ae = E[E.length - 1], nb = rs[k + 1][0], bx = R.x[nb], bz = R.z[nb], be = R.e[nb];
+    const pts = [[ax, az]]; for (const q of p.con) { const v = xz(q[0], q[1]), l = pts[pts.length - 1]; if (Math.hypot(v[0] - l[0], v[1] - l[1]) > 3) pts.push(v); }
+    if (Math.hypot(pts[pts.length - 1][0] - bx, pts[pts.length - 1][1] - bz) < 3) pts.pop(); pts.push([bx, bz]);
+    const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    const L = cum[cum.length - 1], n = Math.max(1, Math.round(L / ST));
+    for (let j = 1; j < n; j++) { const d = L * j / n; let i = 1; while (i < cum.length - 1 && cum[i] < d) i++; const t = (d - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
+      X.push(pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t); Z.push(pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t); E.push(ae + (be - ae) * j / n); REF.push(-1); NOM.push(p.nombre || ''); }
+  });
+  const N = X.length, TOTAL = (N - 1) * ST, KM = def.KM;
+  // km del 21K: los del 42K en la primera pieza (si sale del km 0) y lineal desde ahí hasta KM en la meta
+  const K = []; if (P[0].ref && rs[0][0] === 0) { const sA = rs[0][1] * ST; for (const q of D.meta.kmNudos || []) if (q[0] < sA) K.push([q[0], q[1]]); K.push([sA, rf.kmOf(sA)]); } else K.push([0, 0]);
+  K.push([TOTAL, KM]); const kf = kmFns({ ruta: { x: X, step: ST }, meta: { kmNudos: K } });
+  // s de referencia: exacta en los trozos; en los conectores, la del punto de referencia más cercano (para la calzada, el entorno y los túneles)
+  const SR = new Float64Array(N); for (let i = 0; i < N; i++) { if (REF[i] >= 0) { SR[i] = REF[i]; continue; } let b = 1e18, bj = 0; for (let j = 0; j < NR; j += 1) { const d = (R.x[j] - X[i]) ** 2 + (R.z[j] - Z[i]) ** 2; if (d < b) { b = d; bj = j; } } SR[i] = bj * ST; }
+  const sRef = u => { const f = Math.max(0, Math.min(N - 1, u / ST)), i = Math.min(N - 2, Math.floor(f)), t = f - i; return REF[i] >= 0 && REF[i + 1] >= 0 ? SR[i] + (SR[i + 1] - SR[i]) * t : SR[t < .5 ? i : i + 1]; };
+  // km de la referencia → km de esta ruta (null si no pasa por ahí); con varias pasadas devuelve la primera
+  const mapKm = k42 => { const s = rf.sOfKm(k42); for (let i = 0; i < N - 1; i++) if (REF[i] >= 0 && REF[i + 1] >= 0 && REF[i + 1] > REF[i] && s >= REF[i] && s <= REF[i + 1]) return kf.kmOf((i + (s - REF[i]) / (REF[i + 1] - REF[i])) * ST); return null; };
+  // cambio de calzada antes de la meta (def.llegada): rampa suave del desplazamiento lateral
+  const LAT = new Float32Array(N); if (def.llegada) { const a = rf.sOfKm(def.llegada.km0), b = rf.sOfKm(def.llegada.km1), last = P.length - 1, i0 = N - (rs[last][1] - rs[last][0] + 1);
+    for (let i = Math.max(0, i0); i < N; i++) { const t = Math.max(0, Math.min(1, (REF[i] - a) / (b - a))); LAT[i] = def.llegada.lat * t * t * (3 - 2 * t); } }
+  const calle = (u, calles, cada) => { const i = Math.max(0, Math.min(N - 1, Math.round(u / ST))); return NOM[i] != null ? NOM[i] : (calles ? calles[Math.min(calles.length - 1, Math.floor(SR[i] / (ST * cada)))] || '' : ''); };
+  return { x: X, z: Z, e: E, ref: REF, sr: SR, lat: LAT, N, STEP: ST, TOTAL, KM, kmOf: kf.kmOf, sOfKm: kf.sOfKm, sRef, mapKm, calle, err, kmNudos: K };
+}
 export function makeApi(THREE, D, o = {}) {
   const EXG = o.EX || 1;
   const G = D.meta.geo, R = D.ruta, N = R.x.length, T = D.terreno, KM = 42.195, STEP = R.step, TOTAL = (N - 1) * STEP;

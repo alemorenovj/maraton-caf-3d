@@ -99,7 +99,7 @@ export function install(ctx) {
   const pt = {};
   function hook(noche, t, dt, p) {
     if (!A || A.state !== 'running') return;
-    const now = A.currentTime, run = S.running && !S.paused, s = S.s, km = kmOf(s), dens = 1 - .75 * (s / TOTAL), ahead = .12;
+    const RA = ctx.A, now = A.currentTime, run = S.running && !S.paused, s = S.sr ?? S.s, km = kmOf(s), dens = 1 - .75 * (RA ? S.s / RA.TOTAL : s / TOTAL), ahead = .12;   // s de referencia (público, meta); densidad por la ruta activa
     // salida: corneta
     if (S.running && !st.wasRunning && s < 60) corneta(now + .05); st.wasRunning = S.running;
     // pisadas propias y del pelotón
@@ -111,7 +111,7 @@ export function install(ctx) {
         while (o.next < now + ahead) { pisada(o.next, o.pan, o.g * 1.2 / o.d, G['pelotón'], 1800 + 7000 / o.d); o.next += o.per * (1 + (Math.random() - .5) * .03); } }
     } else { st.nextStep = 0; }
     // respiración: ciclo de 4 pasos (2:2); en subida fuerte 3 pasos (2:1) y más intensa
-    P(s, pt); const gr = run ? pt.grade : 0, esfuerzo = clamp(gr / 6, 0, 1) + (S.mode === 'race' ? S.effort * .15 : 0) + .25 * (s / TOTAL);
+    (RA ? RA.P(S.s, pt) : P(s, pt)); const gr = run ? pt.grade : 0, esfuerzo = clamp(gr / 6, 0, 1) + (S.mode === 'race' ? S.effort * .15 : 0) + .25 * (RA ? S.s / RA.TOTAL : s / TOTAL);
     if (run) { if (st.nextBreath < now) st.nextBreath = now + .05;
       while (st.nextBreath < now + ahead) { const cyc = STEP_T * (esfuerzo > .55 ? 3 : 4), tb = st.nextBreath, ga = G.aliento.gain, lvl = .35 + .9 * esfuerzo;
         ga.cancelScheduledValues(tb); ga.setValueAtTime(ga.value, tb); ga.linearRampToValueAtTime(lvl * .55, tb + cyc * .18); ga.linearRampToValueAtTime(.02, tb + cyc * .45);   // inhala

@@ -1,8 +1,9 @@
 // «Correr la carrera»: pantalla de estrategia, juego de ritmo con toques y final con medalla. El modelo (energía, agua, fatiga,
 // ritmo, impulso) es ui/carrera_modelo.js; aquí solo va la pantalla, el sonido y la vibración. Nada pesado por cuadro: la aguja y
 // la zona se mueven con transform y el resto del DOM se toca solo cuando cambia lo que muestra.
-import * as M from './carrera_modelo.js?v=1';
-const KEY = 'caf3d-estrategia', KEYM = 'caf3d-carrera-marcas';
+import * as M from './carrera_modelo.js?v=2';
+// Distancia activa: caf.ctx.A (42K o 21K). La estrategia y las mejores marcas se guardan por distancia (con 42K, las claves de siempre).
+const KEY0 = 'caf3d-estrategia', KEYM = 'caf3d-carrera-marcas', DUR = { '42': [240, 480], '21': [150, 300] };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const vib = p => { try { navigator.vibrate?.(p); } catch (e) { } };
 
@@ -28,16 +29,16 @@ const SND = (() => {
 })();
 
 export function crearModoCarrera(caf, ui) {
-  const { S, D, ctx } = caf, { sOfKm, kmOf, TOTAL, R, STEP, N } = ctx, $ = id => document.getElementById(id);
+  const { S, D, ctx } = caf, A = ctx.A, STEP = ctx.STEP, $ = id => document.getElementById(id), KEY = () => KEY0 + (A.id === '42' ? '' : '-' + A.id), mKey = T => (A.id === '42' ? '' : A.id + ':') + T;
   const { fT, fK } = ui.plan.fmt, fP = spk => { const p = Math.round(spk); return Math.floor(p / 60) + ':' + String(p % 60).padStart(2, '0'); };
   const fD = d => (d > 0 ? '+' : d < 0 ? '−' : '±') + (Math.abs(d) >= 3600 ? fT(Math.abs(d)) : fP(Math.abs(d)));
-  const pf = M.perfilDesde(caf.gradeAt, sOfKm), PUB = D.hitos.filter(h => h.publico && h.km > .5).map(h => h.km);
-  const base = () => ({ pf, target: S.target, agua: D.hidratacion, iso: D.gatorade || [], gelOf: D.geles || [], tramos: D.tramos, publico: PUB });
-  // ───── estrategia guardada ─────
-  let E = { geles: null, lph: .6, dur: 480 };
-  try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v) E = { ...E, ...v }; } catch (e) { }
-  if (!Array.isArray(E.geles)) E.geles = M.sugerirGeles(M.planBase(pf, S.target), D.geles);
-  const guardaE = () => { try { localStorage.setItem(KEY, JSON.stringify(E)); } catch (e) { } };
+  let pf, PUB; const rehacerPf = () => { pf = M.perfilDesde(caf.gradeAt, A.sOfKm, A.KM); PUB = A.hitos.filter(h => h.publico && h.km > .5).map(h => h.km); }; rehacerPf();
+  const base = () => ({ pf, target: S.target, agua: A.hidratacion, iso: A.gatorade || [], gelOf: A.geles || [], tramos: A.tramos, publico: PUB });
+  // ───── estrategia guardada (por distancia) ─────
+  let E; const cargaE = () => { E = { geles: null, lph: .6, dur: DUR[A.id][1] };
+    try { const v = JSON.parse(localStorage.getItem(KEY()) || 'null'); if (v) E = { ...E, ...v }; } catch (e) { }
+    if (!DUR[A.id].includes(E.dur)) E.dur = DUR[A.id][1]; if (!Array.isArray(E.geles)) E.geles = M.sugerirGeles(M.planBase(pf, S.target), A.geles); }; cargaE();
+  const guardaE = () => { try { localStorage.setItem(KEY(), JSON.stringify(E)); } catch (e) { } };
   let marcas = {}; try { marcas = JSON.parse(localStorage.getItem(KEYM) || '{}') || {}; } catch (e) { }
 
   // ═════ pantalla de estrategia ═════
@@ -48,35 +49,35 @@ export function crearModoCarrera(caf, ui) {
       <div class="erow"><div class="seg"><button data-g="-" aria-label="Un gel menos">−</button><button data-g="+" aria-label="Un gel más">+</button></div><button data-g="s">Sugerir</button>
       <span class="eleg"><span><i style="background:var(--accent)"></i>energía</span><span><i style="background:var(--water)"></i>agua</span><span><i style="background:var(--bone);border-radius:1px;transform:rotate(45deg)"></i>gel oficial</span></span></div></section>
     <section><label>Agua <b id="eL"></b><span class="eh" id="eLt"></span></label><input type="range" id="eLph" min=".2" max="1" step=".1" aria-label="Litros por hora"></section>
-    <section><label>Duración de la partida</label><div class="seg" id="eDur"><button data-d="240">4 min</button><button data-d="480">8 min</button></div></section>
+    <section><label>Duración de la partida</label><div class="seg" id="eDur"><button data-d="${DUR[A.id][0]}">${DUR[A.id][0] / 60} min</button><button data-d="${DUR[A.id][1]}">${DUR[A.id][1] / 60} min</button></div></section>
     <div class="startacts"><div class="ever" id="eVer"></div><button class="go" id="eGo">A la salida →</button><button class="lnk" data-a="x">Volver</button></div></div>`;
   document.body.appendChild(es);
   ui.plan.widget(es.querySelector('#eObj'), true);
   const cv = es.querySelector('#ePerf'), g2 = cv.getContext('2d'); let sim = null, simT = 0, eW = 0, eH = 0;
-  const kmX = km => 8 + km / M.KM * (eW - 16), xKm = x => clamp((x - 8) / (eW - 16) * M.KM, .5, M.KM - .5);
-  let eMin = Infinity, eMax = -Infinity; for (const e of R.e) { eMin = Math.min(eMin, e); eMax = Math.max(eMax, e); }
+  const kmX = km => 8 + km / A.KM * (eW - 16), xKm = x => clamp((x - 8) / (eW - 16) * A.KM, .5, A.KM - .5);
+  let eMin, eMax; const cotas = () => { eMin = Infinity; eMax = -Infinity; for (const e of A.e) { eMin = Math.min(eMin, e); eMax = Math.max(eMax, e); } }; cotas();
   function dibujaPerfil() {
     const w = cv.clientWidth, h = cv.clientHeight; if (!w) return; const dpr = Math.min(devicePixelRatio, 2); if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
     eW = w; eH = h; const g = g2; g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
     const top = 34, bot = h - 16, yE = e => bot - (e - eMin + 4) / (eMax - eMin + 10) * (bot - top) * .55;
-    for (let x = 8; x < w - 8; x++) { const km = xKm(x), s = sOfKm(km), gr = caf.gradeAt(s), e = R.e[clamp(Math.round(s / STEP), 0, N - 1)], y = yE(e); g.fillStyle = gr > 1.2 ? (gr > 3 ? '#ff4a2a' : '#ff8a5c') : gr < -1.2 ? '#3ecf8e' : '#f2c94c'; g.globalAlpha = .45; g.fillRect(x, y, 1, bot - y); }
+    for (let x = 8; x < w - 8; x++) { const km = xKm(x), s = A.sOfKm(km), gr = caf.gradeAt(s), e = A.e[clamp(Math.round(s / STEP), 0, A.N - 1)], y = yE(e); g.fillStyle = gr > 1.2 ? (gr > 3 ? '#ff4a2a' : '#ff8a5c') : gr < -1.2 ? '#3ecf8e' : '#f2c94c'; g.globalAlpha = .45; g.fillRect(x, y, 1, bot - y); }
     g.globalAlpha = 1; g.font = '10px Inter,sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(244,239,230,.5)';
-    for (let k = 5; k <= 40; k += 5) { const x = kmX(k); g.fillRect(x, bot, 1, 3); g.fillText(k, x, h - 3); }
+    for (let k = 5; k < A.KM; k += 5) { const x = kmX(k); g.fillRect(x, bot, 1, 3); g.fillText(k, x, h - 3); }
     if (sim) {
       const yC = v => bot - v / 100 * (bot - top);
       if (sim.muroKm != null) { const x = kmX(sim.muroKm); g.fillStyle = 'rgba(255,90,60,.18)'; g.fillRect(x, top - 4, w - 8 - x, bot - top + 4); g.fillStyle = '#ff8a6a'; g.textAlign = 'left'; g.fillText('muro', Math.min(x + 4, w - 36), top + 8); }
       for (const [k, col] of [['H', '#4aa8ff'], ['E', '#ffd23f']]) { g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); sim.curva.forEach((p, i) => { const x = kmX(p.km), y = yC(p[k]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
     }
     // puestos (agua, isotónico), gel oficial y tus geles
-    D.hidratacion.forEach(k => { g.fillStyle = (D.gatorade || []).includes(k) ? '#ff9a3c' : '#4aa8ff'; g.beginPath(); g.arc(kmX(k), top - 8, 2.2, 0, 6.3); g.fill(); });
-    (D.geles || []).forEach(k => { const x = kmX(k); g.save(); g.translate(x, top - 8); g.rotate(Math.PI / 4); g.fillStyle = '#f4efe6'; g.fillRect(-4, -4, 8, 8); g.restore(); });
+    A.hidratacion.forEach(k => { g.fillStyle = (A.gatorade || []).includes(k) ? '#ff9a3c' : '#4aa8ff'; g.beginPath(); g.arc(kmX(k), top - 8, 2.2, 0, 6.3); g.fill(); });
+    (A.geles || []).forEach(k => { const x = kmX(k); g.save(); g.translate(x, top - 8); g.rotate(Math.PI / 4); g.fillStyle = '#f4efe6'; g.fillRect(-4, -4, 8, 8); g.restore(); });
     E.geles.forEach((k, i) => { const x = kmX(k); g.fillStyle = 'rgba(255,210,63,.35)'; g.fillRect(x - .5, 24, 1, bot - 24); g.fillStyle = drag && drag.i === i ? '#fff' : '#ffd23f'; g.beginPath(); g.arc(x, 13, 10, 0, 6.3); g.fill(); g.fillStyle = '#1a1400'; g.font = '700 11px Inter,sans-serif'; g.textAlign = 'center'; g.fillText(i + 1, x, 17); });
   }
   function previa() {
     E.geles.sort((a, b) => a - b); sim = M.simularPlan({ ...base(), geles: E.geles, lph: E.lph });
     es.querySelector('#eGn').textContent = E.geles.length || 'ninguno'; es.querySelector('#eGk').textContent = E.geles.length ? 'en los km ' + E.geles.map(fK).join(' · ') : 'sin geles el glucógeno no llega a meta';
     es.querySelector('#eL').textContent = E.lph.toFixed(1).replace('.', ',') + ' L/h';
-    const tot = E.lph * S.target / 3600, porP = E.lph * S.target / 3600 / D.hidratacion.length * 1000;
+    const tot = E.lph * S.target / 3600, porP = E.lph * S.target / 3600 / A.hidratacion.length * 1000;
     es.querySelector('#eLt').textContent = `unos ${tot.toFixed(1).replace('.', ',')} L en toda la carrera, ${Math.round(porP / 10) * 10} ml por puesto`;
     es.querySelector('#eLph').value = E.lph; es.querySelectorAll('#eDur button').forEach(b => b.classList.toggle('on', +b.dataset.d === E.dur));
     const v = es.querySelector('#eVer'); v.className = 'ever ' + sim.tipo; v.innerHTML = `${sim.txt}<small>Vista previa con el plan bien ejecutado: línea amarilla, energía; azul, hidratación.</small>`;
@@ -95,9 +96,9 @@ export function crearModoCarrera(caf, ui) {
   const suelta = () => { if (!drag) return; if (!drag.mov && !drag.nuevo) E.geles.splice(drag.i, 1); drag = null; previaPronto(); };
   cv.addEventListener('pointerup', suelta); cv.addEventListener('pointercancel', suelta);
   es.querySelector('.erow').onclick = e => { const a = e.target.closest('button')?.dataset.g; if (!a) return;
-    if (a === 's') E.geles = M.sugerirGeles(M.planBase(pf, S.target), D.geles);
+    if (a === 's') E.geles = M.sugerirGeles(M.planBase(pf, S.target), A.geles);
     else if (a === '-') E.geles.pop();
-    else if (a === '+' && E.geles.length < 8) { const p = [0, ...E.geles.slice().sort((x, y) => x - y), M.KM]; let b = 0; for (let i = 1; i < p.length; i++) if (p[i] - p[i - 1] > p[b + 1] - p[b]) b = i - 1; E.geles.push(Math.round((p[b] + p[b + 1]) / 2 * 10) / 10); }
+    else if (a === '+' && E.geles.length < 8) { const p = [0, ...E.geles.slice().sort((x, y) => x - y), A.KM]; let b = 0; for (let i = 1; i < p.length; i++) if (p[i] - p[i - 1] > p[b + 1] - p[b]) b = i - 1; E.geles.push(Math.round((p[b] + p[b + 1]) / 2 * 10) / 10); }
     previa(); };
   es.querySelector('#eLph').oninput = e => { E.lph = Math.round(+e.target.value * 10) / 10; previaPronto(); };
   es.querySelector('#eDur').onclick = e => { const b = e.target.closest('button'); if (!b) return; E.dur = +b.dataset.d; previa(); };
@@ -155,7 +156,7 @@ export function crearModoCarrera(caf, ui) {
 
   function crear(o, prev) {
     st = M.crearCarrera({ ...base(), geles: o.geles, lph: o.lph, dur: o.dur, target: o.target || S.target }); if (prev) M.importar(st, prev);
-    avisados = new Set((D.subidas || []).filter(c => c.km0 < st.km).flatMap(c => [c.nombre + 'a', c.nombre + 'b'])); ultKmAviso = -1; bajada = false; cola = []; finT = 0;
+    avisados = new Set((A.subidas || []).filter(c => c.km0 < st.km).flatMap(c => [c.nombre + 'a', c.nombre + 'b'])); ultKmAviso = -1; bajada = false; cola = []; finT = 0;
     for (const k in W) delete W[k]; q('crMsg').innerHTML = ''; q('crSub').classList.remove('on'); q('crGel').classList.remove('on'); q('crAgua').classList.remove('on'); el.className = '';
   }
   function iniciar() {
@@ -172,7 +173,7 @@ export function crearModoCarrera(caf, ui) {
   const estado = () => st && st.estado === 'corre' && S.mode === 'race' ? { plan: { target: st.o.target, geles: st.o.geles, lph: st.o.lph, dur: st.o.dur }, st: M.exportar(st) } : null;
 
   // ───── cada cuadro (desde step() del motor) ─────
-  function sinc() { S.s = Math.min(sOfKm(st.km), TOTAL - 1); S.clock = st.t; S.v = st.v; S.energy = st.E; S.hyd = st.H; S.wall = st.muro; S.wallKm = st.muroKm; S.effort = st.rz < .95 ? 0 : st.rz < 1.04 ? 1 : st.rz < 1.08 ? 2 : 3; }
+  function sinc() { S.s = Math.min(A.sOfKm(st.km), A.TOTAL - 1); S.clock = st.t; S.v = st.v; S.energy = st.E; S.hyd = st.H; S.wall = st.muro; S.wallKm = st.muroKm; S.effort = st.rz < .95 ? 0 : st.rz < 1.04 ? 1 : st.rz < 1.08 ? 2 : 3; }
   function paso(dtR) {
     if (!st) return; if (!listo) { sinc(); hud(); return; }
     if (st.estado === 'corre') { M.avanzar(st, Math.min(dtR, .05)); sinc(); sucesos(); avisos(); }
@@ -183,7 +184,7 @@ export function crearModoCarrera(caf, ui) {
     for (const e of st.ev) {
       if (e.tipo === 'km') { if (e.ok) { SND.racha(e.racha); fx(e.racha > 1 ? `km ${e.n} · racha ×${e.racha}` : `km ${e.n} en zona`, '#7cf0b6'); if (e.racha % 5 === 0) sub(`Racha de <b>${e.racha} km</b> en zona`); } else if (e.rota >= 3) { SND.rota(); fx(`racha de ${e.rota} rota`, '#ff8a6a'); } }
       else if (e.tipo === 'parcial') { const d = e.t - e.plan, ok = d <= 0; SND.parcial(ok); msg(`<p>${e.km} km · ${fT(e.t)}</p><h4 class="${ok ? 'ok' : 'mal'}">${fD(Math.round(d))}</h4>`, 1300, 1); }
-      else if (e.tipo === 'tramo') { const t = D.tramos[e.i], n = e.estrellas; msg(`<p>Tramo ${e.i + 1} de ${D.tramos.length} · ${t.nombre}</p><div class="st">${[0, 1, 2].map(i => i < n ? `<b style="animation-delay:${.12 + i * .16}s">★</b>` : '☆').join('')}</div>`, 1900, 2); for (let i = 0; i < n; i++) SND.estrella(i); if (n === 3) vib([10, 40, 10, 40, 10]); }
+      else if (e.tipo === 'tramo') { const t = A.tramos[e.i], n = e.estrellas; msg(`<p>Tramo ${e.i + 1} de ${A.tramos.length} · ${t.nombre}</p><div class="st">${[0, 1, 2].map(i => i < n ? `<b style="animation-delay:${.12 + i * .16}s">★</b>` : '☆').join('')}</div>`, 1900, 2); for (let i = 0; i < n; i++) SND.estrella(i); if (n === 3) vib([10, 40, 10, 40, 10]); }
       else if (e.tipo === 'muro') { SND.muro(); vib([80, 50, 80]); msg('<h4>El muro</h4><p>Sin glucógeno: vas al trote. Solo un gel te saca de aquí.</p>', 3200, 8); q('crMsg').firstChild?.classList.add('rojo'); }
       else if (e.tipo === 'sale-muro') { msg('<h4>Sales del muro</h4><p>El gel llegó. Vuelve a la zona sin pasarte.</p>', 2000, 3); }
       else if (e.tipo === 'bajon') { SND.bajon(); vib(60); msg('<h4 class="mal">Bajón</h4><p>Te pasaste del rojo y el cuerpo frenó. Toca más espaciado.</p>', 1800, 4); }
@@ -199,7 +200,7 @@ export function crearModoCarrera(caf, ui) {
   // avisos del terreno, del público y de los hitos
   function avisos() {
     const km = st.km;
-    for (const c of D.subidas || []) {
+    for (const c of A.subidas || []) {
       if (km > c.km0 - .4 && km < c.km0 && !avisados.has(c.nombre + 'a')) { avisados.add(c.nombre + 'a'); sub(`En 400 m empieza <b>${c.nombre}</b>: afloja`, 3200); }
       if (km >= c.km0 && km < c.km1 && !avisados.has(c.nombre + 'b')) { avisados.add(c.nombre + 'b'); sub(`Sube <b>${c.nombre}</b> (+${c.gain} m): esfuerzo, no ritmo`, 3200); }
     }
@@ -207,10 +208,10 @@ export function crearModoCarrera(caf, ui) {
     if (b && !bajada && km - ultKmAviso > .8) { ultKmAviso = km; sub('Bajada: <b>velocidad gratis</b>, toca menos', 2600); }
     bajada = b;
     if (st.publico && !avisados.has('p' + Math.round(km))) { avisados.add('p' + Math.round(km)); sub('Público: <b>toca con los aplausos</b>', 3000); }
-    for (const h of D.hitos) if (Math.abs(h.km - km) < .06 && !avisados.has('h' + h.km) && performance.now() > subHasta) { avisados.add('h' + h.km); sub(h.nombre, 2400); }
+    for (const h of A.hitos) if (Math.abs(h.km - km) < .06 && !avisados.has('h' + h.km) && performance.now() > subHasta) { avisados.add('h' + h.km); sub(h.nombre, 2400); }
   }
   // ───── pantalla (solo cambios) ─────
-  const vMed = () => M.KM * 1000 / st.o.target, AX0 = .6, AX1 = 1.34, xq = qv => clamp((qv - AX0) / (AX1 - AX0), 0, 1) * barW;
+  const vMed = () => A.KM * 1000 / st.o.target, AX0 = .6, AX1 = 1.34, xq = qv => clamp((qv - AX0) / (AX1 - AX0), 0, 1) * barW;
   function hud() {
     if (!barW) medir(); const now = performance.now(), vm = vMed(), vp = st.pl.v(st.km), [lo, hi] = M.zonaAt(st);
     aguja.style.transform = `translateX(${xq(st.v / vm).toFixed(1)}px)`;
@@ -240,19 +241,19 @@ export function crearModoCarrera(caf, ui) {
 
   // ═════ final ═════
   const CAUSA = {
-    rapido: b => `Saliste por encima de la zona en los primeros 12 km y lo pagaste en el km ${fK(b.muroKm ?? b.abandonoKm)}: el glucógeno que se quema de más al principio no vuelve.`,
-    geles: b => `Con ${b.gN} gel${b.gN === 1 ? '' : 'es'}${b.gT < b.gN ? ` (tomaste ${b.gT})` : ''} el glucógeno no alcanza: chocaste en el km ${fK(b.muroKm ?? b.abandonoKm)}. Uno cada 40 min lo evita.`,
+    rapido: b => `Saliste por encima de la zona en los primeros ${A.id === '42' ? 12 : 6} km y lo pagaste en el km ${fK(b.muroKm ?? b.abandonoKm)}: el glucógeno que se quema de más al principio no vuelve.`,
+    geles: b => `Con ${b.gN} gel${b.gN === 1 ? '' : 'es'}${b.gT < b.gN ? ` (tomaste ${b.gT})` : ''} el glucógeno no alcanza: chocaste en el km ${fK(b.muroKm ?? b.abandonoKm)}. Uno cada ${A.id === '42' ? 40 : 30} min lo evita.`,
     agua: b => `Te faltó agua: con ${E.lph.toFixed(1).replace('.', ',')} L/h y ${b.pOk} de ${b.pN} puestos, desde la mitad todo cuesta más.`,
     ritmo: b => `Chocaste con el muro en el km ${fK(b.muroKm ?? b.abandonoKm)}: pasaste demasiado tiempo en rojo, y cada bajón gasta energía y deja huella hasta la meta.`,
     zona: () => 'Estuviste fuera de la zona demasiado tiempo: el reloj se fue en los tramos lentos.',
     lento: () => 'Te quedaste por debajo de la zona: toca un poco más seguido en el llano.',
   };
   function final() {
-    if (!st) return; const b = M.balance(st), key = String(st.o.target), prev = marcas[key];
+    if (!st) return; const b = M.balance(st), key = mKey(st.o.target), prev = marcas[key];
     let nueva = false; if (b.fin && (!prev || b.t < prev.t)) { marcas[key] = { t: Math.round(b.t), est: Math.max(b.est, prev?.est || 0) }; nueva = true; } else if (b.fin && prev && b.est > prev.est) marcas[key].est = b.est;
     try { localStorage.setItem(KEYM, JSON.stringify(marcas)); } catch (e) { } pintaMejor();
     S.running = false; $('hud').style.display = 'none';
-    const tn = D.tramos, gano = b.gano && b.gano.x < -5 ? `Ganaste la carrera en <b>${tn[b.gano.i].nombre}</b> (${fD(Math.round(b.gano.x))} contra el plan)` : '', perdio = b.perdio && b.perdio.x > 5 ? `la perdiste en <b>${tn[b.perdio.i].nombre}</b> (${fD(Math.round(b.perdio.x))})` : '';
+    const tn = A.tramos, gano = b.gano && b.gano.x < -5 ? `Ganaste la carrera en <b>${tn[b.gano.i].nombre}</b> (${fD(Math.round(b.gano.x))} contra el plan)` : '', perdio = b.perdio && b.perdio.x > 5 ? `la perdiste en <b>${tn[b.perdio.i].nombre}</b> (${fD(Math.round(b.perdio.x))})` : '';
     const por = !b.fin ? CAUSA[b.causa === 'zona' || b.causa === 'lento' ? 'agua' : b.causa]?.(b) || '' : b.muroKm != null ? (CAUSA[b.causa]?.(b) || '') : [gano, perdio].filter(Boolean).join(' y ') + (gano || perdio ? '.' : '') + (b.d > 0 && b.causa ? ' ' + CAUSA[b.causa](b) : '');
     const med = b.fin ? `<div class="medal ${b.medalla}">${{ oro: 'Oro', plata: 'Plata', bronce: 'Bronce' }[b.medalla]}</div>` : '<div class="medal no">Sin meta</div>';
     const tit = b.fin ? `<h1><span data-n="${Math.round(b.t)}" data-f="t">0:00:00</span><em>${b.d <= 0 ? 'objetivo cumplido' : 'en meta'}${nueva && prev && b.t < prev.t ? ' · mejor marca' : ''}</em></h1>` : `<h1>Km ${fK(b.abandonoKm)}<em>${b.muroKm != null ? `el muro en el km ${fK(b.muroKm)} y el abandono` : 'abandono'}</em></h1>`;
@@ -262,7 +263,7 @@ export function crearModoCarrera(caf, ui) {
       <div class="acts"><button class="go" id="cfR">Revancha</button><button class="go alt" id="cfE">Ajustar estrategia</button><button class="go alt" id="cfS">Compartir</button><button class="lnk" id="cfM">Menú</button></div></div>`;
     $('end').style.display = 'flex'; $('end').scrollTop = 0;
     $('cfR').onclick = () => { $('end').style.display = 'none'; iniciar(); }; $('cfE').onclick = estrategia; $('cfM').onclick = () => caf.menu();
-    $('cfS').onclick = async () => { const c = await lienzo(b); ui.plan.compartirLienzo(c, `maraton-caf-3d-${fT(b.t).replace(/:/g, '-')}.png`, b.fin ? `Corrí el Maratón CAF en 3D: ${fT(b.t)} (objetivo ${fT(b.T)}), ${b.est}/${b.max} estrellas. Arma tu estrategia y córrela:` : `Choqué en el km ${fK(b.abandonoKm)} del Maratón CAF en 3D. Arma tu estrategia y córrela:`, 'Maratón CAF en 3D'); };
+    $('cfS').onclick = async () => { const c = await lienzo(b); ui.plan.compartirLienzo(c, `maraton-caf-3d-${fT(b.t).replace(/:/g, '-')}.png`, b.fin ? `Corrí ${A.id === '42' ? 'el Maratón CAF' : 'el 21K del Maratón CAF'} en 3D: ${fT(b.t)} (objetivo ${fT(b.T)}), ${b.est}/${b.max} estrellas. Arma tu estrategia y córrela:` : `Choqué en el km ${fK(b.abandonoKm)} ${A.id === '42' ? 'del Maratón CAF' : 'del 21K del Maratón CAF'} en 3D. Arma tu estrategia y córrela:`, A.id === '42' ? 'Maratón CAF en 3D' : '21K · Maratón CAF en 3D'); };
     // recuento animado
     const t0 = performance.now(), ns = [...$('endC').querySelectorAll('[data-n]')];
     const anim = now => { const k = Math.min(1, (now - t0) / 1100), e = 1 - Math.pow(1 - k, 3); ns.forEach(n => { const v = +n.dataset.n * e; n.textContent = n.dataset.f === 't' ? fT(v) : Math.round(v); }); if (k < 1) requestAnimationFrame(anim); };
@@ -276,32 +277,34 @@ export function crearModoCarrera(caf, ui) {
     const SER = '"Instrument Serif", Georgia, serif', INT = 'Inter, system-ui, sans-serif', BONE = '#f4efe6', MUTE = '#8b8f9a', ACC = '#ffd23f';
     const bg = g.createLinearGradient(0, 0, 0, Hc); bg.addColorStop(0, '#1c2238'); bg.addColorStop(.42, '#10131d'); bg.addColorStop(1, '#0a0c12'); g.fillStyle = bg; g.fillRect(0, 0, Wc, Hc);
     const txt = (s, x, y, font, col, al = 'left') => { g.font = font; g.fillStyle = col; g.textAlign = al; g.fillText(s, x, y); };
-    { let a = Infinity, bb = -Infinity, cz = Infinity, dd = -Infinity; for (let i = 0; i < N; i++) { a = Math.min(a, R.x[i]); bb = Math.max(bb, R.x[i]); cz = Math.min(cz, R.z[i]); dd = Math.max(dd, R.z[i]); }
-      const sc = Math.min(900 / (bb - a), 240 / (dd - cz)), ox = 90 + (900 - (bb - a) * sc) / 2, oy = 220 + (240 - (dd - cz) * sc) / 2, X = i => ox + (R.x[i] - a) * sc, Z = i => oy + (R.z[i] - cz) * sc;
-      const lim = b.fin ? N : Math.round(sOfKm(b.abandonoKm || 0) / STEP);
+    { const R = ctx.R, N = A.N; let a = Infinity, bb = -Infinity, cz = Infinity, dd = -Infinity; for (let i = 0; i < ctx.N; i++) { a = Math.min(a, R.x[i]); bb = Math.max(bb, R.x[i]); cz = Math.min(cz, R.z[i]); dd = Math.max(dd, R.z[i]); }
+      const sc = Math.min(900 / (bb - a), 240 / (dd - cz)), ox = 90 + (900 - (bb - a) * sc) / 2, oy = 220 + (240 - (dd - cz) * sc) / 2, X = i => ox + (A.x[i] - a) * sc, Z = i => oy + (A.z[i] - cz) * sc;
+      const lim = b.fin ? N : Math.round(A.sOfKm(b.abandonoKm || 0) / STEP);
       g.lineJoin = g.lineCap = 'round'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 8; g.beginPath(); for (let i = 0; i < N; i += 3) i ? g.lineTo(X(i), Z(i)) : g.moveTo(X(i), Z(i)); g.stroke();
       g.strokeStyle = 'rgba(255,210,63,.85)'; g.lineWidth = 6; g.beginPath(); for (let i = 0; i < lim; i += 3) i ? g.lineTo(X(i), Z(i)) : g.moveTo(X(i), Z(i)); g.stroke(); }
-    g.font = `600 30px ${INT}`; g.fillStyle = ACC; g.textAlign = 'left'; let cx = 90; for (const ch of 'MARATÓN CAF · EN 3D') { g.fillText(ch, cx, 160); cx += g.measureText(ch).width + 5; }
+    g.font = `600 30px ${INT}`; g.fillStyle = ACC; g.textAlign = 'left'; let cx = 90; for (const ch of A.id === '42' ? 'MARATÓN CAF · EN 3D' : '21K · MARATÓN CAF · EN 3D') { g.fillText(ch, cx, 160); cx += g.measureText(ch).width + 5; }
     txt(b.fin ? 'Corrí la carrera en' : 'Llegué hasta el', 90, 590, `italic 400 58px ${SER}`, MUTE);
     txt(b.fin ? fT(b.t) : 'km ' + fK(b.abandonoKm), 84, 770, `400 190px ${SER}`, BONE);
     txt(b.fin ? `objetivo ${fT(b.T)} · ${fD(Math.round(b.d))}` : `objetivo ${fT(b.T)} · ${b.muroKm != null ? 'el muro en el km ' + fK(b.muroKm) : 'abandono'}`, 90, 834, `400 34px ${INT}`, b.fin && b.d <= 0 ? '#3ecf8e' : '#cfccc4');
     if (b.medalla) { const col = { oro: ['#fff1a8', '#f5c11a'], plata: ['#ffffff', '#c9ced6'], bronce: ['#ffd2a6', '#cd7f32'] }[b.medalla], rg = g.createRadialGradient(880, 520, 10, 900, 540, 110); rg.addColorStop(0, col[0]); rg.addColorStop(1, col[1]); g.fillStyle = rg; g.beginPath(); g.arc(900, 540, 100, 0, 6.3); g.fill(); txt({ oro: 'Oro', plata: 'Plata', bronce: 'Bronce' }[b.medalla], 900, 556, `400 48px ${SER}`, '#1a1400', 'center'); }
     // estrellas por tramo
     const y0 = 940; txt('TRAMO', 90, y0, `600 22px ${INT}`, MUTE); txt('ESTRELLAS', 990, y0, `600 22px ${INT}`, MUTE, 'right'); g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(90, y0 + 14, 900, 2);
-    D.tramos.forEach((t, i) => { const y = y0 + 64 + i * 58, n = st.estrellas[i]; let nm = t.nombre; g.font = `400 30px ${INT}`; while (g.measureText(nm).width > 700 && nm.length > 8) nm = nm.slice(0, -2); if (nm !== t.nombre) nm = nm.trim() + '…';
+    A.tramos.forEach((t, i) => { const y = y0 + 64 + i * 58, n = st.estrellas[i]; let nm = t.nombre; g.font = `400 30px ${INT}`; while (g.measureText(nm).width > 700 && nm.length > 8) nm = nm.slice(0, -2); if (nm !== t.nombre) nm = nm.trim() + '…';
       txt(nm, 90, y, `400 30px ${INT}`, n == null ? 'rgba(244,239,230,.35)' : BONE); for (let k = 0; k < 3; k++) txt('★', 990 - (2 - k) * 46, y + 2, `400 40px ${INT}`, n != null && k < n ? ACC : 'rgba(255,255,255,.16)', 'right'); });
-    const y1 = y0 + 64 + D.tramos.length * 58 + 30;
+    const y1 = y0 + 64 + A.tramos.length * 58 + 30;
     [[`${b.est}/${b.max}`, 'estrellas'], [`${b.rachaMax} km`, 'racha en zona'], [`${b.gT}/${b.gN}`, 'geles'], [`${b.pOk}/${b.pN}`, 'puestos']].forEach(([v, l], i) => { const x = 90 + i * 232; txt(v, x, y1 + 60, `400 64px ${SER}`, BONE); txt(l, x, y1 + 100, `400 24px ${INT}`, MUTE); });
     txt(`Mi estrategia: ${E.geles.length} geles, ${E.lph.toFixed(1).replace('.', ',')} L/h`, 540, 1800, `400 28px ${INT}`, '#cfccc4', 'center');
-    txt('Ruta real del Maratón CAF de Caracas, en 3D', 540, 1852, `400 22px ${INT}`, 'rgba(244,239,230,.45)', 'center');
+    txt(A.id === '42' ? 'Ruta real del Maratón CAF de Caracas, en 3D' : 'Ruta real del 21K del Maratón CAF de Caracas, en 3D', 540, 1852, `400 22px ${INT}`, 'rgba(244,239,230,.45)', 'center');
     return c;
   }
   // mejor marca y estrellas en el inicio
   function pintaMejor() {
     const card = document.querySelector('.mode[data-m="race"]'); if (!card) return; let p = card.querySelector('.best'); if (!p) { p = document.createElement('span'); p.className = 'best'; card.appendChild(p); }
-    const m = marcas[String(S.target)], todas = Object.values(marcas), est = todas.reduce((a, x) => Math.max(a, x.est || 0), 0);
-    p.textContent = m ? `Tu mejor con ${fT(S.target)}: ${fT(m.t)} · ${m.est}/30 estrellas` : todas.length ? `Tu mejor partida: ${est}/30 estrellas` : '';
+    const pre = A.id === '42' ? null : A.id + ':', mx = A.tramos.length * 3, m = marcas[mKey(S.target)], todas = Object.entries(marcas).filter(([k]) => pre ? k.startsWith(pre) : !k.includes(':')).map(e => e[1]), est = todas.reduce((a, x) => Math.max(a, x.est || 0), 0);
+    p.textContent = m ? `Tu mejor con ${fT(S.target)}: ${fT(m.t)} · ${m.est}/${mx} estrellas` : todas.length ? `Tu mejor partida: ${est}/${mx} estrellas` : '';
   }
   pintaMejor(); ui.plan.alCambiar(pintaMejor);
+  // cambio de distancia en la portada: perfil, estrategia guardada, duraciones y mejores marcas de esa distancia
+  caf.alDist?.push(() => { st = null; rehacerPf(); cotas(); cargaE(); es.querySelectorAll('#eDur button').forEach((b, i) => { b.dataset.d = DUR[A.id][i]; b.textContent = DUR[A.id][i] / 60 + ' min'; }); pintaMejor(); });
   return { modelo: M, estrategia, iniciar, retomar, paso, estado, beber, gel, tocar, get st() { return st; }, get listo() { return listo; }, set listo(v) { listo = v; }, lienzo, final };
 }

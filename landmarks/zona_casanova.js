@@ -2,6 +2,7 @@
 // - Muro con baranda de la acera alzada en la primera cuadra tras el giro (km 21,09–21,17 izq.; f_0210).
 // - C.C. del Este: tres bóvedas blancas de medio cañón sobre la fachada gris de Smart (km 21,20–21,25 izq.; f_0211).
 // - Torre Banco Plaza: corona gris y letrero verde «BANCO PLAZA» en la cara que mira a quien llega por Casanova (f_0211–0212).
+// - Restaurant El Arabito (OSM node 2434567512): nave de ladrillo de 2 pisos con medallones y rótulo rojo (km 21,32–21,36 der.; video t=527,5–528,5 s).
 // - Firestone: franja roja con el logo en la nave blanca de la Av. Tamanaco (km 22,60–22,66 der.; f_0222).
 // - Metropark: muro de colores con círculos y letras, y la noria de cabinas rojas, azules y amarillas (km 22,68–22,84 izq.; f_0223–0224).
 // - Centro Cultural Chacao: caja naranja con el plano inclinado sobre la acera y basamento gris (km 23,14–23,19 der.; f_0228).
@@ -47,6 +48,41 @@ export function build(THREE, api) {
       c.fillStyle = '#ffffff'; c.font = 'bold 54px sans-serif'; c.textAlign = 'center'; c.fillText('BANCO PLAZA', w / 2, h * .7); });
     const s = add(new THREE.PlaneGeometry(lz * .7, 4.4), mat(tx, { emissive: 0x0d3a20, emissiveIntensity: .4 }), -lx * .46 - .3, H + 3.2, 0, G); s.rotation.y = -Math.PI / 2;
     add(new THREE.PlaneGeometry(lz * .7, .25), api.glow(0x2bd16a, { dia: .05, noche: 1.4 }), -lx * .46 - .35, H + .7, 0, G).rotation.y = -Math.PI / 2;
+  }
+
+  // ───────── Restaurant El Arabito (OSM node 2434567512, Av. Casanova; video t=527,5–528,5 s) ─────────
+  // Nave de ladrillo naranja de dos pisos pegada a la acera derecha (km 21,32–21,36, fachada a 7,5 m del eje): pilastras rematadas por
+  // medallones redondos claros, ventanas corridas oscuras arriba, vitrinas con reja abajo, el rótulo rojo con el logo blanco y «Arabito»,
+  // la pilastra de la esquina oeste más alta con su panel rojo, y un toldo rojo sobre la entrada.
+  { const k0 = 21.326, k1 = 21.362, D = 7.32, n = 8, dk = (k1 - k0) / n;
+    const tx = api.canvasTex(128, 256, (c, w, h) => { c.fillStyle = '#b5643c'; c.fillRect(0, 0, w, h);
+      c.fillStyle = 'rgba(70,30,15,.18)'; for (let y = 3; y < h; y += 5) c.fillRect(0, y, w, 1);   // hiladas
+      c.fillStyle = '#1e1f22'; c.fillRect(w * .08, h * .16, w * .84, h * .25);                    // ventanas corridas del primer piso
+      c.fillStyle = '#5a5f63'; for (let x = w * .08; x < w * .92; x += 14) c.fillRect(x, h * .16, 2, h * .25);
+      c.fillStyle = '#93502f'; c.fillRect(0, h * .45, w, 4); c.fillRect(0, h * .62, w, 3);
+      c.fillStyle = '#26272a'; c.fillRect(w * .1, h * .66, w * .8, h * .26);                       // vitrina con reja de la planta baja
+      c.fillStyle = '#6d7175'; for (let x = w * .1; x < w * .9; x += 9) c.fillRect(x, h * .66, 2, h * .26); });
+    const fach = mat(tx, { roughness: .9 }), lad = api.concrete(0xa95a35), crema = api.concrete(0xe3d3b4, { roughness: .8 });
+    for (let i = 0; i < n; i++) { const a = P(k0 + i * dk, -D), b = P(k0 + (i + 1) * dk, -D), r = api.routeAt(k0 + (i + .5) * dk), len = Math.hypot(b.x - a.x, b.z - a.z);
+      const m = add(new THREE.PlaneGeometry(len + .06, 9), fach, (a.x + b.x) / 2, Math.min(a.y, b.y) + 4.5, (a.z + b.z) / 2); m.rotation.y = mira(r, 'L'); }
+    // pilastras con medallón (la de la esquina oeste, más alta)
+    for (let i = 0; i <= 4; i++) { const k = i === 0 ? k0 - .002 : k0 + i * (k1 - k0) / 4, p = P(k, -(D - .25)), big = i === 0;
+      const G = new THREE.Group(); G.position.set(p.x, p.y, p.z); G.rotation.y = mira(p.r, 'L'); g.add(G);
+      const hp = big ? 10.6 : 9.6, wp = big ? 1.5 : .8;
+      add(new THREE.BoxGeometry(wp, hp, .55), lad, 0, hp / 2, 0, G);
+      const R0 = big ? 1.35 : .95, y = hp + R0 * .55;
+      add(new THREE.CylinderGeometry(R0 + .18, R0 + .18, .45, 20), lad, 0, y, 0, G).rotation.x = Math.PI / 2;
+      add(new THREE.CylinderGeometry(R0, R0, .5, 20), crema, 0, y, .05, G).rotation.x = Math.PI / 2; }
+    // rótulo principal y panel rojo de la esquina
+    const logo = (c, x, y, r) => { c.strokeStyle = '#fff'; c.lineWidth = r * .16; c.beginPath(); c.arc(x, y, r, 0, 7); c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y - r * .18, r * .34, 0, 7); c.fill(); c.fillRect(x - r * .42, y + r * .18, r * .84, r * .36); };
+    const ts = api.canvasTex(512, 96, (c, w, h) => { c.fillStyle = '#c42229'; c.fillRect(0, 0, w, h); logo(c, 56, h / 2, 32);
+      c.fillStyle = '#fff'; c.font = 'bold 64px sans-serif'; c.textBaseline = 'middle'; c.fillText('Arabito', 112, h / 2 + 3); });
+    { const p = P(21.346, -(D - .12)), m = add(new THREE.PlaneGeometry(9.5, 1.8), mat(ts, { emissive: 0x3a0608, emissiveIntensity: .35 }), p.x, p.y + 4.3, p.z); m.rotation.y = mira(p.r, 'L'); }
+    const tc = api.canvasTex(64, 128, (c, w, h) => { c.fillStyle = '#c42229'; c.fillRect(0, 0, w, h); logo(c, w / 2, h * .32, 20); });
+    { const p = P(k0 - .002, -(D - .55)), m = add(new THREE.PlaneGeometry(1.3, 2.6), mat(tc), p.x, p.y + 5.8, p.z); m.rotation.y = mira(p.r, 'L'); }
+    // toldo rojo sobre la entrada
+    { const p = P(21.334, -(D - .75)), m = add(new THREE.BoxGeometry(3.6, .14, 1.5), api.concrete(0xa3262b, { roughness: .8 }), p.x, p.y + 3.05, p.z); m.rotation.y = mira(p.r, 'L'); }
   }
 
   // ───────── Firestone (f_0222) ─────────

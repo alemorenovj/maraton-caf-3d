@@ -11,6 +11,7 @@ export const P = {
   FK: 1.7, FREC: 7, BAJON: 3.5, BAJON_F: 55, HUELLA: .015, HUELLA_MAX: .3,       // fatiga: llenado por encima de la zona, recuperación, bajón forzado (s reales);
                                                                                  // cada bajón deja huella: +1,5 % de gasto de energía el resto de la carrera
   C: 3.0, PX: 7, FD: .4,                                                        // energía por km a esfuerzo 1; exponente; recargo por fatiga
+  C21: 1.3, C21X: .55,                                                           // 21K: se corre más intenso que el maratón; gasto ×C21·(2 h / objetivo)^C21X
   GEL: 10, GEL_T0: 300, GEL_DUR: 900,                                            // un gel: +10 de energía, empieza a llegar a los 5 min y tarda 15
   MURO_R: .7, MURO_SALE: 12,                                                     // en el muro el esfuerzo se queda en trote; se sale con >12 de energía
   SW: .72, HEAT: .45, HK: 30, CAP: .35,                                          // sudor L/h, recargo por calor, % por litro de déficit, tope por puesto
@@ -20,10 +21,10 @@ export const P = {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** perfil por celdas de 50 m de km oficial: g[i] = pendiente (%) en el km i·DK. gradeAt(s) y sOfKm(km) los pone quien llama. */
-export function perfilDesde(gradeAt, sOfKm) {
-  const n = Math.ceil(KM / DK) + 1, g = new Float32Array(n);
-  for (let i = 0; i < n; i++) g[i] = gradeAt(sOfKm(Math.min(KM, i * DK)));
-  return { g, n };
+export function perfilDesde(gradeAt, sOfKm, km = KM) {   // km: longitud de la carrera (42,195 o 21,0975); viaja en el perfil a todo lo demás
+  const n = Math.ceil(km / DK) + 1, g = new Float32Array(n);
+  for (let i = 0; i < n; i++) g[i] = gradeAt(sOfKm(Math.min(km, i * DK)));
+  return { g, n, KM: km };
 }
 export const pendiente = (pf, km) => { const f = clamp(km / DK, 0, pf.n - 1), i = Math.min(pf.n - 2, Math.floor(f)); return pf.g[i] + (pf.g[i + 1] - pf.g[i]) * (f - i); };
 
@@ -32,13 +33,14 @@ export function planBase(pf, T) {
   const tc = new Float64Array(pf.n); let sum = 0;
   for (let i = 1; i < pf.n; i++) { sum += DK * 1000 / gradeSpeed(pf.g[i]); tc[i] = sum; }
   const VB = sum / T; for (let i = 0; i < pf.n; i++) tc[i] /= VB;
-  return { T, VB, v: km => VB * gradeSpeed(pendiente(pf, km)), t: km => { const f = clamp(km / DK, 0, pf.n - 1), i = Math.min(pf.n - 2, Math.floor(f)); return tc[i] + (tc[i + 1] - tc[i]) * (f - i); } };
+  return { T, VB, KM: pf.KM || KM, v: km => VB * gradeSpeed(pendiente(pf, km)), t: km => { const f = clamp(km / DK, 0, pf.n - 1), i = Math.min(pf.n - 2, Math.floor(f)); return tc[i] + (tc[i + 1] - tc[i]) * (f - i); } };
 }
 
 /** geles sugeridos: uno cada ~40 min de carrera, el primero hacia el min 40; se acercan al puesto oficial de gel si cae a menos de 1,5 km */
 export function sugerirGeles(pl, oficiales = []) {
-  const out = [], kmEn = t => { let a = 0, b = KM; for (let k = 0; k < 40; k++) { const m = (a + b) / 2; if (pl.t(m) < t) a = m; else b = m; } return a; };
-  for (let t = 40 * 60; t < pl.T - 20 * 60 && out.length < 8; t += 40 * 60) { let km = kmEn(t); const o = oficiales.find(x => Math.abs(x - km) < 1.5); if (o != null) km = o; out.push(Math.round(km * 10) / 10); }
+  const out = [], kmEn = t => { let a = 0, b = pl.KM || KM; for (let k = 0; k < 40; k++) { const m = (a + b) / 2; if (pl.t(m) < t) a = m; else b = m; } return a; };
+  const cada = (pl.KM || KM) > 30 ? 40 * 60 : 30 * 60;   // 21K: más intenso, uno cada ~30 min desde el min 30
+  for (let t = cada; t < pl.T - 20 * 60 && out.length < 8; t += cada) { let km = kmEn(t); const o = oficiales.find(x => Math.abs(x - km) < 1.5); if (o != null) km = o; out.push(Math.round(km * 10) / 10); }
   return out;
 }
 
@@ -49,7 +51,7 @@ export function crearCarrera(o) {
   const pl = planBase(o.pf, o.target), esc = o.target / (o.dur || 480);
   const iso = new Set(o.iso || []), gof = new Set(o.gelOf || []);
   const st = {
-    o, pl, esc, km: 0, t: 0, tr: 0, d: 1.15, rc: 1, r: .92, rz: .92, v: 0, E: 100, H: 100, def: 0, F: 0,
+    o, pl, esc, cK: (o.pf.KM || KM) > 30 ? 1 : P.C21 * Math.pow(7200 / o.target, P.C21X), km: 0, t: 0, tr: 0, d: 1.15, rc: 1, r: .92, rz: .92, v: 0, E: 100, H: 100, def: 0, F: 0,
     estado: 'corre', bajonHasta: -1, muro: false, muroKm: null, forz: 0, abandonoKm: null, causa: '',
     puestos: (o.agua || []).map(km => ({ km, iso: iso.has(km), gel: gof.has(km), estado: 'pend' })),
     geles: (o.geles || []).slice().sort((a, b) => a - b).map(km => ({ km, estado: 'pend' })),
@@ -115,12 +117,12 @@ export function avanzar(st, dtR, auto = null) {
   const dtC = dtR * st.esc, dkm = st.v * dtC / 1000;
   const [lo, hi] = zonaAt(st); st.zona = !st.muro && st.rz >= lo && st.rz <= hi; st.roja = st.rz > hi;
   // fatiga (en segundos reales: es la parte «de juego»)
-  if (st.roja) { st.F += P.FK * (st.rz - hi) * 100 * dtR * (st.H < 40 ? 1.3 : 1); st.rojoT += dtR; if (st.km < 12) st.rojoTemprano += dtR; }
+  if (st.roja) { st.F += P.FK * (st.rz - hi) * 100 * dtR * (st.H < 40 ? 1.3 : 1); st.rojoT += dtR; if (st.km < 12 * (pf.KM || KM) / KM) st.rojoTemprano += dtR; }
   else st.F -= (st.rz < hi - .02 ? P.FREC : P.FREC * .4) * dtR;
   st.F = clamp(st.F, 0, 100);
   if (st.F >= 100 && st.bajonHasta < st.tr) { st.bajonHasta = st.tr + P.BAJON; st.F = P.BAJON_F; st.nBajon = (st.nBajon || 0) + 1; st.huella = Math.min(P.HUELLA_MAX, (st.huella || 0) + P.HUELLA); ev(st, 'bajon'); }
   // energía (por km): crece con el esfuerzo de forma no lineal, con la subida, la fatiga, la deshidratación y el calor
-  const drain = P.C * Math.pow(Math.max(.5, st.rz), P.PX) * (1 + .04 * Math.max(0, g)) * (1 + P.FD * st.F / 100 + (st.huella || 0)) * (st.H < 50 ? 1 + .5 * (50 - st.H) / 50 : 1) * (.94 + .06 * heat);
+  const drain = P.C * (st.cK || 1) * Math.pow(Math.max(.5, st.rz), P.PX) * (1 + .04 * Math.max(0, g)) * (1 + P.FD * st.F / 100 + (st.huella || 0)) * (st.H < 50 ? 1 + .5 * (50 - st.H) / 50 : 1) * (.94 + .06 * heat);
   st.E -= drain * dkm;
   for (const q of st.gelQ) if (q.left > 0 && st.t > q.t0) { const a = Math.min(q.left, P.GEL / P.GEL_DUR * dtC); q.left -= a; st.E += a; if (q.left <= 0) ev(st, 'gel-llega'); }
   st.E = Math.min(100, st.E);
@@ -138,21 +140,21 @@ export function avanzar(st, dtR, auto = null) {
   for (const q of st.geles) if (q.estado === 'pend' && ventana(st, q.km, 1e9, P.G_DESP) === null && q.km < st.km) { q.estado = 'perdido'; ev(st, 'gel-perdido', { g: q }); }
   // contabilidad de zona (tiempo real)
   st.kmT += dtR; st.trT += dtR; st.totT += dtR; if (st.zona) { st.kmZ += dtR; st.trZ += dtR; st.zonaT += dtR; }
-  const k0 = st.km; st.km = Math.min(KM, st.km + dkm); st.t += dtC;
-  if (Math.floor(st.km) > Math.floor(k0) && st.km < KM) {
+  const KMr = pf.KM || KM, k0 = st.km; st.km = Math.min(KMr, st.km + dkm); st.t += dtC;
+  if (Math.floor(st.km) > Math.floor(k0) && st.km < KMr) {
     const ok = st.kmZ / st.kmT >= .75; st.kmN++;
     if (ok) { st.racha++; st.rachaMax = Math.max(st.rachaMax, st.racha); ev(st, 'km', { n: Math.floor(st.km), ok, racha: st.racha }); }
     else { const r0 = st.racha; st.racha = 0; ev(st, 'km', { n: Math.floor(st.km), ok, racha: 0, rota: r0 }); }
     st.kmT = st.kmZ = 0;
   }
-  if (Math.floor(st.km / 5) > Math.floor(k0 / 5) && st.km < KM) { const km = Math.floor(st.km / 5) * 5, p = { km, t: st.t, plan: st.pl.t(km) }; st.parciales.push(p); ev(st, 'parcial', p); }
+  if (Math.floor(st.km / 5) > Math.floor(k0 / 5) && st.km < KMr) { const km = Math.floor(st.km / 5) * 5, p = { km, t: st.t, plan: st.pl.t(km) }; st.parciales.push(p); ev(st, 'parcial', p); }
   const tr = st.o.tramos || [];
   while (tr[st.tramo] && st.km >= tr[st.tramo].km1 - 1e-6) {
     const f = st.trZ / Math.max(.001, st.trT), n = f >= .88 ? 3 : f >= .68 ? 2 : f >= .4 ? 1 : 0;
     st.estrellas.push(n); st.tramoDelta.push((st.t - st.tramoT0) - (st.pl.t(tr[st.tramo].km1) - st.pl.t(tr[st.tramo].km0))); st.tramoT0 = st.t;
     ev(st, 'tramo', { i: st.tramo, estrellas: n, f }); st.tramo++; st.trT = st.trZ = 0;
   }
-  if (st.km >= KM) { st.estado = 'fin'; ev(st, 'fin'); }
+  if (st.km >= KMr) { st.estado = 'fin'; ev(st, 'fin'); }
   return st;
 }
 
@@ -164,10 +166,10 @@ export function balance(st) {
   // la decisión que más pesó
   let causa = '';
   if (!fin || st.muroKm != null) {
-    if (st.rojoTemprano > 25) causa = 'rapido'; else if (st.geles.length < 3 || gT < st.geles.length - 1) causa = 'geles'; else if (st.H < 35 || (st.o.lph ?? .6) < .4 || pOk < st.puestos.length * .6) causa = 'agua'; else causa = 'ritmo';
+    if (st.rojoTemprano > 25) causa = 'rapido'; else if (st.geles.length < ((st.o.pf.KM || KM) > 30 ? 3 : 1) || gT < st.geles.length - 1) causa = 'geles'; else if (st.H < 35 || (st.o.lph ?? .6) < .4 || pOk < st.puestos.length * .6) causa = 'agua'; else causa = 'ritmo';
   } else if (d > 0) causa = st.zonaT / Math.max(1, st.totT) < .6 ? 'zona' : 'lento';
   const td = st.tramoDelta.map((x, i) => ({ i, x })).sort((a, b) => a.x - b.x);
-  const medalla = !fin ? null : d <= 0 && est >= 26 ? 'oro' : d <= 300 && est >= 18 ? 'plata' : 'bronce';
+  const mx = (st.o.tramos || []).length * 3, medalla = !fin ? null : d <= 0 && est >= Math.round(mx * 26 / 30) ? 'oro' : d <= 300 && est >= Math.round(mx * 18 / 30) ? 'plata' : 'bronce';
   return { fin, t: st.t, T, d, est, max: (st.o.tramos || []).length * 3, rachaMax: st.rachaMax, gT, gN: st.geles.length, pOk, pPerf, pN: st.puestos.length,
     muroKm: st.muroKm, abandonoKm: st.abandonoKm, causa, gano: td[0], perdio: td[td.length - 1], medalla, zona: st.zonaT / Math.max(1, st.totT), bajones: st.nBajon || 0, E: st.E, H: st.H };
 }

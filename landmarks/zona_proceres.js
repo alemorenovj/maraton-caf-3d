@@ -4,7 +4,8 @@
 //   amarillo a los dos lados y bolardos-luminaria (f_0151–0155, f_0182–0186). El generador deja ahí asfalto de la calzada contraria.
 // - Parque de atracciones (km 15,36–15,60 der.): muro amarillo con reja azul, torre de caída roja y blanca, valla gigante (f_0148–0149).
 // - Viaducto de la Autopista Valle-Coche (OSM, layer 2) paralelo a la derecha de la ida, 25–55 m (f_0153–0154).
-// - Puente de Los Ilustres sobre la rampa de la Valle-Coche (OSM bridge, ida 15,58–15,67 / vuelta 18,73–18,81): parapeto blanco calado.
+// - Puente de Los Ilustres sobre la Autopista Valle-Coche (OSM bridge layer 3, ida 15,572–15,6415 / vuelta 18,7645–18,837): tablero,
+//   trinchera con la autopista y sus carros, pérgola de vigas, parapeto blanco calado y baranda verde (§4; relieve en fx/correcciones/proceres.js).
 // - Paseo Los Próceres (ida 16,62–17,12 / vuelta 17,28–17,86, siempre a la izquierda): acera de adoquín rosado, brocal amarillo
 //   grueso, urnas blancas sobre pedestal cada 25 m y farolas verdes de dos globos (f_0159–0177).
 // - Vuelta por Los Próceres, derecha: isla de palmas reales y ciclovía verde-celeste (f_0163–0172); muro de piedra con el
@@ -15,7 +16,10 @@
 // Los monolitos, el óvalo, el espejo de agua y el obelisco son del hito landmarks/los_proceres.js; el monumento, de los_simbolos.js.
 export const meta = {
   id: 'zona_proceres', nombre: 'Zona proceres',
-  quita: [[10.471731, -66.896122, 18], [10.481950, -66.895576, 8]],
+  // + trinchera de la Valle-Coche bajo el puente (km 18,81): círculos de 15 m a lo largo del eje de la autopista, cada 16 m (sin árboles ni huellas genéricas)
+  quita: [[10.471731, -66.896122, 18], [10.481950, -66.895576, 8],
+    [10.480161, -66.894974, 15], [10.480262, -66.894869, 15], [10.480362, -66.894763, 15], [10.480463, -66.894658, 15], [10.480563, -66.894553, 15], [10.480663, -66.894447, 15],
+    [10.480764, -66.894342, 15], [10.480864, -66.894237, 15], [10.480965, -66.894131, 15], [10.481065, -66.894026, 15], [10.481165, -66.893921, 15]],
 };
 
 export function build(THREE, api) {
@@ -127,15 +131,113 @@ export function build(THREE, api) {
     inst(box, hormigon, losa); inst(box, api.concrete(0xc4c1b8), prp); inst(box, hormOsc, pil); inst(box, hormigon, cab);
   }
 
-  // ═════════ 4. Puente de Los Ilustres sobre la rampa de la Valle-Coche: parapeto blanco calado ═════════
-  { const calado = tex(256, 64, (k, w, h) => { k.fillStyle = '#ecebe6'; k.fillRect(0, 0, w, h); k.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 8; i++) k.fillRect(i * 32 + 7, 14, 18, 30); }, 1, 1);
-    const mat = new THREE.MeshStandardMaterial({ map: calado, transparent: true, alphaTest: .5, side: THREE.DoubleSide, roughness: .8 }), tapa = api.concrete(0xefeee9);
-    const parapeto = (km0, km1, d) => { for (let km = km0; km < km1 - 1e-6; km += .01) { const a = lado(km, d), b = lado(Math.min(km1, km + .01), d), L = Math.hypot(b.x - a.x, b.z - a.z);
-        const pl = new THREE.Mesh(new THREE.PlaneGeometry(L + .05, 1.0), mat.clone()); pl.material.map = calado.clone(); pl.material.map.needsUpdate = true; pl.material.map.repeat.set(L / 8, 1);
-        pl.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 + .7, (a.z + b.z) / 2); pl.rotation.y = Math.atan2(-(b.z - a.z), b.x - a.x); g.add(pl);
-        add(new THREE.BoxGeometry(L + .05, .16, .32), tapa, pl.position.x, pl.position.y + .58, pl.position.z).rotation.y = pl.rotation.y; } };
-    parapeto(15.575, 15.675, -9.6); parapeto(15.575, 15.675, 7.3);      // ida: borde exterior y borde de la isla
-    parapeto(18.725, 18.815, -7.6);                                      // vuelta: borde exterior (f_0189)
+  // ═════════ 4. Puente de Los Ilustres sobre la Autopista Valle-Coche (vuelta 18,7645–18,837 / ida 15,572–15,6415; OSM layer 3) ═════════
+  // El dueño: «en esa parte también pasamos por arriba de la autopista». Por debajo, a ~60° de la ruta: calzada norte de la Valle-Coche, Rampa de
+  // La Bandera y calzada sur (OSM). En la foto satelital la trinchera de la autopista está cubierta, fuera de los tableros, por una pérgola de
+  // vigas de concreto perpendiculares a ella. El terreno lo baja fx/correcciones/proceres.js (relieve −8 m, km PU0–PU1 de la vuelta, también bajo
+  // las calzadas); aquí: losa a nivel de calle fuera de la trinchera, muros, vigas de la pérgola, tableros (canto, losa inferior, pilas),
+  // parapeto blanco calado (video t=470,4–471,4 s, der.), baranda verde de tubo (izq.), la autopista con sus carros y los taludes de salida.
+  { const PU0 = 18.748, PU1 = 18.862, XZ = (la, lo) => api.xz(la, lo);
+    const sv = [], si = []; for (let k = PU0 - .03; k <= PU1 + .03; k += .002) sv.push([k, R(k)]); for (let k = 15.52; k <= 15.70; k += .002) si.push([k, R(k)]);
+    // marco de una pasada: km, punto, lateral (+ izquierda) y distancia a lo largo desde el punto más cercano
+    const marco = (S, x, z) => { let b = S[0], bd = 1e18; for (const s of S) { const d = (s[1].x - x) ** 2 + (s[1].z - z) ** 2; if (d < bd) { bd = d; b = s; } } const r = b[1]; return { k: b[0], r, y: r.y, lat: (x - r.x) * r.lx + (z - r.z) * r.lz }; };
+    // bajo el puente: a la izquierda del borde derecho de la vuelta y a la izquierda del borde exterior (derecho) de la ida
+    const bajoPuente = (x, z) => { const v = marco(sv, x, z), i = marco(si, x, z); return v.k > PU0 - .002 && v.k < PU1 + .002 && v.lat > -8.7 && i.lat > -10.4; };
+    // ejes de la autopista: u a lo largo (hacia el NE), v a lo ancho; origen en la vuelta entre las dos calzadas
+    const O = R(18.809), A1 = XZ(10.480044, -66.894894), A2 = XZ(10.480964, -66.893929), aL = Math.hypot(A2.x - A1.x, A2.z - A1.z), ax = (A2.x - A1.x) / aL, az = (A2.z - A1.z) / aL, nx = -az, nz = ax;
+    const UV = (u, v) => ({ x: O.x + ax * u + nx * v, z: O.z + az * u + nz * v }), WC = 18.6;   // media trinchera (calzada sur −18,1 … calzada norte +17,4)
+    const yCalle = (x, z) => marco(sv, x, z).y, G = api.ground;
+    // dentro del rectángulo del relieve (fuera de él la cota natural manda: nada de losas ni muros sobre suelo que ya era bajo)
+    const enHoyo = (x, z) => { const v = marco(sv, x, z); return v.k > PU0 + .001 && v.k < PU1 - .001 && v.lat > -70 && v.lat < 85; };
+    const conc = api.concrete(0xb1ada3), concOsc = api.concrete(0x77746d), muroM = api.concrete(0xa49f94, { roughness: .95 });
+    // malla de cuadros en (u, v) con la cara hacia arriba; f(x, z) → y o null
+    const losa = (u0, u1, v0, v1, paso, f, mat) => { const pos = [], uv = [];
+      for (let u = u0; u < u1 - 1e-6; u += paso) for (let v = v0; v < v1 - 1e-6; v += paso) { const c = UV(u + paso / 2, v + paso / 2); if (f(c.x, c.z, true) == null) continue;
+        const q = [[u, v], [u + paso, v], [u + paso, v + paso], [u, v + paso]].map(([a, b]) => { const p = UV(a, b); return [p.x, f(p.x, p.z, false), p.z]; });
+        for (const t of [[0, 1, 2], [0, 2, 3]]) { const A = q[t[0]], B = q[t[1]], C = q[t[2]], ny = (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]);
+          for (const P3 of ny >= 0 ? [A, B, C] : [A, C, B]) { pos.push(...P3); uv.push(P3[0] / 6, P3[2] / 6); } } }
+      if (!pos.length) return null; const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.computeVertexNormals();
+      const m = new THREE.Mesh(ge, mat); m.receiveShadow = true; g.add(m); return m; };
+    // 4a. losa a nivel de calle sobre el hoyo FUERA de la trinchera (el relieve es un rectángulo a lo largo de la ruta; la autopista va en diagonal)
+    const tierraCalle = new THREE.MeshStandardMaterial({ roughness: 1, map: tex(256, 256, (k, w, h) => { k.fillStyle = '#434a33'; k.fillRect(0, 0, w, h);
+      for (let i = 0; i < 1400; i++) { const q = Math.random(); k.fillStyle = q < .5 ? `rgba(${45 + Math.random() * 30},${70 + Math.random() * 35},35,.7)` : `rgba(${110 + Math.random() * 30},${95 + Math.random() * 25},${65 + Math.random() * 20},.45)`; k.fillRect(Math.random() * w, Math.random() * h, 3 + Math.random() * 9, 2 + Math.random() * 6); } }) });
+    for (const [v0, v1] of [[-125, -WC - .3], [WC + .3, 125]]) losa(-150, 150, v0, v1, 2.5, (x, z, cen) => { const y = yCalle(x, z); if (cen && (y - G(x, z) < .7 || !enHoyo(x, z))) return null; return y - .3; }, tierraCalle);
+    // 4b. piso de la trinchera (berma) y la autopista: calzadas de OSM pegadas al suelo
+    losa(-150, 150, -WC - .3, WC + .3, 3, (x, z, cen) => { if (cen && (yCalle(x, z) - G(x, z) < .5 || !enHoyo(x, z))) return null; return G(x, z) + .04; }, api.concrete(0x8f8b7d, { roughness: 1 }));
+    const rayas = tex(96, 256, (c, w, h) => { c.fillStyle = '#4c4d50'; c.fillRect(0, 0, w, h); c.fillStyle = '#dcdcd4'; for (const xx of [w / 3, w * 2 / 3]) for (let y = 0; y < h; y += 64) c.fillRect(xx - 1.5, y, 3, 30);
+      c.fillStyle = '#e2b62a'; c.fillRect(1, 0, 3, h); c.fillStyle = '#e4e4de'; c.fillRect(w - 4, 0, 3, h); for (let i = 0; i < 300; i++) { c.fillStyle = `rgba(20,20,20,${Math.random() * .12})`; c.fillRect(Math.random() * w, Math.random() * h, 2, 2); } });
+    const pista = new THREE.MeshStandardMaterial({ map: rayas, roughness: .9 });
+    const VIAS = {
+      norte: { w: 11, dy: .12, ll: [[10.479058, -66.895382], [10.479609, -66.89516], [10.480044, -66.894894], [10.480298, -66.89469], [10.480405, -66.894593], [10.480964, -66.893929], [10.481284, -66.893399], [10.481461, -66.893006], [10.481572, -66.89272]] },
+      sur: { w: 10, dy: .1, ll: [[10.481975, -66.892156], [10.481628, -66.892989], [10.481151, -66.894005], [10.480898, -66.894366], [10.480721, -66.894595], [10.480463, -66.894818], [10.480261, -66.89498], [10.480049, -66.895135], [10.479676, -66.89535], [10.479291, -66.89551]] },
+      rampa: { w: 6.5, dy: .08, ll: [[10.479042, -66.895478], [10.479429, -66.895343], [10.47986, -66.895159], [10.480141, -66.894973], [10.480344, -66.894826], [10.480555, -66.894663], [10.480724, -66.89448], [10.480908, -66.894223], [10.481177, -66.893748], [10.481284, -66.893399]] } };
+    const linea = ll => { const p = ll.map(([a, b]) => XZ(a, b)), out = []; for (let i = 0; i < p.length - 1; i++) { const L = Math.hypot(p[i + 1].x - p[i].x, p[i + 1].z - p[i].z), n = Math.max(1, Math.round(L / 3)); for (let j = 0; j < n; j++) out.push({ x: p[i].x + (p[i + 1].x - p[i].x) * j / n, z: p[i].z + (p[i + 1].z - p[i].z) * j / n }); } out.push(p[p.length - 1]);
+      let s = 0; out.forEach((q, i) => { if (i) s += Math.hypot(q.x - out[i - 1].x, q.z - out[i - 1].z); q.s = s; const a = out[Math.max(0, i - 1)], b = out[Math.min(out.length - 1, i + 1)], l = Math.hypot(b.x - a.x, b.z - a.z) || 1; q.tx = (b.x - a.x) / l; q.tz = (b.z - a.z) / l; q.y = G(q.x, q.z); }); return out; };
+    for (const V of Object.values(VIAS)) { V.p = linea(V.ll); const pos = [], uv = [], idx = [];
+      V.p.forEach((q, i) => { for (const sd of [-1, 1]) { const x = q.x - q.tz * sd * V.w / 2, z = q.z + q.tx * sd * V.w / 2; pos.push(x, G(x, z) + V.dy, z); uv.push(sd < 0 ? 0 : (V.w > 8 ? 1 : .67), q.s / 22); }
+        if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } });
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(idx); ge.computeVertexNormals();
+      if (ge.attributes.normal.getY(0) < 0) { const I = ge.index.array; for (let t = 0; t < I.length; t += 3) { const q = I[t + 1]; I[t + 1] = I[t + 2]; I[t + 2] = q; } ge.computeVertexNormals(); }
+      const m = new THREE.Mesh(ge, pista); m.receiveShadow = true; g.add(m); }
+    // 4c. muros de la trinchera (cara hacia la autopista y hacia afuera: dos caras frontales) con remate, solo donde hay hondura
+    { const pos = [], rem = [];
+      for (const sd of [-1, 1]) for (let u = -150; u < 150; u += 3) { const a = UV(u, sd * (WC + .3)), b = UV(u + 3, sd * (WC + .3)), ya = yCalle(a.x, a.z) - .3, yb = yCalle(b.x, b.z) - .3, ga = G(a.x, a.z) - .3, gb = G(b.x, b.z) - .3;
+        if ((ya - ga < 1 && yb - gb < 1) || !enHoyo(a.x, a.z)) continue; const q = [[a.x, ga, a.z], [b.x, gb, b.z], [b.x, yb, b.z], [a.x, ya, a.z]];
+        pos.push(...q[0], ...q[1], ...q[2], ...q[0], ...q[2], ...q[3], ...q[0], ...q[2], ...q[1], ...q[0], ...q[3], ...q[2]); rem.push(tramo({ x: a.x, y: ya, z: a.z }, { x: b.x, y: yb, z: b.z }, .7, .35)); }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.computeVertexNormals(); g.add(new THREE.Mesh(ge, muroM)); inst(box, conc, rem); }
+    // 4d. pérgola: vigas a lo ancho de la trinchera cada 2,4 m, fuera de los tableros y solo donde hay hueco debajo
+    { const vg = []; for (let u = -150; u < 150; u += 2.4) { let run = null;
+        for (let v = -WC; v <= WC + 1e-6; v += 1) { const p = UV(u, v), y = yCalle(p.x, p.z), ok = y - G(p.x, p.z) > 3 && enHoyo(p.x, p.z) && !bajoPuente(p.x, p.z);
+          if (ok) { if (!run) run = { a: { ...p, y: y - 1.05 } }; run.b = { ...p, y: y - 1.05 }; } if ((!ok || v + 1 > WC + 1e-6) && run) { if (run.b !== run.a) vg.push(tramo(run.a, run.b, .32, .8)); run = null; } } }
+      inst(box, conc, vg); }
+    // 4e. tableros: losa inferior y canto exterior de la vuelta (der.) y de la ida (der., hacia afuera), pilas sobre la isla entre la calzada norte y la rampa
+    const ESP = 1.7, parI = km => { const r = R(km); let b = null, bd = 1e18; for (const [, q] of si) { const d = (q.x - r.x) ** 2 + (q.z - r.z) ** 2; if (d < bd) { bd = d; b = q; } } return (b.x - r.x) * r.lx + (b.z - r.z) * r.lz; };
+    const cintaDos = (k0, k1, f, mat) => { const pos = []; let prev = null;
+      for (let k = k0; k <= k1 + 1e-6; k += .004) { const cur = f(k); if (prev && cur) { const [a, b] = prev, [c, d] = cur; pos.push(...a, ...c, ...b, ...b, ...c, ...d, ...a, ...b, ...c, ...b, ...d, ...c); } prev = cur; }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.computeVertexNormals(); const m = new THREE.Mesh(ge, mat); g.add(m); return m; };
+    const P3 = (r, l, y) => [r.x + r.lx * l, y, r.z + r.lz * l];
+    cintaDos(PU0, PU1, k => { const r = R(k); return [P3(r, -8.7, r.y - ESP), P3(r, parI(k) + 10.4, r.y - ESP)]; }, concOsc);                 // losa inferior de los dos tableros y la isla
+    cintaDos(PU0, PU1, k => { const r = R(k); return [P3(r, -8.7, r.y + .22), P3(r, -8.7, r.y - ESP)]; }, conc);                              // canto der. de la vuelta
+    cintaDos(15.555, 15.66, k => { const r = R(k); return [P3(r, -10.4, r.y + .22), P3(r, -10.4, r.y - ESP)]; }, conc);                        // canto der. de la ida
+    { const vi = []; for (let k = PU0; k < PU1 - 1e-6; k += .006) { const r0 = R(k), r1 = R(k + .006), pi = parI(k + .003);   // vigas longitudinales bajo la losa
+        for (const l of [-6.5, -1.5, 3.5, 8.5, pi - 5, pi + .5, pi + 6]) vi.push(tramo({ x: r0.x + r0.lx * l, y: r0.y - ESP - 1.1, z: r0.z + r0.lz * l }, { x: r1.x + r1.lx * l, y: r1.y - ESP - 1.1, z: r1.z + r1.lz * l }, .5, 1.1)); }
+      inst(box, concOsc, vi); }
+    { const colG = new THREE.CylinderGeometry(.55, .55, 1, 12), cols = [], cabs = [];
+      for (let u = -150; u < 150; u += 4.5) { const p = UV(u, 3), y = yCalle(p.x, p.z) - ESP - 1.1, gy = G(p.x, p.z) - .4; if (!bajoPuente(p.x, p.z) || y - gy < 2) continue;
+        cols.push(M.compose(P.set(p.x, (y + gy) / 2, p.z), Q.identity(), S.set(1, y - gy, 1)).clone()); }
+      { for (let u = -150; u < 150; u += 3) { const p = UV(u, 3), q = UV(u + 3, 3); if (!bajoPuente(p.x, p.z) || !bajoPuente(q.x, q.z)) continue;
+          cabs.push(tramo({ x: p.x, y: yCalle(p.x, p.z) - ESP - 2.2, z: p.z }, { x: q.x, y: yCalle(q.x, q.z) - ESP - 2.2, z: q.z }, 1.6, 1.1)); }}
+      inst(colG, conc, cols); inst(box, conc, cabs); }
+    // 4f. parapeto blanco calado (una cinta con UV en metros, material único y recorte alfa, sin transparencia) y su tapa
+    { const calado = tex(256, 64, (k, w, h) => { k.fillStyle = '#ecebe6'; k.fillRect(0, 0, w, h); k.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 8; i++) k.fillRect(i * 32 + 7, 14, 18, 30); }, 1, 1);
+      const mat = new THREE.MeshStandardMaterial({ map: calado, alphaTest: .5, side: THREE.DoubleSide, roughness: .8 }), tapa = api.concrete(0xefeee9), tps = [];
+      const parapeto = (km0, km1, d) => { const pos = [], uv = [], idx = []; let s = 0, prev = null, n = 0;
+        for (let km = km0; km <= km1 + 1e-6; km += .004, n++) { const p = lado(km, d); if (prev) { s += Math.hypot(p.x - prev.x, p.z - prev.z); tps.push(tramo(prev, p, .3, .16, 1.12)); } prev = p;
+          pos.push(p.x, p.y + .2, p.z, p.x, p.y + 1.2, p.z); uv.push(s / 8, 0, s / 8, 1); if (n) { const a = (n - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } }
+        const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(idx); ge.computeVertexNormals(); g.add(new THREE.Mesh(ge, mat)); };
+      parapeto(15.566, 15.652, -9.6); parapeto(15.566, 15.652, 7.3);       // ida: borde exterior y borde de la isla
+      parapeto(18.758, 18.846, -7.6);                                        // vuelta: borde exterior (video t=470,4–471,4)
+      inst(box, tapa, tps); }
+    // 4g. vuelta, izquierda: baranda verde oscuro de tubo sobre la acera (video t=470,4–471,4) y franja verde-celeste junto al parapeto (der.)
+    { const verde = api.concrete(0x1f3a2c, { roughness: .5, metalness: .35 }), pts = [], rl = [];
+      for (let km = 18.758; km < 18.846 - 1e-6; km += .002) { const a = lado(km, 8.4), b = lado(km + .002, 8.4); pts.push(M.compose(P.set(a.x, a.y + .72, a.z), Q.identity(), S.set(.07, 1.1, .07)).clone());
+        rl.push(tramo(a, b, .06, .06, .55)); rl.push(tramo(a, b, .07, .07, 1.22)); }
+      inst(box, verde, pts); inst(box, verde, rl);
+      cinta(18.758, 18.846, .004, () => [-7.45, -6.95], api.concrete(0x7fc3ad, { roughness: .9 }), .2, 6);
+      // farolas verdes de dos globos en el borde derecho
+      const globo = api.glow(0xf6f3e8, { dia: .25, noche: 2 }), fp = [], fb = [], fg = [];
+      for (const km of [18.772, 18.83]) { const f = lado(km, -7.9); fp.push(M.compose(P.set(f.x, f.y + 2.4, f.z), Q.identity(), S.set(.16, 4.8, .16)).clone());
+        const ry = Math.atan2(f.r.tx, f.r.tz); fb.push(M.compose(P.set(f.x, f.y + 4.6, f.z), Q.setFromEuler(E.set(0, ry, 0)), S.set(1.3, .08, .08)).clone());
+        for (const s of [-.62, .62]) fg.push(M.compose(P.set(f.x + f.r.lx * s, f.y + 4.95, f.z + f.r.lz * s), Q.identity(), S.set(1, 1, 1)).clone()); Q.identity(); }
+      inst(box, verde, fp); inst(box, verde, fb); inst(new THREE.SphereGeometry(.3, 10, 8), globo, fg); }
+    // 4h. carros en la autopista (animados: fuera de la fusión)
+    { const cols = [0xe8e8e8, 0x2b2d33, 0x9aa3ad, 0xa31d22, 0x1f3b6e, 0xd8d2c0, 0x55595e, 0xf2f2f0], carro = new THREE.BoxGeometry(1.8, 1.45, 4.3); carro.translate(0, .72, 0);
+      const lista = [], vs = Object.values(VIAS); for (let i = 0; i < 30; i++) { const V = vs[i % 3], nl = V.w > 8 ? 3 : 2; lista.push({ V, off: ((i % nl) - (nl - 1) / 2) * 3.3, s: Math.random() * V.p[V.p.length - 1].s, v: 15 + Math.random() * 9 }); }
+      const im = new THREE.InstancedMesh(carro, new THREE.MeshStandardMaterial({ roughness: .4, metalness: .5 }), lista.length); im.userData.noFusion = true; lista.forEach((c, i) => im.setColorAt(i, new THREE.Color(cols[i % cols.length])));
+      const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), ee = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1), VV = new THREE.Vector3();
+      const pon = () => lista.forEach((c, i) => { const p = c.V.p; let j = 0; while (j < p.length - 2 && p[j + 1].s < c.s) j++; const a = p[j], b = p[j + 1], t = Math.min(1, Math.max(0, (c.s - a.s) / ((b.s - a.s) || 1)));
+        const x = a.x + (b.x - a.x) * t - a.tz * c.off, z = a.z + (b.z - a.z) * t + a.tx * c.off; qq.setFromEuler(ee.set(0, Math.atan2(a.tx, a.tz), 0)); m4.compose(VV.set(x, a.y + (b.y - a.y) * t + c.V.dy, z), qq, one); im.setMatrixAt(i, m4); });
+      pon(); api.onFrame(st => { lista.forEach(c => { const L = c.V.p[c.V.p.length - 1].s; c.s = (c.s + c.v * Math.min(st.dt || 0, .1)) % L; }); pon(); im.instanceMatrix.needsUpdate = true; }); g.add(im); }
   }
 
   // ═════════ 5. Paseo Los Próceres: acera rosada, brocal grueso, urnas y farolas (siempre a la izquierda) ═════════

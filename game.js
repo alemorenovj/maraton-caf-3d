@@ -6,10 +6,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { makeApi, kmFns } from './landmarks/api.js?v=4';
+import { makeApi, kmFns, componerRuta } from './landmarks/api.js?v=5';
+import RUTA21 from './data/ruta-21k.js?v=1';
 import HITOS_IDS from './landmarks/index.js';
 import { fusionar } from './fx/fusion.js?v=6';
-import FX_IDS from './fx/index.js';
+import FX_IDS from './fx/index.js?v=2';
 import FIX_IDS from './fx/correcciones/index.js';
 const VQ = new URL(import.meta.url).search;   // la versión de game.js (?v=N en index.html) se propaga a los módulos que se cargan en caliente: sin esto el navegador se queda con copias viejas
 // Módulos de realismo (fx/*.js). ?fx=a,b carga solo esos; ?fx=0 ninguno. Cada uno puede sustituir una parte del motor (meta.reemplaza).
@@ -106,7 +107,7 @@ const inTunnel = s => (D.tuneles || []).some(t => s > sOfKm(t.km0) - 6 && s < sO
 const enElevado = s => elevH[clamp(Math.round(s / STEP), 0, N - 1)] > .3;
 const cubierto = s => inTunnel(s) || (D.estructuras || []).some(e => e.tipo === 'cubierta' && s > sOfKm(e.km0) - 8 && s < sOfKm(e.km1) + 8);
 const fmtT = t => { t = Math.max(0, Math.round(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); };
-const fmtP = v => { if (!(v > .3)) return '—'; const p = Math.round(1000 / v * ((sOfKm(KM) - sOfKm(KM - 1)) / 1000)); return Math.floor(p / 60) + ':' + String(p % 60).padStart(2, '0') + '/km'; };
+const fmtP = v => { if (!(v > .3)) return '—'; const p = Math.round(1000 / v * (A.id === '42' ? (sOfKm(KM) - sOfKm(KM - 1)) / 1000 : (A.sOfKm(Math.min(A.KM, A.kmOf(S.s) + .5)) - A.sOfKm(Math.max(0, A.kmOf(S.s) - .5))) / 1000 / (Math.min(A.KM, A.kmOf(S.s) + .5) - Math.max(0, A.kmOf(S.s) - .5)))); return Math.floor(p / 60) + ':' + String(p % 60).padStart(2, '0') + '/km'; };
 
 // ───────── Ruta ─────────
 const _p = { x: 0, y: 0, z: 0, e: 0, tx: 1, tz: 0, grade: 0 };
@@ -147,6 +148,38 @@ const hT = REL.length ? (x, z) => hT0(x, z) + relieve(x, z) : hT0;
 // la malla base (60 m) no puede dibujar escalones: donde el terreno baja, se hunde un poco más para no asomar sobre las capas finas
 const hBase = REL.length ? (x, z, h) => { let m = 0; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) m = Math.min(m, relieve(x + a * 45, z + b * 45)); return m < 0 ? h + m - 1.5 / EX : h; } : (x, z, h) => h;
 let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+// ───────── Distancia activa (42K / 21K) ─────────
+// El mundo sigue anclado a la ruta de referencia (R, P, kmOf, sOfKm, TOTAL: el 42K). El corredor, la cámara, el HUD, el perfil, el plan y la
+// carrera usan la ruta activa A (ctx.A, el mismo objeto siempre): con 42K son las mismas funciones y datos de referencia, así que nada cambia;
+// con 21K es la ruta compuesta de data/ruta-21k.js (landmarks/api.js, componerRuta). S.s es la distancia en la ruta activa; S.sr, la s de
+// referencia que le corresponde (para todo lo anclado al 42K: calzada, túneles, entorno, público). ?dist=21 o el selector de la portada.
+const A = {}, DIST = {};
+DIST['42'] = { id: '42', KM, corto: '42K', nombre: 'Maratón', P, kmOf, sOfKm, TOTAL, N, STEP, x: R.x, z: R.z, e: R.e, ref: null, sRef: s => s, gradeAt, mapKm: k => k,
+  hidratacion: D.hidratacion, gatorade: D.gatorade || [], geles: D.geles || [], tramos: D.tramos, hitos: D.hitos, subidas: D.subidas || [], aviso: D.meta.aviso || '',
+  calle: s => D.calles ? (D.calles[Math.min(D.calles.length - 1, Math.floor(s / (STEP * D.callesCada)))] || '') : '' };
+{ const C = componerRuta(D, RUTA21, R); if (C.err.length) console.error('ruta 21K: ' + C.err.join('; '));
+  // conectores: la cota sigue la recta entre sus extremos; donde el relieve queda por encima se sube a él (2 cm por debajo) para no enterrar la calzada
+  // y junto a la calzada del 42K (en las esquinas y el retorno) toma la cota de esa losa: a menos de 16 m del eje de referencia la copia, y se funde
+  // con la recta hasta los 30 m (la losa del 42K se ensancha en las bocacalles y quedaba por encima del conector)
+  for (let i = 0; i < C.N; i++) if (C.ref[i] < 0) { let b = 1e18, bj = 0; for (let j = 0; j < N; j++) { const d = (R.x[j] - C.x[i]) ** 2 + (R.z[j] - C.z[i]) ** 2; if (d < b) { b = d; bj = j; } }
+    const w = clamp((30 - Math.sqrt(b)) / 14, 0, 1); C.e[i] = lerp(C.e[i], R.e[bj], w * w * (3 - 2 * w)); }
+  for (let i = 0; i < C.N; i++) if (C.ref[i] < 0) { const h = hT(C.x[i], C.z[i]); if (h > C.e[i] + .02) C.e[i] = h - .02; }
+  const NA = C.N, X = C.x, Z = C.z, E = C.e, LT = C.lat, _pA = { x: 0, y: 0, z: 0, e: 0, tx: 1, tz: 0, grade: 0 }, r2 = k => Math.round(k * 100) / 100;
+  const PA = (s, o = _pA) => { s = clamp(s, 0, C.TOTAL); const f = s / STEP, i = Math.min(NA - 2, Math.floor(f)), t = f - i;
+    o.x = lerp(X[i], X[i + 1], t); o.z = lerp(Z[i], Z[i + 1], t); o.e = lerp(E[i], E[i + 1], t); o.y = Y(o.e);
+    const a = Math.max(0, i - 2), b = Math.min(NA - 1, i + 3); let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; o.tx = tx / l; o.tz = tz / l;
+    const g0 = Math.max(0, i - 5), g1 = Math.min(NA - 1, i + 5); o.grade = (E[g1] - E[g0]) / ((g1 - g0) * STEP) * 100;
+    const la = lerp(LT[i], LT[i + 1], t); if (la) { o.x += o.tz * la; o.z -= o.tx * la; } return o; };
+  const gA = s => { const i = clamp(Math.round(s / STEP), 0, NA - 1), g0 = Math.max(0, i - 5), g1 = Math.min(NA - 1, i + 5); return (E[g1] - E[g0]) / ((g1 - g0) * STEP) * 100; };
+  const mk = l => l.map(C.mapKm).filter(k => k != null).map(r2), quita = new Set(RUTA21.quitaHitos || []);
+  const hitos = [...D.hitos.filter(h => !quita.has(h.km)).map(h => ({ ...h, km: C.mapKm(h.km) })).filter(h => h.km != null).map(h => ({ ...h, km: r2(h.km) })), ...RUTA21.hitos].sort((a, b) => a.km - b.km);
+  const subidas = (D.subidas || []).map(c => ({ ...c, km0: C.mapKm(c.km0), km1: C.mapKm(c.km1) })).filter(c => c.km0 != null && c.km1 != null && c.km1 > c.km0).map(c => ({ ...c, km0: r2(c.km0), km1: r2(c.km1) }));
+  const tramos = RUTA21.tramos.map(t => t.de ? { ...D.tramos.find(q => q.nombre === t.de) } : { ...t }); tramos[tramos.length - 1].km1 = RUTA21.KM;
+  DIST['21'] = { id: '21', KM: RUTA21.KM, corto: '21K', nombre: RUTA21.nombre, P: PA, kmOf: C.kmOf, sOfKm: C.sOfKm, TOTAL: C.TOTAL, N: NA, STEP, x: X, z: Z, e: E, ref: C.ref, lat: LT, sRef: C.sRef, gradeAt: gA, mapKm: C.mapKm,
+    hidratacion: mk(D.hidratacion), gatorade: mk(D.gatorade || []), geles: mk(D.geles || []), tramos, hitos, subidas, aviso: RUTA21.aviso, calle: s => C.calle(s, D.calles, D.callesCada),
+    conectores: (() => { const out = []; let cur = null; for (let i = 0; i < NA; i++) { if (C.ref[i] < 0) { if (!cur) out.push(cur = [[X[i - 1], Z[i - 1], E[i - 1]]]); cur.push([X[i], Z[i], E[i]]); } else if (cur) { cur.push([X[i], Z[i], E[i]]); cur = null; } } return out; })() }; }
+Object.assign(A, DIST['42']);
+const distGuardada = () => { const q = _q0.get('dist'); if (q === '21' || q === '42') return q; try { const v = localStorage.getItem('caf3d-distancia'); if (v === '21' || v === '42') return v; } catch (e) { } return '42'; };
 
 // ───────── Escena ─────────
 const canvas = $('gl');
@@ -195,8 +228,17 @@ addEventListener('resize', () => { resize(); drawProfileBase(); }); resize();
 // API de los hitos modelados a mano (landmarks/*.js) y huellas genéricas que cada uno sustituye
 const api = makeApi(THREE, D, { EX, hT, texEscala: Q.alta && !Q.media ? 1 : .5 }), QUITA = [];   // texEscala: en media y ligera las texturas de los hitos van a la mitad de lado (¼ de memoria)
 const HROOTS = []; let FUSION = null;
+// tramos del 21K que el 42K no pisa (el retorno de Los Ilustres y la Av. Las Acacias hasta La Previsora): son parte de la calle en las dos
+// distancias. distConector(x, z) = distancia en planta al eje del conector más cercano (los hitos y el motor no ponen nada encima)
+const CONECT = DIST['21'].conectores, distConector = (x, z) => { let b = 1e9; for (const c of CONECT) for (let i = 0; i < c.length - 1; i++) { const [ax, az] = c[i], ux = c[i + 1][0] - ax, uz = c[i + 1][1] - az, t = clamp(((x - ax) * ux + (z - az) * uz) / (ux * ux + uz * uz || 1), 0, 1); b = Math.min(b, Math.hypot(ax + ux * t - x, az + uz * t - z)); } return b; };
+Object.assign(api, { conectores: CONECT, distConector, ruta21: DIST['21'] });
+// aberturas en la calzada de referencia donde el 21K entra y sale de ella (fx/calzada.js): el retorno abre el separador de Los Ilustres en las dos
+// pasadas; en Las Acacias, el lado izquierdo de las dos esquinas del 42K queda como bocacalle (por ahí sigue derecho el 21K)
+const ABRE = []; { const C = DIST['21'], rf = C.ref;
+  let i = 0; while (i < C.N) { if (rf[i] >= 0) { i++; continue; } let j = i; while (j < C.N && rf[j] < 0) j++; const sa = rf[i - 1], sb = rf[j], L = (j - i + 1) * STEP;
+    for (const s of [sa, sb]) ABRE.push(L < 80 ? { s0: s - 14, s1: s + 14, sep: true } : { s0: s - 18, s1: s + 18, L: true }); i = j; } }
 const hitosListos = Promise.all(HITOS_IDS.map(id => import(`./landmarks/${id}.js${VQ}`).then(m => { (m.meta?.quita || []).forEach(q => { const p = api.xz(q[0], q[1]); QUITA.push([p.x, p.z, q[2]]); }); const o = m.build(THREE, api); o.traverse(n => { if (n.isMesh && !Q.alta) n.castShadow = false; }); scene.add(o); HROOTS.push(o); }).catch(e => console.error('hito ' + id, e)))).then(() => { if (new URLSearchParams(location.search).get('fusion') !== '0') try { FUSION = fusionar(THREE, HROOTS, st => api.tickSeguro(st)); console.info('fusion', JSON.stringify(FUSION)); } catch (e) { console.error('fusion', e); } });
-Object.assign(ctx, { HROOTS, scene, camera, renderer, composer, bloom, grade, ShaderPass, Q, api, sun, hemi, sunDir, skyU, skyMat, skyDome, frameHooks, P, hT, Y, kmOf, sOfKm, KM, TOTAL, STEP, N, R, ROAD_W, clamp, lerp, rnd, inTunnel, enElevado, cubierto, nearRoute, canvasTex, label, elevH, edifFix, relieve, EX, nearFade,
+Object.assign(ctx, { A, DIST, conectores: CONECT, aberturas: ABRE, distConector, HROOTS, scene, camera, renderer, composer, bloom, grade, ShaderPass, Q, api, sun, hemi, sunDir, skyU, skyMat, skyDome, frameHooks, P, hT, Y, kmOf, sOfKm, KM, TOTAL, STEP, N, R, ROAD_W, clamp, lerp, rnd, inTunnel, enElevado, cubierto, nearRoute, canvasTex, label, elevH, edifFix, relieve, EX, nearFade,
   /** añade un pase de posproceso justo antes de la gradación de color */ addPass(p) { composer.insertPass(p, composer.passes.indexOf(grade)); } });
 const quitado = (x, z) => { for (const q of QUITA) if ((x - q[0]) ** 2 + (z - q[1]) ** 2 < q[2] * q[2]) return true; return false; };
 
@@ -290,7 +332,7 @@ function makeLayer(z, offs, rLoad, rDrop, lift, order, maxPar, SEG) {
 const layers = [makeLayer(18, [-150, 0, 150], Q.mem.z18[0], Q.mem.z18[1], .1, 1, 8, REL.length ? 16 : 4), makeLayer(19, [-45, 0, 45], Q.mem.z19[0], Q.mem.z19[1], .2, 2, 10, REL.length ? 8 : 4)]; let hiNext = 0;
 // ctx.pendientes(): cuánto falta por cargar cerca del corredor (imagen base, mosaicos de detalle, calzada y edificios de detalle).
 // Solo lee el estado; la carga sigue igual. La usa ui/velo.js para no levantar el fundido de un salto antes de tiempo.
-ctx.pendientes = () => { const p = P(S.s, {}), pe = ctx.pend || {}; return (ctx.baseLista ? 0 : 1) + (pe.calzada || 0) + (pe.edificios || 0) + layers[1].pend(p.x, p.z, 260) + layers[0].pend(p.x, p.z, 420); };
+ctx.pendientes = () => { const p = A.P(S.s, {}), pe = ctx.pend || {}; return (ctx.baseLista ? 0 : 1) + (pe.calzada || 0) + (pe.edificios || 0) + layers[1].pend(p.x, p.z, 260) + layers[0].pend(p.x, p.z, 420); };
 ctx.tilesCerca = (x, z) => [...layers[1].urls(x, z, 260), ...layers[0].urls(x, z, 420)];
 function hiUpdate(x, z, now) { if (now < hiNext) return; hiNext = now + 200; for (const f of layers) f(x, z); if (FUSION && FUSION.cull) FUSION.cull(x, z, Q.mem); }
 
@@ -588,15 +630,16 @@ const PACK = heroFx ? 260 : 160, gente = (fxMods.find(m => m.makeGente)?.makeGen
 
 // ───────── Estado ─────────
 const S = { mode: 'tour', running: false, paused: false, s: 0, clock: 0, scale: 30, target: 4 * 3600, cam: 0, effort: 1, energy: 100, hyd: 100, v: 0, wall: false, wallKm: null, drunk: new Set(), missed: 0, splits: [], tramoLog: [], lastT: -1, seenH: new Set(), toastUntil: 0, drinkPen: 0, effTime: [0, 0, 0, 0] };
+Object.defineProperty(S, 'sr', { get: () => A.sRef(S.s) });   // s de referencia (42K) de la posición del corredor en la ruta activa
 const gradeSpeed = g => g > 0 ? 1 / (1 + .033 * Math.min(g, 12)) : 1 + .016 * Math.min(-g, 6);
 // reparto parejo de esfuerzo: tiempo de paso planificado por punto (para el delta contra el plan)
-const plan = new Float32Array(N); { let t = 0; for (let i = 1; i < N; i++) { t += STEP / gradeSpeed(gradeAt(i * STEP)); plan[i] = t; } const k = 1 / t; for (let i = 0; i < N; i++) plan[i] *= k; }
-const planAt = s => { const f = clamp(s / STEP, 0, N - 1), i = Math.min(N - 2, Math.floor(f)); return lerp(plan[i], plan[i + 1], f - i) * S.target; };
-const vBase = () => { const tFlat = plan[N - 1] ? S.target : S.target; let sum = 0; for (let i = 1; i < N; i++) sum += STEP / gradeSpeed(gradeAt(i * STEP)); return sum / S.target; }; // velocidad en llano que cumple el objetivo
+let plan; const rehacerPlan = () => { const NA = A.N, gA = A.gradeAt; plan = new Float32Array(NA); let t = 0; for (let i = 1; i < NA; i++) { t += STEP / gradeSpeed(gA(i * STEP)); plan[i] = t; } const k = 1 / t; for (let i = 0; i < NA; i++) plan[i] *= k; }; rehacerPlan();
+const planAt = s => { const f = clamp(s / STEP, 0, A.N - 1), i = Math.min(A.N - 2, Math.floor(f)); return lerp(plan[i], plan[i + 1], f - i) * S.target; };
+const vBase = () => { let sum = 0; for (let i = 1; i < A.N; i++) sum += STEP / gradeSpeed(A.gradeAt(i * STEP)); return sum / S.target; }; // velocidad en llano que cumple el objetivo
 let VB = 3;
-const tramoIdx = km => { const t = D.tramos; for (let i = 0; i < t.length; i++) if (km < t[i].km1) return i; return t.length - 1; };
+const tramoIdx = km => { const t = A.tramos; for (let i = 0; i < t.length; i++) if (km < t[i].km1) return i; return t.length - 1; };
 // subidas detectadas (para "próxima subida")
-const climbs = (D.subidas || []).map(c => ({ s0: sOfKm(c.km0), s1: sOfKm(c.km1), gain: c.gain, n: c.nombre }));
+let climbs; const rehacerSubidas = () => { climbs = (A.subidas || []).map(c => ({ s0: A.sOfKm(c.km0), s1: A.sOfKm(c.km1), gain: c.gain, n: c.nombre })); }; rehacerSubidas();
 
 // ───────── HUD ─────────
 const prof = $('prof'), pctx = prof.getContext('2d'); let profBase = null;
@@ -604,63 +647,65 @@ function drawProfileBase() {
   const w = prof.clientWidth, h = prof.clientHeight; if (!w) return; const dpr = Math.min(devicePixelRatio, 2); prof.width = w * dpr; prof.height = h * dpr;
   const c = document.createElement('canvas'); c.width = prof.width; c.height = prof.height; const g = c.getContext('2d'); g.scale(dpr, dpr);
   const top = 16, bot = h - 14, yy = e => bot - (e - eMin + 4) / (eMax - eMin + 10) * (bot - top);
-  for (let px = 0; px < w; px++) { const i = Math.round(px / w * (N - 1)), gr = gradeAt(i * STEP); g.fillStyle = gr > 1.2 ? (gr > 3 ? '#ff4a2a' : '#ff8a5c') : gr < -1.2 ? '#3ecf8e' : '#f2c94c'; const y = yy(R.e[i]); g.globalAlpha = .9; g.fillRect(px, y, 1, bot - y); }
+  const NA = A.N, EA = A.e, TA = A.TOTAL; for (let px = 0; px < w; px++) { const i = Math.round(px / w * (NA - 1)), gr = A.gradeAt(i * STEP); g.fillStyle = gr > 1.2 ? (gr > 3 ? '#ff4a2a' : '#ff8a5c') : gr < -1.2 ? '#3ecf8e' : '#f2c94c'; const y = yy(EA[i]); g.globalAlpha = .9; g.fillRect(px, y, 1, bot - y); }
   g.globalAlpha = 1; g.fillStyle = 'rgba(244,239,230,.55)'; g.font = '10px Inter,sans-serif'; g.textAlign = 'center';
-  for (let k = 5; k <= 40; k += 5) { const x = sOfKm(k) / TOTAL * w; g.fillRect(x, bot, 1, 4); g.fillText(k, x, h - 1); }
-  g.fillStyle = '#4aa8ff'; D.hidratacion.forEach(k => { const x = sOfKm(k) / TOTAL * w; g.beginPath(); g.arc(x, 6, 2.4, 0, 6.3); g.fill(); });
-  g.fillStyle = '#fff'; D.hitos.forEach(hh => { const x = sOfKm(hh.km) / TOTAL * w; g.fillRect(x - .5, 11, 1, 5); });
+  for (let k = 5; k < A.KM; k += 5) { const x = A.sOfKm(k) / TA * w; g.fillRect(x, bot, 1, 4); g.fillText(k, x, h - 1); }
+  g.fillStyle = '#4aa8ff'; A.hidratacion.forEach(k => { const x = A.sOfKm(k) / TA * w; g.beginPath(); g.arc(x, 6, 2.4, 0, 6.3); g.fill(); });
+  g.fillStyle = '#fff'; A.hitos.forEach(hh => { const x = A.sOfKm(hh.km) / TA * w; g.fillRect(x - .5, 11, 1, 5); });
   g.textAlign = 'left'; g.fillStyle = 'rgba(244,239,230,.6)'; g.fillText(Math.round(eMax) + ' m', 4, top + 8); g.fillText(Math.round(eMin) + ' m', 4, bot - 3);
   profBase = c;
 }
 function drawProfile() {
-  if (!profBase) return; const w = prof.width, h = prof.height, x = S.s / TOTAL * w; pctx.clearRect(0, 0, w, h); pctx.drawImage(profBase, 0, 0);
+  if (!profBase) return; const w = prof.width, h = prof.height, x = S.s / A.TOTAL * w; pctx.clearRect(0, 0, w, h); pctx.drawImage(profBase, 0, 0);
   pctx.fillStyle = 'rgba(10,12,18,.5)'; pctx.fillRect(x, 0, w - x, h); pctx.fillStyle = '#fff'; pctx.fillRect(x - 1, 0, 2, h);
 }
-function seekFromEvent(ev) { if (S.mode !== 'tour') return; const r = prof.getBoundingClientRect(), cx = (ev.touches ? ev.touches[0].clientX : ev.clientX); seek(clamp((cx - r.left) / r.width, 0, 1) * TOTAL); }
+function seekFromEvent(ev) { if (S.mode !== 'tour') return; const r = prof.getBoundingClientRect(), cx = (ev.touches ? ev.touches[0].clientX : ev.clientX); seek(clamp((cx - r.left) / r.width, 0, 1) * A.TOTAL); }
 let dragging = false; prof.addEventListener('pointerdown', e => { dragging = true; seekFromEvent(e); }); addEventListener('pointermove', e => dragging && seekFromEvent(e)); addEventListener('pointerup', () => dragging = false);
 // minimapa
 const mini = $('miniC'), mctx = mini.getContext('2d'); let miniBase, mx0, mz0, msc;
-(function miniBaseDraw() {
+function miniBaseDraw() {
   let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity; for (let i = 0; i < N; i++) { a = Math.min(a, R.x[i]); b = Math.max(b, R.x[i]); c = Math.min(c, R.z[i]); d = Math.max(d, R.z[i]); }
   const W = mini.width, pad = 18; msc = (W - pad * 2) / (b - a); mini.height = Math.round((d - c) * msc + pad * 2 + 26); mx0 = a - pad / msc; mz0 = c - (pad + 20) / msc;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = mini.height; const g = cv.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, cv.height); gr.addColorStop(0, '#2c4a36'); gr.addColorStop(.28, '#232733'); gr.addColorStop(1, '#1b1e28'); g.fillStyle = gr; g.fillRect(0, 0, W, cv.height);
   g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 5; g.lineJoin = g.lineCap = 'round'; g.beginPath(); for (let i = 0; i < N; i += 2) { const x = (R.x[i] - mx0) * msc, y = (R.z[i] - mz0) * msc; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
+  if (A.id !== '42') { g.fillStyle = gr; g.fillRect(0, 0, W, cv.height); g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.13)'; g.stroke(); g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.42)'; g.beginPath(); for (let i = 0; i < A.N; i += 2) { const x = (A.x[i] - mx0) * msc, y = (A.z[i] - mz0) * msc; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
   g.fillStyle = 'rgba(244,239,230,.5)'; g.font = '15px Inter,sans-serif'; g.textAlign = 'center'; g.fillText('▲ El Ávila', W / 2, 17);
   miniBase = cv;
-})();
+}
+miniBaseDraw();
 function drawMini() {
   mctx.drawImage(miniBase, 0, 0); mctx.strokeStyle = '#ffd23f'; mctx.lineWidth = 5; mctx.lineJoin = mctx.lineCap = 'round'; mctx.beginPath();
-  const n = Math.floor(S.s / STEP); for (let i = 0; i <= n; i += 2) { const x = (R.x[i] - mx0) * msc, y = (R.z[i] - mz0) * msc; i ? mctx.lineTo(x, y) : mctx.moveTo(x, y); } mctx.stroke();
-  const p = P(S.s), x = (p.x - mx0) * msc, y = (p.z - mz0) * msc; mctx.fillStyle = '#fff'; mctx.beginPath(); mctx.arc(x, y, 8, 0, 6.3); mctx.fill(); mctx.fillStyle = '#ff5a3c'; mctx.beginPath(); mctx.arc(x, y, 5, 0, 6.3); mctx.fill();
+  const n = Math.floor(S.s / STEP), AX = A.x, AZ = A.z; for (let i = 0; i <= n; i += 2) { const x = (AX[i] - mx0) * msc, y = (AZ[i] - mz0) * msc; i ? mctx.lineTo(x, y) : mctx.moveTo(x, y); } mctx.stroke();
+  const p = A.P(S.s), x = (p.x - mx0) * msc, y = (p.z - mz0) * msc; mctx.fillStyle = '#fff'; mctx.beginPath(); mctx.arc(x, y, 8, 0, 6.3); mctx.fill(); mctx.fillStyle = '#ff5a3c'; mctx.beginPath(); mctx.arc(x, y, 5, 0, 6.3); mctx.fill();
 }
 function toast(t, d, secs = 5) { $('toT').textContent = t; $('toD').textContent = d || ''; $('toast').classList.add('on'); S.toastUntil = performance.now() + secs * 1000; }
 function setTramo(i) {
-  if (i === S.lastT) return; S.lastT = i; const t = D.tramos[i]; $('tTag').textContent = `Tramo ${i + 1} de ${D.tramos.length} · km ${t.km0.toFixed(1)}–${t.km1.toFixed(1)}`; $('tName').textContent = t.nombre; $('tDesc').textContent = t.desc; $('tTip').innerHTML = '<b>Clave:</b> ' + t.consejo;
+  if (i === S.lastT) return; S.lastT = i; const t = A.tramos[i]; $('tTag').textContent = `Tramo ${i + 1} de ${A.tramos.length} · km ${t.km0.toFixed(1)}–${t.km1.toFixed(1)}`; $('tName').textContent = t.nombre; $('tDesc').textContent = t.desc; $('tTip').innerHTML = '<b>Clave:</b> ' + t.consejo;
 }
 function updateHUD() {
-  const km = kmOf(S.s), p = P(S.s); $('sKm').textContent = km.toFixed(1); $('sClock').textContent = fmtT(S.clock); $('sPace').textContent = fmtP(S.v); $('sEle').textContent = Math.round(p.e) + ' m';
+  const km = A.kmOf(S.s), p = A.P(S.s); $('sKm').textContent = km.toFixed(1); $('sClock').textContent = fmtT(S.clock); $('sPace').textContent = fmtP(S.v); $('sEle').textContent = Math.round(p.e) + ' m';
   const g = p.grade; $('sGrade').textContent = (g > 0 ? '+' : '') + g.toFixed(1) + ' %'; $('sGrade').style.color = g > 1.2 ? 'var(--up)' : g < -1.2 ? 'var(--down)' : 'var(--bone)';
   setTramo(tramoIdx(km));
-  const nw = D.hidratacion.find(k => k > km + .03); $('nWater').innerHTML = nw ? `💧 Hidratación en <b>${((nw - km) * 1000 > 950 ? (nw - km).toFixed(1) + ' km' : Math.round((nw - km) * 100) * 10 + ' m')}</b>` : '💧 No quedan puestos: a meta';
-  const cl = climbs.find(c => c.s1 > S.s); $('nHill').innerHTML = !cl ? '⛰ No quedan subidas' : cl.s0 <= S.s ? `⛰ Subiendo ${cl.n}: faltan <b>${cl.s1 - S.s > 950 ? ((cl.s1 - S.s) / 1000).toFixed(1) + ' km' : Math.round((cl.s1 - S.s) / 10) * 10 + ' m'}</b>` : `⛰ ${cl.n} en <b>${(kmOf(cl.s0) - km).toFixed(1)} km</b> (+${cl.gain} m en ${cl.s1 - cl.s0 > 950 ? ((cl.s1 - cl.s0) / 1000).toFixed(1) + ' km' : Math.round((cl.s1 - cl.s0) / 10) * 10 + ' m'})`;
-  $('mStreet').textContent = D.calles ? (D.calles[Math.min(D.calles.length - 1, Math.floor(S.s / (STEP * D.callesCada)))] || '') : '';
+  const nw = A.hidratacion.find(k => k > km + .03); $('nWater').innerHTML = nw ? `💧 Hidratación en <b>${((nw - km) * 1000 > 950 ? (nw - km).toFixed(1) + ' km' : Math.round((nw - km) * 100) * 10 + ' m')}</b>` : '💧 No quedan puestos: a meta';
+  const cl = climbs.find(c => c.s1 > S.s); $('nHill').innerHTML = !cl ? '⛰ No quedan subidas' : cl.s0 <= S.s ? `⛰ Subiendo ${cl.n}: faltan <b>${cl.s1 - S.s > 950 ? ((cl.s1 - S.s) / 1000).toFixed(1) + ' km' : Math.round((cl.s1 - S.s) / 10) * 10 + ' m'}</b>` : `⛰ ${cl.n} en <b>${(A.kmOf(cl.s0) - km).toFixed(1)} km</b> (+${cl.gain} m en ${cl.s1 - cl.s0 > 950 ? ((cl.s1 - cl.s0) / 1000).toFixed(1) + ' km' : Math.round((cl.s1 - cl.s0) / 10) * 10 + ' m'})`;
+  $('mStreet').textContent = A.calle(S.s);
   drawProfile(); drawMini();
   if (S.toastUntil && performance.now() > S.toastUntil) { $('toast').classList.remove('on'); S.toastUntil = 0; }
 }
 
 // ───────── Simulación ─────────
-function seek(s) { hiNext = 0;   /* tras un salto, el descarte por distancia de los hitos se recalcula en el cuadro siguiente, no 200 ms después */ if (Math.abs(s - S.s) > 400) precarga = 1; S.s = clamp(s, 0, TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(D.hitos.filter(h => sOfKm(h.km) < S.s - 30).map(h => h.km)); }
+function seek(s) { hiNext = 0;   /* tras un salto, el descarte por distancia de los hitos se recalcula en el cuadro siguiente, no 200 ms después */ if (Math.abs(s - S.s) > 400) precarga = 1; S.s = clamp(s, 0, A.TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(A.hitos.filter(h => A.sOfKm(h.km) < S.s - 30).map(h => h.km)); }
 function drink() { window.__cafUI?.carrera?.beber(); }   // «Correr la carrera» vive en ui/carrera.js (modelo en ui/carrera_modelo.js)
 function step(dtReal) {
   if (S.mode === 'race') { window.__cafUI?.carrera?.paso(dtReal); return; }   // la carrera la avanza su modelo (ui/carrera.js)
-  const km = kmOf(S.s), g = gradeAt(S.s); let slow = 1;
+  const km = A.kmOf(S.s), g = A.gradeAt(S.s); let slow = 1;
   // hitos: aviso y cámara lenta al pasar
-  for (const h of D.hitos) { const d = sOfKm(h.km) - S.s; if (d < 160 && d > -40) { if (S.mode === 'tour') slow = .4; if (!S.seenH.has(h.km)) { S.seenH.add(h.km); toast('📍 ' + h.nombre, (h.pos ? '' : (h.lado === 'izq' ? 'A tu izquierda. ' : 'A tu derecha. ')) + h.desc, 6.5); } } }
+  for (const h of A.hitos) { const d = A.sOfKm(h.km) - S.s; if (d < 160 && d > -40) { if (S.mode === 'tour') slow = .4; if (!S.seenH.has(h.km)) { S.seenH.add(h.km); toast('📍 ' + h.nombre, (h.pos ? '' : (h.lado === 'izq' ? 'A tu izquierda. ' : 'A tu derecha. ')) + h.desc, 6.5); } } }
   const dt = dtReal * S.scale * slow;
   S.v = VB * gradeSpeed(g);
-  const k5a = Math.floor(km / 5); S.s += S.v * dt; S.clock += dt; const k5b = Math.floor(kmOf(S.s) / 5); if (k5b > k5a && k5b <= 8) S.splits.push({ km: k5b * 5, t: S.clock, e: S.energy });
-  if (S.s >= TOTAL - 1) { S.s = TOTAL - 1; finish(); }
+  const k5a = Math.floor(km / 5); S.s += S.v * dt; S.clock += dt; const k5b = Math.floor(A.kmOf(S.s) / 5); if (k5b > k5a && k5b * 5 < A.KM) S.splits.push({ km: k5b * 5, t: S.clock, e: S.energy });
+  if (S.s >= A.TOTAL - 1) { S.s = A.TOTAL - 1; finish(); }
 }
 function start(mode, o = {}) {
   S.resumen = !!o.resumen; S.dia = mode !== 'race'; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; document.body.dataset.modo = S.resumen ? 'resumen' : mode;   // recorrido y resumen de día; la carrera con la luz de la hora real
@@ -673,10 +718,10 @@ function start(mode, o = {}) {
 function finish() {
   S.running = false; let html;
   if (S.mode === 'tour') {
-    const sub = D.subidas || [], gain = sub.reduce((a, c) => a + c.gain, 0), larga = sub.slice().sort((a, b) => b.gain - a.gain)[0], iTop = R.e.indexOf(eMax), iLow = R.e.indexOf(eMin), P = window.__cafUI?.plan?.calc(S.target), fk = k => k.toLocaleString('es');
+    const sub = A.subidas || [], gain = sub.reduce((a, c) => a + c.gain, 0), larga = sub.slice().sort((a, b) => b.gain - a.gain)[0], eTop = A.id === '42' ? eMax : Math.max(...A.e), eLow = A.id === '42' ? eMin : Math.min(...A.e), iTop = Array.prototype.indexOf.call(A.e, eTop), iLow = Array.prototype.indexOf.call(A.e, eLow), P = window.__cafUI?.plan?.calc(S.target), fk = k => k.toLocaleString('es');
     const mmss = t => { t = Math.round(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
-    html = `<div class="tag">Ruta reconocida</div><h1>42,195 km <em>en tu cabeza</em></h1><p class="sub">Lo que acabas de ver, en cuatro datos.${P ? ` Con ${fmtT(S.target)} de objetivo la media es ${mmss(P.mean)}/km, pero el km ${P.lentos[0]} sale a ${mmss(P.kms[P.lentos[0] - 1].p)} y el ${P.rapidos[0]} a ${mmss(P.kms[P.rapidos[0] - 1].p)}: tu plan trae los 42.` : ''}</p>
-      <div class="kpis"><div><b>${sub.length}</b><span>subidas, +${gain} m entre todas; ${larga ? `la que decide va del km ${fk(larga.km0)} al ${fk(larga.km1)}` : ''}</span></div><div><b>${D.hidratacion.length}</b><span>puestos de agua, ${(D.gatorade || []).length} con isotónico</span></div><div><b>km ${(D.geles || []).map(fk).join(' y ')}</b><span>gel oficial</span></div><div><b>${Math.round(eMax)} m</b><span>el techo, en el km ${fk(Math.round(kmOf(iTop * STEP) * 10) / 10)}; lo más bajo, ${Math.round(eMin)} m en el km ${fk(Math.round(kmOf(iLow * STEP) * 10) / 10)}</span></div></div>`;
+    html = `<div class="tag">Ruta reconocida</div><h1>${A.KM.toLocaleString('es')} km <em>en tu cabeza</em></h1><p class="sub">Lo que acabas de ver, en cuatro datos.${P ? ` Con ${fmtT(S.target)} de objetivo la media es ${mmss(P.mean)}/km, pero el km ${P.lentos[0]} sale a ${mmss(P.kms[P.lentos[0] - 1].p)} y el ${P.rapidos[0]} a ${mmss(P.kms[P.rapidos[0] - 1].p)}: tu plan trae los ${Math.floor(A.KM)}.` : ''}</p>
+      <div class="kpis"><div><b>${sub.length}</b><span>subidas, +${gain} m entre todas; ${larga ? `la que decide va del km ${fk(larga.km0)} al ${fk(larga.km1)}` : ''}</span></div><div><b>${A.hidratacion.length}</b><span>puestos de agua, ${A.gatorade.length} con isotónico</span></div><div><b>km ${A.geles.map(fk).join(' y ')}</b><span>gel oficial</span></div><div><b>${Math.round(eTop)} m</b><span>el techo, en el km ${fk(Math.round(A.kmOf(iTop * STEP) * 10) / 10)}; lo más bajo, ${Math.round(eLow)} m en el km ${fk(Math.round(A.kmOf(iLow * STEP) * 10) / 10)}</span></div></div>`;
   }
   $('endC').innerHTML = html + `<div class="acts"><button class="go" id="ePlan">Ver mi plan</button><button class="go alt" id="eShare">Compartir</button><button class="go alt" id="eMenu">Empezar de nuevo</button><button class="lnk" id="eAgain">o córrela tú: arma tu estrategia</button></div>`;
   $('end').style.display = 'flex'; $('eAgain').onclick = () => go('race'); $('eMenu').onclick = menu; $('ePlan').onclick = () => window.__cafUI?.plan?.abrir();
@@ -696,15 +741,26 @@ const seg = (id, fn) => document.querySelectorAll('#' + id + ' button').forEach(
 seg('segT', b => S.target = +b.dataset.t * 3600); seg('segD', b => S.scale = +b.dataset.s); seg('segSpd', b => setSpeed(+b.dataset.s));
 $('tramo').onclick = () => $('tramo').classList.toggle('open'); document.querySelectorAll('#segQ button').forEach(b => { b.classList.toggle('on', b.dataset.q === Q.tier); b.onclick = () => { try { localStorage.setItem('caf3d-calidad', b.dataset.q); } catch (e) { } location.reload(); }; });
 $('bGo').onclick = () => go(selMode); $('bPlan').onclick = $('bPlanS').onclick = () => window.__cafUI?.plan?.abrir(); $('bPlay').onclick = togglePause; $('bCam').onclick = () => { S.cam = { 0: 3, 3: 1, 1: 2, 2: 0 }[S.cam] ?? 0; camSnap = true; $('bCam').textContent = '🎥 ' + ['Seguimiento', 'Dron', 'Cenital', 'A bordo'][S.cam]; }; $('bIdx').onclick = () => toggleIdx(); $('bLuz').onclick = () => { S.dia = !S.dia; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; }; $('bMenu').onclick = menu;
-$('idxL').innerHTML = D.tramos.map((t, i) => `<div class="it" data-i="${i}"><b>km ${t.km0.toFixed(1)}–${t.km1.toFixed(1)}</b><div><b>${t.nombre}</b><br><span>${t.consejo}</span></div></div>`).join('');
-$('idxL').onclick = e => { const it = e.target.closest('.it'); if (!it) return; if (S.mode === 'tour') seek(sOfKm(D.tramos[+it.dataset.i].km0)); toggleIdx(false); };
+const pintaIdx = () => { $('idxL').innerHTML = A.tramos.map((t, i) => `<div class="it" data-i="${i}"><b>km ${t.km0.toFixed(1)}–${t.km1.toFixed(1)}</b><div><b>${t.nombre}</b><br><span>${t.consejo}</span></div></div>`).join(''); }; pintaIdx();
+$('idxL').onclick = e => { const it = e.target.closest('.it'); if (!it) return; if (S.mode === 'tour') seek(A.sOfKm(A.tramos[+it.dataset.i].km0)); toggleIdx(false); };
 addEventListener('keydown', e => {
   if (e.target.closest?.('input,textarea') || window.__cafUI?.plan?.abierto) return;
   if (!S.running) { if (e.key === 'Enter' && $('start').style.display !== 'none') go(selMode); return; }
   const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); togglePause(); } else if (k === 'c') $('bCam').click(); else if (k === 'f') { S.verFps = !S.verFps; $('fps').style.display = S.verFps ? 'block' : 'none'; } else if (k === 't') toggleIdx(); else if (k === 'escape') toggleIdx(false); else if (k === 'p') window.__cafUI?.plan?.abrir();
   else if (k === 'arrowright' && S.mode === 'tour') seek(S.s + 500); else if (k === 'arrowleft' && S.mode === 'tour') seek(S.s - 500);
 });
-$('fine').innerHTML = `Proyecto independiente hecho por un corredor: no es un producto oficial de CAF ni de la organización del maratón. Trazado: ${D.meta.fuente}. Imagen satelital: Esri, Maxar, Earthstar Geographics. Relieve SRTM 30 m y ${(D.edif || []).length.toLocaleString('es')} edificios con su huella real de © OpenStreetMap. Todo está a escala real 1:1; los bordes de la calzada se tiñen de rojo cuando sube y de verde cuando baja. ${D.meta.aviso || ''}`;
+const pintaFine = () => { $('fine').innerHTML = `Proyecto independiente hecho por un corredor: no es un producto oficial de CAF ni de la organización del maratón. Trazado: ${D.meta.fuente}. Imagen satelital: Esri, Maxar, Earthstar Geographics. Relieve SRTM 30 m y ${(D.edif || []).length.toLocaleString('es')} edificios con su huella real de © OpenStreetMap. Todo está a escala real 1:1; los bordes de la calzada se tiñen de rojo cuando sube y de verde cuando baja. ${A.aviso || ''}`; }; pintaFine();
+// Distancia: «42K · Maratón» o «21K · Media» en la portada (los dos modos), recordada en localStorage y con ?dist= en la URL
+const OBJ = { '42': [3.25, 3.5, 4, 4.5, 5], '21': [1.5, 1.75, 2, 2.25, 2.5] }, alDist = [];
+function setDist(id, guardar = true) { id = id === '21' ? '21' : '42'; for (const k in A) delete A[k]; Object.assign(A, DIST[id]); S.dist = id; document.body.dataset.dist = id;
+  if (guardar) try { localStorage.setItem('caf3d-distancia', id); } catch (e) { }
+  rehacerPlan(); rehacerSubidas(); S.lastT = -1; pintaIdx(); pintaFine(); miniBaseDraw(); drawProfileBase(); { const k = $('sKmT'); if (k) k.textContent = '/ ' + (A.id === '42' ? '42.2' : '21.1') + ' km'; }
+  document.querySelectorAll('#segDist button').forEach(b => b.classList.toggle('on', b.dataset.dist === id));
+  document.querySelectorAll('#segT button').forEach((b, i) => { const h = OBJ[id][i]; if (h == null) return; b.dataset.t = h; b.textContent = Math.floor(h) + ':' + String(Math.round(h % 1 * 60)).padStart(2, '0'); });
+  { const sp = document.querySelector('#start .sub'); if (sp) sp.textContent = sp.textContent.replace(/^Los [\d,]+ km/, id === '42' ? 'Los 42,195 km' : 'Los 21,0975 km'); }
+  alDist.forEach(f => { try { f(id); } catch (e) { console.error('distancia', e); } }); }
+document.querySelectorAll('#segDist button').forEach(b => b.onclick = () => setDist(b.dataset.dist));
+setDist(distGuardada(), false);
 
 // ───────── Cámara y bucle ─────────
 let camSnap = true; const camPos = new THREE.Vector3(), camTgt = new THREE.Vector3(), wantPos = new THREE.Vector3(), wantTgt = new THREE.Vector3(), pa = {}, pb = {}, pc = {};
@@ -723,37 +779,37 @@ let triEsc = 0; scene.onAfterRender = () => { triEsc = renderer.info.render.tria
 // Antes, en el retorno de Petare la mira ya estaba en la vuelta (10 m a la izquierda y por detrás) y la imagen giraba antes que el corredor.
 const _ma = {};
 function miraAdelante(s, p, la, o) {
-  P(s + la, o); const dx = o.x - p.x, dz = o.z - p.z; if ((dx * p.tx + dz * p.tz) / (Math.hypot(dx, dz) || 1) > .82) return o;
+  A.P(s + la, o); const dx = o.x - p.x, dz = o.z - p.z; if ((dx * p.tx + dz * p.tz) / (Math.hypot(dx, dz) || 1) > .82) return o;
   let bx = p.tx, bz = p.tz;
-  for (let d = 4; d < la; d += 4) { P(s + d, _ma); const ex = _ma.x - p.x, ez = _ma.z - p.z, el = Math.hypot(ex, ez) || 1; if ((ex * p.tx + ez * p.tz) / el < .82) break; bx = ex / el; bz = ez / el; }
+  for (let d = 4; d < la; d += 4) { A.P(s + d, _ma); const ex = _ma.x - p.x, ez = _ma.z - p.z, el = Math.hypot(ex, ez) || 1; if ((ex * p.tx + ez * p.tz) / el < .82) break; bx = ex / el; bz = ez / el; }
   o.x = p.x + bx * la; o.z = p.z + bz * la; o.y = p.y; return o;
 }
 // Retorno en U (la ruta da media vuelta en ±20 m): la cámara de seguimiento va detrás del corredor según su rumbo (cuerda de ±10 m de ruta) y mira
 // hacia adelante en ese rumbo; yendo por la ruta quedaba al lado del corredor o de espaldas a él. Devuelve el peso 0..1 (0 en esquinas normales).
 const _ua = {}, _ub = {};
 function giroU(s) {
-  P(s - 20, _ua); P(s + 20, _ub); const w = clamp((-.2 - (_ua.tx * _ub.tx + _ua.tz * _ub.tz)) / .5, 0, 1); if (!w) return 0;
-  P(s - 10, _ua); P(s + 10, _ub); const dx = _ub.x - _ua.x, dz = _ub.z - _ua.z, l = Math.hypot(dx, dz) || 1; giroU.tx = dx / l; giroU.tz = dz / l; return w;
+  A.P(s - 20, _ua); A.P(s + 20, _ub); const w = clamp((-.2 - (_ua.tx * _ub.tx + _ua.tz * _ub.tz)) / .5, 0, 1); if (!w) return 0;
+  A.P(s - 10, _ua); A.P(s + 10, _ub); const dx = _ub.x - _ua.x, dz = _ub.z - _ua.z, l = Math.hypot(dx, dz) || 1; giroU.tx = dx / l; giroU.tz = dz / l; return w;
 }
 function frame(now) {
   requestAnimationFrame(frame); const dt = Math.min(.05, (now - last) / 1000); last = now;
   if (S.running && !S.paused) step(dt);
-  const s = S.running || $('end').style.display === 'flex' ? S.s : (idleS = (idleS + dt * 260) % TOTAL), p = P(s, pa), sc = S.running ? S.scale : 30;
+  const s = S.running || $('end').style.display === 'flex' ? S.s : (idleS = (idleS + dt * 260) % A.TOTAL), p = A.P(s, pa), sc = S.running ? S.scale : 30, sr = A.sRef(s);
   // héroe
   anim += dt * (S.paused ? 0 : 11); hero.position.set(p.x, p.y, p.z); hero.rotation.y = Math.atan2(p.tx, p.tz); const sw = Math.sin(anim) * .9;
   if (heroFx) { const cui = window.__cafUI, cst = S.mode === 'race' && S.running && cui && cui.carrera && cui.carrera.st ? cui.carrera.st : null;   /* en carrera, la postura del corredor refleja fatiga, energía baja y el muro */
     heroFx.update({ fase: anim, pausado: S.paused, dt, v: S.v, pendiente: p.grade, fatiga: cst ? clamp(Math.max(cst.F / 100, cst.muro ? .85 : 0, 1 - cst.E / 35), 0, 1) : 0, caminando: !!(cst && cst.muro && S.v < 2.2) }); } else { hero.userData.legs[0].rotation.x = sw; hero.userData.legs[1].rotation.x = -sw; hero.userData.arms[0].rotation.x = -sw * .8; hero.userData.arms[1].rotation.x = sw * .8; hero.position.y += Math.abs(Math.cos(anim)) * .12; hero.rotation.x = .08; }
   ring.position.set(p.x, p.y + .15, p.z); beam.position.set(p.x, p.y + 4, p.z); const far = S.cam === 2 ? 1 : sc > 45 ? .6 : 0; beam.scale.set(1 + far * 6, 60 + far * 400, 1 + far * 6); beam.visible = far > 0; ring.scale.setScalar(1 + far * 10);
   // pelotón (se dispersa con los km)
-  const m4 = frame.m || (frame.m = new THREE.Matrix4()), dens = 1 - .75 * (s / TOTAL); let vis = 0;
-  for (let i = 0; i < PACK; i++) { const d = packD[i]; if (!S.paused) d.off += d.v * dt * 3; if (d.off > 240) d.off = -90; if (d.off < -90) d.off = 240; if (i / PACK > dens) continue; if (S.cam === 3 && d.off > -6 && d.off < 5) d.off += 9; const q = P(clamp(s + d.off, 0, TOTAL), pb); gente.set(vis++, q.x + q.tz * d.lat, q.y + Math.abs(Math.cos(anim * d.cad + d.ph)) * .07, q.z - q.tx * d.lat, Math.atan2(q.tx, q.tz), anim * d.cad + d.ph, 1.12); }
+  const m4 = frame.m || (frame.m = new THREE.Matrix4()), dens = 1 - .75 * (s / A.TOTAL); let vis = 0;
+  for (let i = 0; i < PACK; i++) { const d = packD[i]; if (!S.paused) d.off += d.v * dt * 3; if (d.off > 240) d.off = -90; if (d.off < -90) d.off = 240; if (i / PACK > dens) continue; if (S.cam === 3 && d.off > -6 && d.off < 5) d.off += 9; const q = A.P(clamp(s + d.off, 0, A.TOTAL), pb); gente.set(vis++, q.x + q.tz * d.lat, q.y + Math.abs(Math.cos(anim * d.cad + d.ph)) * .07, q.z - q.tx * d.lat, Math.atan2(q.tx, q.tz), anim * d.cad + d.ph, 1.12); }
   gente.commit(vis);
   // cámara
   // seguimiento: baja y pegada al corredor, por debajo de las copas; va SOBRE la ruta (no corta esquinas) aunque el tiempo vaya comprimido
-  if (S.cam === 0) { const tun = cubierto(s) || cubierto(s - 14), kq = Math.min(sc, 60) / 60, back = tun ? 7 : 8.5 + kq * 5, hgt = tun ? 2.4 : 3 + kq * 1.4, la = 30 + kq * 30, b = P(s - back, pb), f = miraAdelante(s, p, la, pc), wu = giroU(s); wantPos.set(b.x, Math.max(b.y, p.y - 1) + hgt, b.z); wantTgt.set(f.x, (f.y + p.y) / 2 + 1.6, f.z); camera.up.set(0, 1, 0);
+  if (S.cam === 0) { const tun = cubierto(sr) || cubierto(A.sRef(s - 14)), kq = Math.min(sc, 60) / 60, back = tun ? 7 : 8.5 + kq * 5, hgt = tun ? 2.4 : 3 + kq * 1.4, la = 30 + kq * 30, b = A.P(s - back, pb), f = miraAdelante(s, p, la, pc), wu = giroU(s); wantPos.set(b.x, Math.max(b.y, p.y - 1) + hgt, b.z); wantTgt.set(f.x, (f.y + p.y) / 2 + 1.6, f.z); camera.up.set(0, 1, 0);
     if (wu) { wantPos.x = lerp(wantPos.x, p.x - giroU.tx * back, wu); wantPos.z = lerp(wantPos.z, p.z - giroU.tz * back, wu); wantTgt.x = lerp(wantTgt.x, p.x + giroU.tx * la, wu); wantTgt.z = lerp(wantTgt.z, p.z + giroU.tz * la, wu); } }
-  else if (S.cam === 3) { const f = P(s + 60, pc), bob = S.paused ? 0 : Math.abs(Math.sin(anim)) * .05; wantPos.set(p.x, p.y + 1.62 + bob, p.z); wantTgt.set(f.x, f.y + 1.5, f.z); camera.up.set(0, 1, 0); }
-  else if (S.cam === 4) { const b = P(s - 55, pb), f = P(s + 140, pc); wantPos.set(b.x, Math.max(b.y, p.y) + 22, b.z); wantTgt.set(f.x, f.y + 4, f.z); camera.up.set(0, 1, 0); }   // dron bajo (resumen de 60 s)
+  else if (S.cam === 3) { const f = A.P(s + 60, pc), bob = S.paused ? 0 : Math.abs(Math.sin(anim)) * .05; wantPos.set(p.x, p.y + 1.62 + bob, p.z); wantTgt.set(f.x, f.y + 1.5, f.z); camera.up.set(0, 1, 0); }
+  else if (S.cam === 4) { const b = A.P(s - 55, pb), f = A.P(s + 140, pc); wantPos.set(b.x, Math.max(b.y, p.y) + 22, b.z); wantTgt.set(f.x, f.y + 4, f.z); camera.up.set(0, 1, 0); }   // dron bajo (resumen de 60 s)
   else if (S.cam === 1) { const a = now * .00008, r = 150 + sc * 2; wantPos.set(p.x + Math.cos(a) * r, p.y + 90 + sc, p.z + Math.sin(a) * r); wantTgt.set(p.x, p.y + 4, p.z); camera.up.set(0, 1, 0); }
   else { wantPos.set(p.x, p.y + 1500, p.z + 260); wantTgt.set(p.x, p.y, p.z - 80); camera.up.set(0, 1, 0); }
   // en vertical, 10° más de campo en seguimiento y a bordo: si no, el teléfono ve un pasillo de ~28° de ancho
@@ -787,9 +843,10 @@ let precarga = 1;
 Object.assign(ctx, { S, hero, seek, start });
 for (const m of fxMods) { try { m.install?.(ctx); } catch (e) { console.error('fx install', m.meta?.id, e); } }
 window.__carga?.(1); $('load').style.display = 'none'; $('start').style.display = 'flex'; requestAnimationFrame(frame);
-{ const q = new URLSearchParams(location.search); if (q.get('auto') !== null) ready.push(() => setTimeout(() => { start('tour'); S.scale = 10; S.dia = q.get('dia') !== '0'; S.cam = +(q.get('cam') || 0); seek(sOfKm(+q.get('auto'))); if (!S.dia && q.get('min')) S.clock = +q.get('min') * 60; if (q.get('hud') === '0') $('hud').style.display = 'none'; camSnap = true;   // corre 1,6 s para que la luz se asiente y luego vuelve clavado al km pedido
-  setTimeout(() => { seek(sOfKm(+q.get('auto'))); S.paused = true; camSnap = true; setTimeout(() => { document.title = 'listo'; }, 6000); }, 1600); }, 300)); }
-window.__caf = { get fusion() { return FUSION; }, cuadro: frame, hT, Y, ctx, scene, camera, Q, renderer, S, seek, start, P, D, step, drink, menu, go, gradeAt, gradeSpeed, planAt, fmtT, fmtP }; // para depurar
+{ const q = new URLSearchParams(location.search); if (q.get('auto') !== null) ready.push(() => setTimeout(() => { start('tour'); S.scale = 10; S.dia = q.get('dia') !== '0'; S.cam = +(q.get('cam') || 0); seek(A.sOfKm(+q.get('auto'))); if (!S.dia && q.get('min')) S.clock = +q.get('min') * 60; if (q.get('hud') === '0') $('hud').style.display = 'none'; camSnap = true;   // corre 1,6 s para que la luz se asiente y luego vuelve clavado al km pedido
+  setTimeout(() => { seek(A.sOfKm(+q.get('auto'))); S.paused = true; camSnap = true; setTimeout(() => { document.title = 'listo'; }, 6000); }, 1600); }, 300)); }
+// P y gradeAt de __caf son los de la ruta activa (con 42K, las mismas funciones de referencia); Pref es siempre la ruta de referencia
+window.__caf = { get fusion() { return FUSION; }, cuadro: frame, hT, Y, ctx, scene, camera, Q, renderer, S, seek, start, P: (s, o) => A.P(s, o), Pref: P, A, setDist, alDist, D, step, drink, menu, go, gradeAt: s => A.gradeAt(s), gradeSpeed, planAt, fmtT, fmtP }; // para depurar
 // Producto (ui/): plan de carrera, fundido de carga, ayuda de primer uso y el modo «Correr la carrera». Si fallan, el juego sigue igual.
 Promise.all(['plan', 'velo', 'ayuda', 'carrera'].map(id => import(`./ui/${id}.js${VQ}`))).then(([p, v, a, c]) => { const ui = window.__cafUI = {}; ui.plan = p.crearPlan(window.__caf); ui.velo = v.crearVelo(window.__caf, ui); ui.ayuda = a.crearAyuda(window.__caf); try { ui.carrera = c.crearModoCarrera(window.__caf, ui); } catch (e) { console.error('carrera', e); } }).catch(e => console.error('ui', e));
 // Teléfono: «modo cine» del recorrido (ui/cine.js): píldora arriba, tramo en una línea, tira del perfil y hoja de controles. Si falla, queda el HUD de siempre.
@@ -799,15 +856,15 @@ import(`./ui/cine.js${VQ}`).then(m => { window.__cafCine = m.crearCine(window.__
 // y recarga con ?retoma=1 en una calidad más baja. Aquí se arranca ese modo en ese km (la carrera, con su reloj, energía, hidratación y puestos).
 { let r = null; try { if (_q0.get('retoma')) r = JSON.parse(sessionStorage.getItem('caf3d-rescate') || 'null'); } catch (e) { }
   if (r && r.pend && r.est) ready.push(() => setTimeout(() => { try { const e = r.est; r.pend = false; try { sessionStorage.setItem('caf3d-rescate', JSON.stringify(r)); } catch (x) { }
-    const race = e.modo === 'race'; if (e.target) S.target = e.target;
+    if (e.dist && e.dist !== A.id) setDist(e.dist); const race = e.modo === 'race'; if (e.target) S.target = e.target;
     if (race) { if (!window.__cafUI?.carrera?.retomar(e.carrera)) { start('tour'); seek(e.s || 0); } return; }   // la carrera retoma con su plan y su estado (ui/carrera.js)
     start('tour'); seek(e.s || 0); if (e.scale) setSpeed(e.scale);
     if (e.dia != null) { S.dia = e.dia; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; } if (e.cam != null && e.cam !== 4) { S.cam = e.cam; $('bCam').textContent = '🎥 ' + ['Seguimiento', 'Dron', 'Cenital', 'A bordo'][S.cam]; }
-    window.__cafUI?.velo?.cubrirInicio(); toast('Seguimos en el km ' + kmOf(S.s).toFixed(1), r.motivo || 'El equipo se quedó sin memoria gráfica; se retomó en calidad ' + ({ media: 'Media', ligera: 'Ligera' }[Q.tier] || Q.tier) + '.', 6);
+    window.__cafUI?.velo?.cubrirInicio(); toast('Seguimos en el km ' + A.kmOf(S.s).toFixed(1), r.motivo || 'El equipo se quedó sin memoria gráfica; se retomó en calidad ' + ({ media: 'Media', ligera: 'Ligera' }[Q.tier] || Q.tier) + '.', 6);
   } catch (x) { console.error('retoma', x); } }, 400)); }
 // ?mem=1 → contador de memoria en pantalla; ?mem=km0,km1[,paso,cuadros,vueltas] → recorre la ruta y escribe una línea «MEMORIA» por km (fx/memoria.js, fx/memoria.sh)
 { const q = new URLSearchParams(location.search).get('mem'); if (q) import('./fx/memoria.js' + VQ).then(m => { window.__mem = m; if (q === '1') return m.contador(window.__caf);
   const [a, b, paso, cuadros, vueltas] = q.split(',').map(Number), espera = () => ctx.baseLista ? new Promise(r => setTimeout(r, 2500)) : new Promise(r => setTimeout(r, 300)).then(espera);
-  return espera().then(() => m.recorrer(window.__caf, { km0: a || 0, km1: isNaN(b) ? 42.19 : b, paso, cuadros, vueltas, log: f => console.info('MEMORIA ' + (f.vuelta ? 'v=' + f.vuelta + ' ' : '') + m.linea(f)) }))
+  return espera().then(() => m.recorrer(window.__caf, { km0: a || 0, km1: isNaN(b) ? A.KM - .005 : b, paso, cuadros, vueltas, log: f => console.info('MEMORIA ' + (f.vuelta ? 'v=' + f.vuelta + ' ' : '') + m.linea(f)) }))
     .then(r => { console.info('MEMORIA DESGLOSE ' + JSON.stringify(m.desglose(window.__caf))); console.info('MEMORIA FIN ' + Q.tier + ' max ' + JSON.stringify(r.max)); }); }).catch(e => console.error('mem', e)); }
 { const q = new URLSearchParams(location.search).get('choques'); if (q) hitosListos.then(() => setTimeout(() => import('./fx/choques.js' + VQ).then(m => m.default(window.__caf, +q.split(',')[0], +q.split(',')[1])).then(r => console.info('CHOQUES ' + q + ' → ' + r.split('\n').join(' ¦ ') + ' ¦ FIN')).catch(e => console.error('choques', e)), 5000)); }

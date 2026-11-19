@@ -29,11 +29,11 @@ export default {
     // ── Hacia Banco Plaza (21,3–21,5; f_0212–0213)
     { ll: [10.494588, -66.879066], a: 'COM', h: 8, col: '#d8d3c8', shop: 1, alt: 1, nota: 'Continental’s: alero con letrero amarillo, km 21,33 izq. (f_0212)' },
     { ll: [10.493879, -66.878548], a: 'RES', pisos: 9, col: '#c0653e', shop: 1, alt: 1, nota: 'Edificio Boreal: ladrillo naranja con bandas blancas, km 21,40 izq. (f_0212)' },
-    { ll: [10.493691, -66.879191], a: 'COM', pisos: 3, col: '#a4553a', shop: 1, nota: 'edificio de ladrillo con pendón rojo, km 21,34 der. (f_0212)' },
+    { ll: [10.493691, -66.879191], a: 'COM', h: 9, col: '#b5643c', shop: 0, mural: 0, detalle: 0, nota: 'Restaurant El Arabito (OSM node 2434567512): ladrillo naranja de 2 pisos, km 21,32–21,36 der.; fachada, medallones y rótulo en el módulo' },
     // km 21,33: su huella cruzaba la Casanova de lado a lado (la calle dobla y el trazado va pegado a la acera sur); recortada a 7,5 m del eje
     { ll: [10.493885, -66.879023], quitar: true, nota: 'punta del edificio de ladrillo atravesada en la calzada, km 21,33' },
     { poly: [[10.493873, -66.879302], [10.49387, -66.879341], [10.493465, -66.879366], [10.493446, -66.879137], [10.493669, -66.879118], [10.493681, -66.879273], [10.493761, -66.879267], [10.493741, -66.879005], [10.493768, -66.879008], [10.4938, -66.879086], [10.49383, -66.87917], [10.493859, -66.879255]],
-      a: 'COM', pisos: 3, col: '#a4553a', shop: 1, nota: 'edificio de ladrillo con pendón rojo recortado a 7,5 m del eje' },
+      a: 'COM', h: 9, col: '#b5643c', shop: 0, mural: 0, detalle: 0, nota: 'El Arabito recortado a 7,5 m del eje (fachada en landmarks/zona_casanova.js)' },
     { ll: [10.493397, -66.879057], a: 'COM', h: 6, col: '#c9c4ba', shop: 0, nota: 'reja negra y estacionamiento, km 21,37 der.' },
     { ll: [10.493741, -66.877974], a: 'VID', h: 85, col: '#3f74b0', nota: 'Torre Banco Plaza: vidrio azul, corona gris con letrero verde (letrero en el módulo; f_0211–0212)' },
     { ll: [10.493181, -66.878266], a: 'BRI', pisos: 10, col: '#d9dadb', shop: 1, nota: 'C.C. Cediaz, km 21,46 der.' },

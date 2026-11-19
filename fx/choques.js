@@ -5,7 +5,8 @@
 // corte esos rayos está metida en el camino del corredor. No mira mallas instanciadas (árboles, corredores, conos).
 // Devuelve un texto con los tramos agrupados: «km a–b · carriles · alturas · qué es · cuántos toques».
 export default async function choques(c, km0, km1, o = {}) {
-  const T3 = c.ctx.THREE, TOTAL = (c.D.ruta.x.length - 1) * c.D.ruta.step, sOf = c.ctx.sOfKm || (k => k / 42.195 * TOTAL), kmOf = c.ctx.kmOf || (s => s / TOTAL * 42.195);
+  // ruta activa (c.ctx.A): con ?dist=21 recorre el 21K, conectores incluidos; c.P ya es la de la ruta activa
+  const RA = c.ctx.A, T3 = c.ctx.THREE, TOTAL = RA ? RA.TOTAL : (c.D.ruta.x.length - 1) * c.D.ruta.step, sOf = RA ? RA.sOfKm : c.ctx.sOfKm || (k => k / 42.195 * TOTAL), kmOf = RA ? RA.kmOf : c.ctx.kmOf || (s => s / TOTAL * 42.195);
   const rc = new T3.Raycaster(), a = new T3.Vector3(), b = new T3.Vector3(), d = new T3.Vector3(), sp = new T3.Sphere(), mid = new T3.Vector3();
   const pt = s => { const p = c.P(Math.max(0, Math.min(TOTAL - 1, s))); return { x: p.x, y: p.y, z: p.z, tx: p.tx, tz: p.tz }; };
   const raiz = n => { let t = n; while (t.parent && t.parent !== c.scene) t = t.parent; return t; };

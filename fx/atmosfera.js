@@ -481,7 +481,7 @@ export function install(ctx) {
     // hora real: la foto satelital trae luz de mediodía; con el sol bajo o de noche la calle queda en penumbra (solo los faroles la alumbran)
     if (!S.dia) ctx.groundTint.multiplyScalar((.3 + .7 * sstep(-.1, .2, sy)) * (1 - .55 * noche));
     hemi.intensity *= (1 + (COLOR.ambiente - 1) * sstep(.1, .5, sy)) * (1 - .5 * noche);
-    if (TG.tunel) cubiertas(S.s, Math.min(dt, .1)); else { U.aerT[18] = 0; expoAd = 1; }
+    if (TG.tunel) cubiertas(S.sr ?? S.s, Math.min(dt, .1)); else { U.aerT[18] = 0; expoAd = 1; }
     ctx.renderer.toneMappingExposure = (COLOR.expo + (COLOR.expoNoche - COLOR.expo) * noche) * expoAd;
     // 3) nubes: viento alisio del este (despacio), orden, sombras de las 12 más cercanas
     wind -= dt * 5; NUBE_U.viento.value = wind; NUBE_U.camXZ.value.set(camera.position.x, camera.position.z);
@@ -508,7 +508,7 @@ export function install(ctx) {
       luzU.rayCol.value.copy(sun.color).multiplyScalar(.9 + 1.3 * low);
       luzU.flare.value = TG.destello && onScr && sy > 0 ? .55 * sstep(.2, .6, facing) : 0;
       luzU.mb.value = TG.mb ? clamp((spd - 9) / 140, 0, 1) * (S.cam === 3 ? .07 : .035) : 0;
-      if (luzU.mb.value > 0) { ctx.P(S.s + 70, pAhead); v3.set(pAhead.x, pAhead.y + 1.5, pAhead.z).project(camera); luzU.mbC.value.set(clamp(v3.x * .5 + .5, 0, 1), clamp(v3.y * .5 + .5, 0, 1)); }
+      if (luzU.mb.value > 0) { (ctx.A || ctx).P(S.s + 70, pAhead); v3.set(pAhead.x, pAhead.y + 1.5, pAhead.z).project(camera); luzU.mbC.value.set(clamp(v3.x * .5 + .5, 0, 1), clamp(v3.y * .5 + .5, 0, 1)); }
       luz.enabled = luzU.rays.value > 0 || luzU.flare.value > 0 || luzU.mb.value > 0;
       camU.t.value = t; camU.grano.value = TG.grano ? .022 + .02 * noche : 0; camU.ca.value = TG.ca ? .0016 : 0; camU.curva.value = TG.curva ? 1 : 0; camU.gam.value = COLOR.gam + (COLOR.gamNoche - COLOR.gam) * noche; camU.lente.value = TG.lente && S.cam === 3 ? COLOR.lente : 0; { const sz = renderer.getDrawingBufferSize(v3b); camU.res.value.set(sz.x, sz.y); }
       if (gtao) gtao.enabled = TG.ao && !(Q.post === false);
