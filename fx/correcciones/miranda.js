@@ -158,7 +158,14 @@ export default {
     { ll: [10.493873, -66.833351], a: 'VID', h: 95, col: '#aebccb', shop: 0, nota: 'torre esbelta de vidrio plateado, km 35,48 izq. (f_0326–0327)' },
     // 10.494351,-66.832695 (esquina de la Av. La Carlota, der.): el edificio de retícula blanca con cuadros azules sobre el Metro va a mano
     { ll: [10.494459, -66.832948], a: 'COM', pisos: 3, col: '#d9d6cf', shop: 1, nota: 'Edificio Miranda (comercial)' },
-    { ll: [10.494706, -66.833293], a: 'COM', h: 5, col: '#ece9e2', shop: 0, detalle: 0, nota: 'muro blanco bajo el elevado (grafiti ROSE), km 35,55 der. (f_0327)' },
+    // (19-nov, Millennium) esta huella es el bloque alto de retícula en damero (crema y verde gris, ~14 pisos, locales abajo) que sigue al edificio del
+    // Metro (video s 813–815; su sombra en la satelital mide ~31 m); antes quedaba como muro de 5 m. El muro blanco con el grafiti ROSE es la cabecera
+    // sur del edificio comunal de la Plaza Miranda (abajo).
+    { ll: [10.494706, -66.833293], a: 'RES', pisos: 14, col: '#d6d0bf', shop: 1, alt: 1, mural: 0, nota: 'Edificio Guarimba: bloque en damero, km 35,52 der. (s 813–815)' },
+    // ── C.C. Millennium Mall y Plaza Miranda (km 35,45–35,75 der.): el centro comercial, su ala y la plaza van a mano en zona_miranda.js
+    { ll: [10.495347, -66.833031], quitar: true, nota: 'caja genérica de 22 m del Millennium (se dibuja a mano)' },
+    { ll: [10.495212, -66.833881], a: 'COM', h: 16, col: '#e4e1d8', shop: 0, mural: 0, detalle: 0, nota: 'edificio comunal de la Plaza Miranda: cabecera blanca con grafiti ROSE junto al elevado (f_0327)' },
+    { ll: [10.496218, -66.834021], a: 'VID', col: '#2f6fb3', shop: 0, mural: 0, nota: 'torre cilíndrica de vidrio azul al N de la Rómulo Gallegos (huella de 24 lados), asoma tras el elevado (f_0327)' },
     // ── Elevado de Los Dos Caminos (km 35,55–35,95; f_0327–0329)
     // (auditoría 19-nov) la huella OSM llegaba a 12 m del eje: se montaba sobre la calzada lateral izquierda de la Miranda, bajo el elevado
     // (en f_0327–f_0328 la torre queda tras la calzada y la acera). Se quita y se rehace recortada a 22 m del eje.
@@ -213,7 +220,14 @@ export default {
     { ll: [10.496489, -66.846664], a: 'VID', h: 80, col: '#5b7591', shop: 1, mural: 0 },
     { ll: [10.496311, -66.847066], a: 'BRI', h: 75, col: '#cdbf9f', shop: 1, mural: 0, nota: 'Torre Cavendes' },
     { ll: [10.496166, -66.847587], a: 'RES', pisos: 16, col: '#d8cbb1', shop: 1, mural: 0, nota: 'Edificio Roxul' },
-    { ll: [10.496195, -66.848133], a: 'BRI', h: 110, col: '#d8cdb0', shop: 1, mural: 0, nota: 'Hotel Caracas Palace: torre beige con remate de cerámica azul (f_0340)' },
+    // (19-nov, Altamira) la huella OSM del Hotel Caracas Palace abarca toda la manzana (82 × 67 m) y salía un bloque macizo de 110 m pegado a la plaza.
+    // En la satelital son tres cuerpos: la torre (≈25 × 38 m), un cuerpo bajo al N y el podio blanco sobre la Miranda (recortado a ≥ 9,5 m del eje).
+    { ll: [10.496195, -66.848133], quitar: true },
+    { poly: [[10.496327, -66.848022], [10.496327, -66.847794], [10.495988, -66.847794], [10.495988, -66.848022]], a: 'BRI', h: 110, col: '#d8cdb0', shop: 0, mural: 0, nota: 'Hotel Caracas Palace: torre beige (f_0340)' },
+    { poly: [[10.496545, -66.848250], [10.496545, -66.847914], [10.496333, -66.847914], [10.496253, -66.848250]], a: 'BRI', h: 22, col: '#d8cdb0', shop: 0, mural: 0 },
+    { poly: [[10.495993, -66.848392], [10.495993, -66.847745], [10.495807, -66.847745], [10.495706, -66.848371]], a: 'COM', h: 12, col: '#e8e5dd', shop: 1, alt: 1, mural: 0, nota: 'podio blanco del Palace en la esquina de la Av. Luis Roche' },
+    { ll: [10.495770, -66.848119], quitar: true, nota: 'pieza suelta del podio (salía una casa de teja)' },
+    { ll: [10.495669, -66.848282], quitar: true, nota: 'caseta de 13 m² en la acera de la esquina de la Luis Roche: salía una casa de teja de 8 m sobre la acera' },
     { ll: [10.495404, -66.846252], a: 'BRI', pisos: 10, col: '#d6d0c2', shop: 0, mural: 0, nota: 'Ministerio de Turismo' },
     { ll: [10.495227, -66.848221], a: 'RES', pisos: 14, col: '#d7c8a8', shop: 1, mural: 0, nota: 'Edificio Humboldt' },
     { ll: [10.495578, -66.847521], a: 'COM', pisos: 1, col: '#d6d2c8', shop: 1, mural: 0 },
@@ -242,6 +256,27 @@ export default {
     // el cerro arbolado de El Marqués a la derecha, con la Torre Bazar Bolívar arriba (s 778, f_0312)
     // (trazado 2, 19-nov) el eje de 33,53–33,95 dejó de salirse 6–10 m a la acera norte: el cerro queda ~7 m más lejos del eje nuevo
     { km0: 33.66, km1: 33.84, lado: 'R', d0: 23, d1: 41, dh: 11, d2: 97, d3: 132, rampa: 30, nota: 'cerro de El Marqués' },
+  ],
+  // Plaza Miranda (Millennium): chaguaramos junto a los espejos de agua (satelital)
+  arboles: [
+    { ll: [10.495572, -66.834523], especie: 'palma', alto: 16 }, { ll: [10.495505, -66.834539], especie: 'palma', alto: 16 }, { ll: [10.495439, -66.834555], especie: 'palma', alto: 16 },
+    { ll: [10.495373, -66.834572], especie: 'palma', alto: 16 }, { ll: [10.495306, -66.834588], especie: 'palma', alto: 16 }, { ll: [10.495240, -66.834604], especie: 'palma', alto: 16 },
+    { ll: [10.495797, -66.834464], especie: 'palma', alto: 16 }, { ll: [10.495678, -66.834440], especie: 'palma', alto: 16 }, { ll: [10.495797, -66.834720], especie: 'palma', alto: 16 },
+    { ll: [10.495797, -66.834298], especie: 'palma', alto: 16 }, { ll: [10.495797, -66.834164], especie: 'palma', alto: 16 }, { ll: [10.495718, -66.834056], especie: 'palma', alto: 16 },
+    // Plaza Francia (Altamira): arboleda a los lados de los espejos, chaguaramos en la rotonda del obelisco y en las cabeceras, apamates en el frente
+    { ll: [10.496995, -66.849127], especie: 'caobo', alto: 13 }, { ll: [10.496884, -66.849068], especie: 'caobo', alto: 13 }, { ll: [10.496778, -66.849136], especie: 'caobo', alto: 13 },
+    { ll: [10.496667, -66.849076], especie: 'caobo', alto: 13 }, { ll: [10.496561, -66.849145], especie: 'caobo', alto: 13 }, { ll: [10.496450, -66.849085], especie: 'caobo', alto: 13 },
+    { ll: [10.496345, -66.849153], especie: 'caobo', alto: 13 }, { ll: [10.496128, -66.849162], especie: 'caobo', alto: 13 }, { ll: [10.496035, -66.849102], especie: 'apamate', alto: 13 },
+    { ll: [10.495947, -66.849169], especie: 'caobo', alto: 13 }, { ll: [10.495854, -66.849109], especie: 'apamate', alto: 13 }, { ll: [10.495748, -66.849177], especie: 'apamate', alto: 13 },
+    { ll: [10.496961, -66.848717], especie: 'mango', alto: 10 }, { ll: [10.496850, -66.848648], especie: 'mango', alto: 10 }, { ll: [10.496744, -66.848726], especie: 'mango', alto: 10 },
+    { ll: [10.496633, -66.848657], especie: 'mango', alto: 10 }, { ll: [10.496437, -66.848738], especie: 'caobo', alto: 13 }, { ll: [10.496325, -66.848670], especie: 'caobo', alto: 13 },
+    { ll: [10.496108, -66.848678], especie: 'caobo', alto: 13 }, { ll: [10.496021, -66.848755], especie: 'mango', alto: 10 }, { ll: [10.495928, -66.848686], especie: 'caobo', alto: 13 },
+    { ll: [10.495840, -66.848762], especie: 'mango', alto: 10 }, { ll: [10.495729, -66.848694], especie: 'mango', alto: 10 },
+    { ll: [10.496638, -66.849032], especie: 'palma', alto: 14 }, { ll: [10.496637, -66.848776], especie: 'palma', alto: 14 }, { ll: [10.496431, -66.849049], especie: 'palma', alto: 14 },
+    { ll: [10.496411, -66.848776], especie: 'palma', alto: 14 }, { ll: [10.496988, -66.848954], especie: 'palma', alto: 14 }, { ll: [10.496984, -66.848835], especie: 'palma', alto: 14 },
+    { ll: [10.496113, -66.849026], especie: 'palma', alto: 14 }, { ll: [10.496103, -66.848779], especie: 'palma', alto: 14 },
+    { ll: [10.495704, -66.849216], especie: 'apamate', alto: 11 }, { ll: [10.495691, -66.848659], especie: 'apamate', alto: 11 },
+    { ll: [10.495656, -66.849135], especie: 'apamate', alto: 11 }, { ll: [10.495649, -66.848724], especie: 'apamate', alto: 11 },
   ],
   estructuras: [],
   // la pasarela de Parque del Este va a mano (columnas amarillo y negro, cajón de acero gris)

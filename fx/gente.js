@@ -1,153 +1,225 @@
-// Gente: corredores creíbles e instanciados. Un solo draw call para todo el pelotón: el esqueleto (pelvis, tronco, cabeza,
-// muslo/pierna/pie y brazo/antebrazo de cada lado) se anima en el vertex shader con un ciclo de carrera real
-// (apoyo y fase de vuelo, flexión de rodilla en el recobro, braceo cruzado, giro de pelvis y hombros, tronco inclinado).
-// Cuerpo de formas redondeadas con variación de estatura, complexión y género; gorra, cola de caballo, lentes, franela con
-// manga o esqueleto, dorsal (blanco, diagonal turquesa #4DC4DA, número negro), shorts, medias y zapatos de color.
+// Gente: corredores y público instanciados, con esqueleto animado en el vertex shader (nada de una malla con huesos por persona).
+// · Cuerpo: cortes transversales torneados (tronco que se estrecha a la cintura, glúteos, cuádriceps, gemelos, deltoides), cabeza de
+//   1/7,8 de la estatura con mandíbula, orejas y nariz; normales suaves calculadas aquí. Pelo (corto, cola, moño, trenza), gorra o
+//   visera, lentes, franela o esqueleto, short suelto o licra, medias de tres alturas, zapatilla con suela y franja, dorsal en el
+//   pecho y en la espalda con un número distinto por corredor (los dígitos se componen en el shader desde un atlas de 512×640).
+// · Zancada: curvas de cadera, rodilla y tobillo por fotogramas clave (Catmull-Rom periódica) para correr y para caminar; apoyo y
+//   fase de vuelo, el pie de apoyo pegado al suelo (la pelvis baja lo que haga falta), braceo cruzado con codo a ~90°, giro de pelvis
+//   y contragiro de hombros, tronco inclinado. Cadencia según la velocidad (≈170–190 pasos/min), zancada más corta en subida,
+//   fatiga (encorva, baja la cadencia, braceo pesado) y paso de caminar.
+// · Tres niveles de detalle por distancia a la cámara (cerca / media / lejos) con tope de instancias por calidad, descarte por
+//   encuadre y una mancha de sombra de contacto bajo cada persona (una sola llamada para todas).
+// Interfaz: makeGente(n, ctx) → { color(i, …), set(i, x, y, z, rumbo, fase, escala), commit(n) }; makeHero(ctx) → { group, update({ fase,
+// pausado, dt, v, pendiente, fatiga?, caminando? }) }; install(ctx) pone el público. Pruebas: hero.userData.forzar = { fatiga, caminando }.
 export const meta = { id: 'gente', reemplaza: [] };
 
 const mul = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 // material por vértice
-const M = { skin: 0, jersey: 1, shorts: 2, shoe: 3, sole: 4, sock: 5, hair: 6, cap: 7, dorsal: 8, sleeve: 9, glasses: 10, watch: 11, accent: 12, pony: 13, face: 14, bun: 15, braid: 16, hand: 17 };
+const M = { skin: 0, top: 1, shorts: 2, shoe: 3, sole: 4, hair: 6, cap: 7, bib: 8, sleeve: 9, glasses: 10, watch: 11, accent: 12, pony: 13, face: 14, bun: 15, braid: 16, hand: 17, brim: 18, bibB: 19, band: 20, flask: 22, vest: 23 };
 const B = { pelvis: 0, torso: 1, head: 2, thighL: 3, shinL: 4, footL: 5, thighR: 6, shinR: 7, footR: 8, uarmL: 9, farmL: 10, uarmR: 11, farmR: 12 };
 
-// ───────── Geometría del cuerpo (modelo de 1,75 m, pies en y=0, mirando a +Z; +X es la izquierda del corredor) ─────────
-function buildBody(THREE, q = 1, hero = false) {
-  const P = [], Nn = [], UV = [], BM = [], I = [];
-  const S = n => Math.max(3, Math.round(n * q));
-  const v = (x, y, z, nx, ny, nz, bone, mat, side, u = 0, w = 0, mw = 0) => { P.push(x, y, z); const l = Math.hypot(nx, ny, nz) || 1; Nn.push(nx / l, ny / l, nz / l); UV.push(u, w); BM.push(bone, mat, mw, side); return P.length / 3 - 1; };
-  // tubo vertical de sección elíptica; mat puede ser función de y
-  function tube(bone, mat, side, cx, cz, ys, rx, rz, segs, { zOff = null, capTop = false, capBot = false, mwf = null } = {}) {
-    segs = S(segs); const base = P.length / 3, n = ys.length;
-    for (let i = 0; i < n; i++) for (let j = 0; j <= segs; j++) {
-      const a = j / segs * Math.PI * 2, sa = Math.sin(a), ca = Math.cos(a), x = cx + sa * rx[i], z = cz + ca * rz[i] + (zOff ? zOff[i] : 0);
-      const dy = i === 0 ? 0 : i === n - 1 ? 0 : 0; const slope = (rx[Math.min(n - 1, i + 1)] - rx[Math.max(0, i - 1)]) / ((ys[Math.max(0, i - 1)] - ys[Math.min(n - 1, i + 1)]) || 1);
-      v(x, ys[i], z, sa / rx[i], slope * .6 + dy, ca / rz[i], bone, typeof mat === 'function' ? mat(ys[i], a) : mat, side, 0, 0, mwf ? mwf(ys[i], a) : 0);
+// ───────── Geometría (modelo de 1,75 m, pies en y=0, mirando a +Z; +X es la izquierda del corredor) ─────────
+// det: 0 lejos (silueta), 1 media, 2 cerca, 3 héroe. q multiplica los segmentos.
+const TORSO = [[.99, .152, .098, .104], [1.06, .142, .093, .1], [1.14, .145, .099, .1], [1.22, .155, .11, .104], [1.29, .165, .119, .108], [1.35, .171, .114, .106], [1.40, .167, .1, .098], [1.435, .138, .082, .085], [1.46, .092, .064, .07]];
+const TSQ = .88;
+export function buildBody(THREE, { q = 1, det = 2 } = {}) {
+  const P = [], UV = [], BM = [], I = [];
+  const near = det >= 2, mid = det >= 1, hero = det >= 3;
+  const S = n => Math.max(4, Math.round(n * q));
+  const v = (x, y, z, bone, mat, side, u = 0, w = 0, mw = 0) => { P.push(x, y, z); UV.push(u, w); BM.push(bone, mat, mw, side); return P.length / 3 - 1; };
+  const se = (s, p) => Math.sign(s) * Math.pow(Math.abs(s), p);
+  // sólido torneado: secciones [y, rx, rz delante, rz detrás, dx, dz]
+  function loft(bone, mat, side, cx, cz, secs, segs, { top = false, bot = false, sq = 1, mw = null } = {}) {
+    secs = secs.slice().sort((a, b) => a[0] - b[0]); if (!mid && secs.length > 4) secs = secs.filter((s, i) => i % 2 === 0 || i === secs.length - 1);
+    const n = S(segs), base = P.length / 3, R = secs.length;
+    for (const s of secs) for (let j = 0; j < n; j++) {
+      const a = j / n * Math.PI * 2, sa = Math.sin(a), ca = Math.cos(a), x = cx + (s[4] || 0) + se(sa, sq) * s[1], z = cz + (s[5] || 0) + se(ca, sq) * (ca > 0 ? s[2] : s[3]);
+      v(x, s[0], z, bone, typeof mat === 'function' ? mat(s[0], a) : mat, side, 0, 0, mw ? mw(s[0], a) : 0);
     }
-    for (let i = 0; i < n - 1; i++) for (let j = 0; j < segs; j++) { const a = base + i * (segs + 1) + j, b = a + segs + 1; if (ys[i] > ys[i + 1]) I.push(a, b, a + 1, a + 1, b, b + 1); else I.push(a, a + 1, b, a + 1, b + 1, b); }
-    const cap = (i, up) => { const c = v(cx, ys[i] + (up ? .006 : -.006), cz + (zOff ? zOff[i] : 0), 0, up ? 1 : -1, 0, bone, typeof mat === 'function' ? mat(ys[i], 0) : mat, side); for (let j = 0; j < segs; j++) { const a = base + i * (segs + 1) + j; const top = ys[0] > ys[n - 1] ? i === 0 : i === n - 1; if (top === up) I.push(c, a + 1, a); else I.push(c, a, a + 1); } };
-    if (capTop) cap(ys[0] > ys[n - 1] ? 0 : n - 1, true); if (capBot) cap(ys[0] > ys[n - 1] ? n - 1 : 0, false);
+    for (let i = 0; i < R - 1; i++) for (let j = 0; j < n; j++) { const a = base + i * n + j, b = base + i * n + (j + 1) % n; I.push(a, b, a + n, b, b + n, a + n); }
+    const cap = (i, up) => { const s = secs[i], c = v(cx + (s[4] || 0), s[0] + (up ? 1 : -1) * Math.min(s[1], s[2]) * .3, cz + (s[5] || 0) + (s[2] - s[3]) * .5, bone, typeof mat === 'function' ? mat(s[0], 0) : mat, side);
+      for (let j = 0; j < n; j++) { const a = base + i * n + j, b = base + i * n + (j + 1) % n; if (up) I.push(c, a, b); else I.push(c, b, a); } };
+    if (top) cap(R - 1, true); if (bot) cap(0, false);
   }
-  // elipsoide; f(x,y,z) puede deformar cada vértice y devolver [x,y,z,mat]
+  // elipsoide (o casquete); f(x,y,z,nx,ny,nz) puede deformar y devolver [x,y,z,mat]
   function ellip(bone, mat, side, c, rx, ry, rz, ws, hs, { th0 = 0, th1 = Math.PI, f = null } = {}) {
-    ws = S(ws); hs = S(hs); const base = P.length / 3;
-    for (let i = 0; i <= hs; i++) { const th = th0 + (th1 - th0) * i / hs, st = Math.sin(th), ct = Math.cos(th); for (let j = 0; j <= ws; j++) { const ph = j / ws * Math.PI * 2, nx = st * Math.sin(ph), ny = ct, nz = st * Math.cos(ph); let p = [c[0] + nx * rx, c[1] + ny * ry, c[2] + nz * rz, mat]; if (f) p = f(p[0], p[1], p[2], nx, ny, nz) || p; v(p[0], p[1], p[2], nx / rx, ny / ry, nz / rz, bone, p[3] ?? mat, side); } }
-    for (let i = 0; i < hs; i++) for (let j = 0; j < ws; j++) { const a = base + i * (ws + 1) + j, b = a + ws + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
+    ws = S(ws); hs = Math.max(3, Math.round(hs * q)); const base = P.length / 3;
+    for (let i = 0; i <= hs; i++) { const th = th0 + (th1 - th0) * i / hs, st = Math.sin(th), ct = Math.cos(th);
+      for (let j = 0; j < ws; j++) { const ph = j / ws * Math.PI * 2, nx = st * Math.sin(ph), ny = ct, nz = st * Math.cos(ph); let p = [c[0] + nx * rx, c[1] + ny * ry, c[2] + nz * rz, mat]; if (f) p = f(p[0], p[1], p[2], nx, ny, nz) || p; v(p[0], p[1], p[2], bone, p[3] ?? mat, side); } }
+    for (let i = 0; i < hs; i++) for (let j = 0; j < ws; j++) { const a = base + i * ws + j, b = base + i * ws + (j + 1) % ws; I.push(a, a + ws, b, b, a + ws, b + ws); }
   }
-  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const bust = (y, a) => Math.pow(Math.max(0, Math.cos(a)), 2) * Math.exp(-(((y - 1.3) / .055) ** 2));
-  // pelvis (shorts)
-  tube(B.pelvis, M.shorts, 0, 0, -.005, [1.045, .99, .92, .865], [.148, .158, .163, .125], [.104, .11, .112, .088], 12, { capBot: true });
-  // tronco (franela) + cuello
-  const TY = [.975, 1.05, 1.14, 1.23, 1.31, 1.37, 1.42, 1.455, 1.48], TRX = [.166, .152, .152, .162, .171, .177, .168, .128, .07], TRZ = [.117, .104, .105, .112, .116, .112, .099, .084, .055];
-  tube(B.torso, M.jersey, 0, 0, 0, TY, TRX, TRZ, 14, { capTop: true, mwf: bust });
-  tube(B.torso, M.skin, 0, 0, .006, [1.43, 1.54], [.047, .045], [.05, .046], 8);
-  // dorsal sobre el pecho, curvado con la franela
-  { const cols = 5, y0 = 1.085, y1 = 1.245, base = P.length / 3; for (let r = 0; r <= 1; r++) { const y = r ? y1 : y0, rx = r ? .164 : .153, rz = r ? .113 : .106; for (let c = 0; c <= cols; c++) { const u = c / cols, a = (u - .5) * 1.3; v(Math.sin(a) * rx * 1.035, y, Math.cos(a) * rz * 1.035 + .004, Math.sin(a), 0, Math.cos(a), B.torso, M.dorsal, 0, u, r, bust(y, a)); } } for (let c = 0; c < cols; c++) { const a = base + c, b = a + cols + 1; I.push(a, a + 1, b, a + 1, b + 1, b); } }
-  // cabeza: cráneo, mandíbula afinada, nariz
-  const headF = (x, y, z, nx, ny, nz) => { let k = 1; if (ny < 0) k = .8 + .2 * (1 + ny); const zz = (z - .012) * (ny < -.2 ? .92 : 1) + .012; return [x * k, y, zz, M.skin]; };
-  ellip(B.head, M.skin, 0, [0, 1.632, .012], .079, .106, .094, 14, 10, { f: headF });
-  // cara: calcomanía curva sobre la misma superficie (cejas, ojos, nariz, boca en la textura; multiplica el tono de piel)
-  { const cols = 8, rows = 6, base = P.length / 3, t0 = Math.acos((1.692 - 1.632) / .106), t1 = Math.acos((1.566 - 1.632) / .106);
-    for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) { const th = t1 + (t0 - t1) * r / rows, ph = -.95 + 1.9 * c / cols, st = Math.sin(th), nx = st * Math.sin(ph), ny = Math.cos(th), nz = st * Math.cos(ph);
-      const p = headF(nx * .079 * 1.012, 1.632 + ny * .106 * 1.012, .012 + nz * .094 * 1.012, nx, ny, nz); v(p[0], p[1], p[2], nx, ny, nz, B.head, M.face, 0, c / cols, r / rows); }
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const a = base + r * (cols + 1) + c, b = a + cols + 1; I.push(a, a + 1, b, a + 1, b + 1, b); } }
-  if (hero) { for (const s of [1, -1]) ellip(B.head, M.skin, 0, [s * .079, 1.632, .0], .012, .028, .02, 6, 5); }
+  // parche curvo con UV sobre una superficie (dorsales, cara): fn(u,w) → [x,y,z]
+  function patch(bone, mat, cols, rows, fn, mw = null) {
+    const base = P.length / 3; for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) { const u = c / cols, w = r / rows, p = fn(u, w); v(p[0], p[1], p[2], bone, mat, 0, u, w, mw ? mw(p[1], p[3] || 0) : 0); }
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const a = base + r * (cols + 1) + c, b = a + cols + 1; I.push(a, a + 1, b, a + 1, b + 1, b); }
+  }
+  const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const bust = (y, a) => Math.pow(Math.max(0, Math.cos(a)), 2) * Math.exp(-(((y - 1.285) / .06) ** 2));
+  // superficie del tronco a una altura y ángulo (para pegar los dorsales)
+  const torsoAt = (y, a, k = 1.012) => { let i = 0; while (i < TORSO.length - 2 && TORSO[i + 1][0] < y) i++; const A = TORSO[i], Bq = TORSO[i + 1], t = (y - A[0]) / (Bq[0] - A[0]), L = (m) => A[m] + (Bq[m] - A[m]) * t, ca = Math.cos(a);
+    return [se(Math.sin(a), TSQ) * L(1) * k, y, se(ca, TSQ) * (ca > 0 ? L(2) : L(3)) * k + (ca > 0 ? .002 : -.002), a]; };
+
+  // pelvis (short)
+  loft(B.pelvis, M.shorts, 0, 0, 0, [[.835, .12, .07, .086], [.88, .158, .088, .11], [.94, .168, .098, .12], [1.0, .162, .098, .108], [1.05, .153, .097, .101]], 16, { bot: true, sq: .9 });
+  // tronco (franela) y cuello
+  loft(B.torso, M.top, 0, 0, 0, TORSO, 18, { top: true, sq: TSQ, mw: bust });
+  loft(B.torso, M.skin, 0, 0, .006, [[1.42, .05, .052, .054], [1.5, .046, .047, .049], [1.565, .047, .046, .05]], 10);
+  // dorsales (pecho y espalda); el número lo pone el shader
+  if (mid) {
+    patch(B.torso, M.bib, near ? 6 : 3, 1, (u, w) => torsoAt(1.1 + w * .15, (u - .5) * 1.25), bust);
+    patch(B.torso, M.bibB, near ? 6 : 3, 1, (u, w) => torsoAt(1.12 + w * .15, Math.PI + (u - .5) * 1.25));
+  }
+  // cabeza: cráneo con mandíbula afinada, occipucio y mentón
+  const HY = 1.636, HC = [0, HY, .012], HR = [.076, .108, .093];
+  const headF = (x, y, z, nx, ny, nz) => { let kx = 1, zz = z; if (ny < -.05) kx = 1 - .3 * sm(-.05, -.95, ny); if (nz < 0) zz = HC[2] + (z - HC[2]) * 1.05; if (ny < -.35 && nz > .2) zz += .008 * sm(.2, .8, nz); return [x * kx, y, zz, M.skin]; };
+  ellip(B.head, M.skin, 0, HC, HR[0], HR[1], HR[2], 16, 12, { f: headF });
+  if (mid) for (const s of [1, -1]) ellip(B.head, M.skin, 0, [s * .074, 1.628, .002], .011, .026, .018, 6, 4);
+  if (near) ellip(B.head, M.skin, 0, [0, 1.62, .101], .012, .021, .017, 6, 5);
+  // cara: calcomanía curva sobre el cráneo (cejas, ojos, nariz, boca; multiplica el tono de piel)
+  if (mid) { const t0 = Math.acos((1.70 - HY) / HR[1]), t1 = Math.acos((1.555 - HY) / HR[1]);
+    patch(B.head, M.face, near ? 8 : 4, near ? 6 : 3, (u, w) => { const th = t1 + (t0 - t1) * w, ph = -.95 + 1.9 * u, st = Math.sin(th), nx = st * Math.sin(ph), ny = Math.cos(th), nz = st * Math.cos(ph);
+      return headF(nx * HR[0] * 1.012, HY + ny * HR[1] * 1.012, HC[2] + nz * HR[2] * 1.012, nx, ny, nz); }); }
   // pelo: casquete que se hunde bajo la línea de nacimiento
-  ellip(B.head, M.hair, 0, [0, 1.636, .006], .0835, .111, .099, 14, 8, { th1: Math.PI * .78, f: (x, y, z, nx, ny, nz) => { const hl = 1.598 + .07 * sm(-.5, .7, nz) - .015 * Math.abs(nx); const k = .94 + .07 * sm(hl - .012, hl + .012, y); return [x * k, 1.636 + (y - 1.636) * k, .006 + (z - .006) * k, M.hair]; } });
-  // gorra: copa + visera
-  ellip(B.head, M.cap, 0, [0, 1.652, .004], .089, .088, .101, 12, 4, { th1: Math.PI * .5 });
-  { const n = S(10), base = P.length / 3; for (let lay = 0; lay < 2; lay++) { v(0, 1.655 - lay * .006, .07, 0, lay ? -1 : 1, .2, B.head, M.cap, 0); for (let j = 0; j <= n; j++) { const a = -Math.PI / 2 + j / n * Math.PI; v(Math.sin(a) * .088, 1.654 - .014 * Math.cos(a) - lay * .006, .07 + Math.cos(a) * .088, 0, lay ? -1 : 1, .2, B.head, M.cap, 0); } } for (let j = 0; j < n; j++) { I.push(base, base + 1 + j, base + 2 + j); const b2 = base + n + 2; I.push(b2, b2 + 2 + j, b2 + 1 + j); } }
-  // cola de caballo
-  ellip(B.head, M.pony, 0, [0, 1.585, -.118], .033, .078, .036, 6, 5, { f: (x, y, z) => [x, y, z - (1.62 - y) * .25, M.pony] });
-  // moño y trenza
-  ellip(B.head, M.bun, 0, [0, 1.705, -.07], .045, .04, .045, 7, 5);
-  for (let k = 0; k < 5; k++) ellip(B.head, M.braid, 0, [0, 1.6 - k * .045, -.112 - k * .006], .021 - k * .002, .028, .02, 5, 4);
-  // lentes deportivos
-  { const n = 10, base = P.length / 3; for (let j = 0; j <= n; j++) { const a = -1.05 + 2.1 * j / n; for (const y of [1.624, 1.652]) v(Math.sin(a) * .085, y, .012 + Math.cos(a) * .101, Math.sin(a), 0, Math.cos(a), B.head, M.glasses, 0); } for (let j = 0; j < n; j++) { const a = base + j * 2; I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } }
-  // piernas
-  for (const s of [1, -1]) {
-    const L = s > 0, x = s * .092, th = L ? B.thighL : B.thighR, sh = L ? B.shinL : B.shinR, ft = L ? B.footL : B.footR;
-    tube(th, M.shorts, s, x, 0, [.95, .86, .755], [.089, .088, .085], [.092, .09, .087], 10, { capBot: true });
-    tube(th, M.skin, s, x, .004, [.77, .72, .67, .62, .57, .52, .49], [.074, .071, .068, .063, .057, .051, .048], [.078, .076, .074, .069, .062, .055, .05], 9, { zOff: [0, .005, .006, .007, .008, .006, .004] });
-    ellip(sh, M.skin, s, [x, .497, .006], .05, .05, .052, 7, 5);
-    tube(sh, M.skin, s, x, 0, [.52, .475, .43, .385, .34, .23, .145], [.05, .053, .055, .054, .051, .039, .032], [.052, .058, .062, .061, .058, .042, .034], 9, { zOff: [0, -.008, -.012, -.012, -.012, -.005, -.003] });
-    tube(sh, M.sock, s, x, -.002, [.155, .1, .075], [.035, .035, .036], [.037, .037, .04], 9);
-    // zapatilla: suela plana blanca, talón redondo, puntera baja, franja de acento
-    ellip(ft, M.shoe, s, [x, .052, .072], .049, .052, .142, 10, 7, { f: (px, py, pz, nx, ny, nz) => { let y = Math.max(py, .004); const t = (pz - .072) / .142; if (t > .35) y = .004 + (y - .004) * (1 - (t - .35) * .75); if (y > .085) y = .085 + (y - .085) * .4; const m = y < .024 ? M.sole : (Math.abs(nx) > .8 && y > .03 && y < .06 && t < .3) ? M.accent : M.shoe; return [px * (pz < .02 ? .92 : 1), y, pz, m]; } });
+  ellip(B.head, M.hair, 0, [0, HY + .004, .006], .0815, .1135, .0995, 16, 9, { th1: Math.PI * .8, f: (x, y, z, nx, ny, nz) => { const hl = 1.60 + .07 * sm(-.5, .7, nz) - .015 * Math.abs(nx); const k = .935 + .075 * sm(hl - .012, hl + .012, y); return [x * k, HY + .004 + (y - HY - .004) * k, .006 + (z - .006) * k, M.hair]; } });
+  // gorra (copa + visera), visera sola (cinta + visera)
+  ellip(B.head, M.cap, 0, [0, HY + .018, .004], .0875, .09, .1005, 14, 5, { th1: Math.PI * .5 });
+  if (mid) {
+    const n = S(10), y0 = HY + .02; for (let lay = 0; lay < 2; lay++) { const base = P.length / 3; v(0, y0 - lay * .005, .06, B.head, M.brim, 0); for (let j = 0; j <= n; j++) { const a = -Math.PI / 2 + j / n * Math.PI; v(Math.sin(a) * .09, y0 - .016 * Math.cos(a) - lay * .005, .06 + Math.cos(a) * .1, B.head, M.brim, 0); }
+      for (let j = 0; j < n; j++) { if (!lay) I.push(base, base + 1 + j, base + 2 + j); else I.push(base, base + 2 + j, base + 1 + j); } }
+    loft(B.head, M.band, 0, 0, .006, [[HY + .015, .085, .1, .097], [HY + .045, .085, .1, .097]], 14);
   }
-  // brazos
+  // cola de caballo, moño y trenza
+  if (mid) {
+    ellip(B.head, M.pony, 0, [0, 1.6, -.112], .03, .075, .034, 7, 5, { f: (x, y, z) => [x * (y < 1.58 ? .8 : 1), y, z - (1.635 - y) * .3, M.pony] });
+    ellip(B.head, M.bun, 0, [0, 1.71, -.072], .043, .039, .043, 8, 5);
+    for (let k = 0; k < (near ? 5 : 3); k++) { const kk = near ? k : k * 1.6; ellip(B.head, M.braid, 0, [0, 1.6 - kk * .045, -.11 - kk * .007], .02 - kk * .002, .029, .019, 5, 4); }
+    // lentes deportivos envolventes
+    const n = S(10), base = P.length / 3; for (let j = 0; j <= n; j++) { const a = -1.05 + 2.1 * j / n; for (const y of [1.624, 1.653]) v(Math.sin(a) * .0835, y, .014 + Math.cos(a) * .1, B.head, M.glasses, 0); }
+    for (let j = 0; j < n; j++) { const a = base + j * 2; I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  }
+  // piernas: muslo con cuádriceps, rodilla, pierna con gemelo, tobillo; zapatilla
+  for (const s of [1, -1]) {
+    const L = s > 0, x = s * .09, th = L ? B.thighL : B.thighR, sh = L ? B.shinL : B.shinR, ft = L ? B.footL : B.footR;
+    if (mid) loft(th, M.shorts, s, x, -.004, [[.765, .088, .091, .094], [.84, .093, .096, .1], [.93, .094, .097, .104]], 12);
+    loft(th, M.skin, s, x, 0, [[.49, .05, .054, .05], [.55, .055, .062, .054], [.62, .062, .072, .062], [.70, .07, .08, .07], [.78, .077, .086, .078], [.86, .083, .088, .084], [.95, .085, .087, .086]], 12);
+    if (mid) ellip(sh, M.skin, s, [x, .5, .008], .05, .05, .052, 9, 6);
+    loft(sh, M.skin, s, x, 0, [[.072, .03, .032, .034], [.12, .03, .028, .034], [.18, .033, .03, .04], [.25, .04, .034, .05], [.32, .047, .038, .063], [.38, .05, .042, .066], [.44, .05, .046, .058], [.505, .049, .05, .05]], 12, { bot: !mid });
+    // zapatilla: suela plana, talón redondo, puntera baja y levantada, franja lateral
+    ellip(ft, M.shoe, s, [x, .046, .068], .043, .047, .13, 12, 8, { f: (px, py, pz, nx, ny, nz) => {
+      let y = Math.max(py, .004); const t = (pz - .07) / .138; if (t > .3) y = .004 + (y - .004) * (1 - (t - .3) * .8); if (y > .076) y = .076 + (y - .076) * .4; if (t > .8 && ny < 0) y += (t - .8) * .05;
+      const m = y < .022 ? M.sole : (mid && Math.abs(nx) > .75 && y > .028 && y < .056 && t < .45 && t > -.6) ? M.accent : M.shoe; return [x + (px - x) * (t < -.5 ? .9 : 1), y, pz, m]; } });
+  }
+  // brazos: deltoides, brazo, codo, antebrazo que se afina a la muñeca, mano recogida
   for (const s of [1, -1]) {
     const L = s > 0, x = s * .185, ua = L ? B.uarmL : B.uarmR, fa = L ? B.farmL : B.farmR;
-    ellip(ua, M.skin, s, [x, 1.42, -.01], .054, .05, .057, 8, 5);
-    ellip(ua, M.sleeve, s, [x * .95, 1.41, -.01], .055, .05, .059, 8, 5, { th1: Math.PI * .62 });
-    tube(ua, M.skin, s, x, -.01, [1.43, 1.33, 1.22, 1.135], [.049, .046, .041, .036], [.05, .048, .043, .037], 8);
-    tube(ua, M.sleeve, s, x, -.01, [1.43, 1.36, 1.3], [.059, .056, .053], [.06, .057, .054], 8);
-    ellip(fa, M.skin, s, [x, 1.135, -.01], .037, .037, .037, 6, 4);
-    tube(fa, M.skin, s, x, -.01, [1.14, 1.04, .94, .892], [.036, .034, .027, .024], [.037, .035, .029, .025], 7);
-    ellip(fa, M.hand, s, [x, .848, -.002], .024, .048, .036, 7, 5, { f: (px, py, pz) => [px, py, pz + (py < .85 ? .01 : 0), M.hand] });
-    if (hero && L) { tube(fa, M.watch, s, x, -.01, [.925, .9], [.03, .03], [.031, .031], 10, { capTop: false }); ellip(fa, M.watch, s, [x + .026, .913, -.01], .006, .018, .016, 8, 4); }
+    ellip(ua, M.skin, s, [x * .96, 1.41, -.008], .049, .054, .054, mid ? 10 : 5, mid ? 6 : 3);
+    loft(ua, M.skin, s, x, -.01, [[1.125, .036, .037, .037], [1.2, .039, .042, .04], [1.28, .044, .048, .045], [1.36, .048, .051, .05], [1.42, .05, .052, .052]], 10);
+    if (mid) { ellip(ua, M.sleeve, s, [x * .95, 1.405, -.008], .055, .058, .059, 10, 5, { th1: Math.PI * .6 }); loft(ua, M.sleeve, s, x, -.01, [[1.29, .052, .055, .054], [1.36, .055, .058, .057], [1.42, .056, .059, .058]], 10); }
+    if (mid) ellip(fa, M.skin, s, [x, 1.13, -.01], .036, .038, .037, 8, 5);
+    loft(fa, M.skin, s, x, -.01, [[.875, .024, .022, .026], [.92, .027, .026, .029], [.99, .034, .034, .036], [1.06, .038, .038, .04], [1.13, .036, .037, .037]], 10, { top: !mid });
+    ellip(fa, M.hand, s, [x - s * .004, .835, .002], .022, .042, .033, 8, 6);
+    if (near) ellip(fa, M.hand, s, [x - s * .014, .857, .024], .009, .021, .01, 5, 4);
+    if (hero && L) { loft(fa, M.watch, s, x, -.01, [[.9, .029, .028, .031], [.925, .03, .029, .032]], 12); ellip(fa, M.watch, s, [x + .027, .913, -.01], .006, .017, .016, 8, 4); }
   }
+  // chaleco de hidratación del héroe: dos frascos al pecho y el bolsillo de la espalda
+  if (hero) { for (const s of [1, -1]) ellip(B.torso, M.flask, 0, [s * .068, 1.262, .121], .027, .052, .024, 10, 7); ellip(B.torso, M.vest, 0, [0, 1.25, -.105], .098, .11, .03, 14, 8); }
+
+  // normales suaves (promedio ponderado por área)
+  const Nn = new Float32Array(P.length);
+  for (let t = 0; t < I.length; t += 3) { const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3, ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], wx = P[c] - P[a], wy = P[c + 1] - P[a + 1], wz = P[c + 2] - P[a + 2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx; for (const k of [a, b, c]) { Nn[k] += nx; Nn[k + 1] += ny; Nn[k + 2] += nz; } }
+  for (let k = 0; k < Nn.length; k += 3) { const l = Math.hypot(Nn[k], Nn[k + 1], Nn[k + 2]) || 1; Nn[k] /= l; Nn[k + 1] /= l; Nn[k + 2] /= l; }
+  if (!THREE) return { tris: I.length / 3, verts: P.length / 3, P, I, Nn };
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(Nn, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setAttribute('bm', new THREE.Float32BufferAttribute(BM, 4)); g.setIndex(I);
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(Nn, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setAttribute('bm', new THREE.Float32BufferAttribute(BM, 4));
+  g.setIndex(P.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(I, 1) : new THREE.Uint16BufferAttribute(I, 1));
   return g;
 }
 
-// ───────── Shader: pose de carrera por vértice ─────────
+// ───────── Shader: pose por vértice ─────────
+// iA: fase (rad), caminar 0–1, fatiga 0–1, amplitud de zancada · iB: complexión, mujer, gesto (0 corre, 1 aplaude, 2 saluda, 3 quieto, 4 brazos arriba), inclinación por pendiente
+// iC0: franela, short, piel, zapato · iC1: pelo, gorra, medias, franja · iD: peinado, gorra(1)/visera(2), franela(0)/esqueleto(1)/top(2), lentes · iE: ruedo, alto de media, dorsal (<0 sin), bits (1 reloj, 2 chaleco)
 const POSE = /* glsl */`
-attribute vec4 bm; attribute vec4 iP; attribute vec4 iF; attribute vec4 iC0; attribute vec4 iC1; attribute vec4 iX; uniform float uTime;
-uniform float uLean; uniform float uAmp; uniform float uCad;
-varying vec3 vCol; varying float vMat; varying vec2 vDuv; varying float vRough; varying vec3 vBind;
+attribute vec4 bm; attribute vec4 iA; attribute vec4 iB; attribute vec4 iC0; attribute vec4 iC1; attribute vec4 iD; attribute vec4 iE; uniform float uTime;
+varying vec3 vCol; varying float vMat; varying vec2 vTex; varying float vRough; varying vec3 vBind; varying float vNum;
+#define DEG 0.01745329
 mat3 rX(float a){ float c = cos(a), s = sin(a); return mat3(1.0,0.0,0.0, 0.0,c,s, 0.0,-s,c); }
 mat3 rY(float a){ float c = cos(a), s = sin(a); return mat3(c,0.0,-s, 0.0,1.0,0.0, s,0.0,c); }
 mat3 rZ(float a){ float c = cos(a), s = sin(a); return mat3(c,s,0.0, -s,c,0.0, 0.0,0.0,1.0); }
-float wrapA(float x){ return x - 6.2831853 * floor((x + 3.14159265) / 6.2831853); }
-float gbump(float x, float c, float w){ float d = wrapA(x - c) / w; return exp(-d * d); }
 vec3 unpackC(float v){ float r = floor(v / 65536.0); float g = floor((v - r * 65536.0) / 256.0); float b = v - r * 65536.0 - g * 256.0; return pow(vec3(r, g, b) / 255.0, vec3(2.2)); }
-void legAng(float ph, float amp, out float f, out float k, out float a){
-  f = (0.17 + 0.48 * cos(ph + 0.88)) * amp;
-  k = 0.28 + (0.38 * gbump(ph, 0.9, 0.55) + 1.55 * gbump(ph, 3.7, 0.95)) * mix(0.55, 1.0, amp);
-  a = 0.05 + 0.25 * gbump(ph, 1.0, 0.6) - 0.5 * gbump(ph, 2.4, 0.5);
+const float HR[8] = float[8](26.0, 12.0, -2.0, -13.0, -6.0, 14.0, 33.0, 38.0);
+const float KR[8] = float[8](16.0, 42.0, 30.0, 16.0, 62.0, 102.0, 76.0, 32.0);
+const float AR[8] = float[8](4.0, 18.0, 6.0, -22.0, -14.0, -2.0, 2.0, 6.0);
+const float HW[8] = float[8](22.0, 14.0, 4.0, -6.0, -12.0, 0.0, 18.0, 24.0);
+const float KW[8] = float[8](3.0, 16.0, 6.0, 4.0, 32.0, 58.0, 30.0, 4.0);
+const float AW[8] = float[8](2.0, 6.0, 10.0, 2.0, -16.0, -6.0, 2.0, 2.0);
+float cr8(float k[8], float t){ float x = fract(t) * 8.0; int i = int(x); float f = x - float(i);
+  float p0 = k[(i + 7) % 8], p1 = k[i], p2 = k[(i + 1) % 8], p3 = k[(i + 2) % 8];
+  return p1 + 0.5 * f * (p2 - p0 + f * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3 + f * (3.0 * (p1 - p2) + p3 - p0))); }
+void legA(float t, float walk, float amp, float fat, out float h, out float k, out float a){
+  h = 12.0 + (cr8(HR, t) - 12.0) * amp * (1.0 - 0.2 * fat); k = cr8(KR, t) * (0.8 + 0.2 * amp) * (1.0 - 0.4 * fat) + 10.0 * fat; a = cr8(AR, t) * (1.0 - 0.3 * fat);
+  if (walk > 0.001) { h = mix(h, 5.0 + (cr8(HW, t) - 5.0) * amp, walk); k = mix(k, cr8(KW, t), walk); a = mix(a, cr8(AW, t), walk); }
+  h *= DEG; k *= DEG; a *= DEG;
 }
+float footLow(float h, float k, float a){ float s = h - k, f = s + a; return -0.42 * cos(h) - 0.42 * cos(s) + min(-0.075 * cos(f) - 0.065 * sin(f), -0.07 * cos(f) + 0.2 * sin(f)); }
 vec3 poseP(vec3 p, vec3 n, out vec3 nOut){
   float bone = bm.x, mat = bm.y, side = bm.w;
-  float ph = iP.x * uCad, build = iP.z, gen = iP.w, amp = uAmp;
-  float sx = mix(1.0, 0.89, gen), hx = mix(1.0, 1.07, gen), limb = mix(1.0, 0.88, gen);
-  // morfología (en pose de reposo)
-  if (bone < 0.5) { p.x *= hx * build; p.z *= build; }
+  float ph = iA.x, walk = iA.y, fat = iA.z, amp = iA.w, build = iB.x, fem = iB.y, mode = iB.z;
+  float hipW = mix(1.0, 1.07, fem) * mix(1.0, build, 0.5), shW = mix(1.0, 0.88, fem) * mix(1.0, build, 0.4), limb = build * mix(1.0, 0.9, fem);
+  vec3 bind0 = p;
+  // prendas y peinados que no lleva: se colapsan a un punto (triángulos de área cero)
+  float hs = iD.x, hw = iD.y, top = iD.z; bool hide = false;
+  if (abs(mat - 7.0) < 0.5) hide = abs(hw - 1.0) > 0.5;
+  else if (abs(mat - 18.0) < 0.5) hide = hw < 0.5;
+  else if (abs(mat - 20.0) < 0.5) hide = abs(hw - 2.0) > 0.5;
+  else if (abs(mat - 13.0) < 0.5) hide = abs(hs - 1.0) > 0.5;
+  else if (abs(mat - 15.0) < 0.5) hide = abs(hs - 2.0) > 0.5 || abs(hw - 1.0) < 0.5;
+  else if (abs(mat - 16.0) < 0.5) hide = abs(hs - 3.0) > 0.5;
+  else if (abs(mat - 9.0) < 0.5) hide = top > 0.5;
+  else if (abs(mat - 10.0) < 0.5) hide = iD.w < 0.5;
+  else if (abs(mat - 11.0) < 0.5) hide = mod(iE.w, 2.0) < 0.5;
+  else if (mat > 21.5) hide = mod(floor(iE.w / 2.0), 2.0) < 0.5;
+  else if (abs(mat - 8.0) < 0.5 || abs(mat - 19.0) < 0.5) hide = iE.z < 0.0 || (mat > 18.5 && mod(floor(iE.w / 2.0), 2.0) > 0.5);
+  else if (abs(mat - 2.0) < 0.5 && bone > 2.5) hide = iE.x < 0.7;
+  if (hide) { nOut = n; vCol = vec3(0.0); vMat = mat; vRough = 1.0; vBind = p; vNum = 0.0; vTex = vec2(0.0); return vec3(0.0, 1.62, 0.0); }
+  // morfología (en reposo)
+  if (bone < 0.5) { p.x *= hipW * mix(1.0, build, 0.3); p.z *= mix(1.0, build, 0.6); if (p.z < 0.0) p.z *= mix(1.0, 1.08, fem); }
   else if (bone < 1.5) {
-    float wsh = smoothstep(1.22, 1.42, p.y), wlo = 1.0 - smoothstep(1.0, 1.14, p.y);
-    float k = mix(mix(1.0, mix(1.0, 0.92, gen), smoothstep(1.0, 1.1, p.y) * (1.0 - wsh)), sx, wsh); k = mix(k, hx, wlo);
-    if (p.y > 1.42 && abs(p.x) < 0.06) k = 1.0;
-    p.x *= k * build; p.z *= mix(build, 1.0, 0.3); p.z += bm.z * 0.042 * gen;
+    float wsh = smoothstep(1.2, 1.4, p.y), wlo = 1.0 - smoothstep(1.02, 1.16, p.y), wnk = smoothstep(1.43, 1.47, p.y);
+    float kx = mix(mix(1.0, mix(1.0, 0.9, fem), smoothstep(1.04, 1.18, p.y)), shW, wsh); kx = mix(kx, hipW, wlo);
+    p.x *= mix(kx * mix(1.0, build, 0.7), 1.0, wnk); p.z *= mix(mix(1.0, build, 0.6), 1.0, wnk); p.z += bm.z * 0.046 * fem;
   }
-  else if (bone > 2.5 && bone < 8.5) { float cx = side * 0.092; p.x = cx * hx * mix(1.0, build, 0.5) + (p.x - cx) * build * mix(1.0, 0.95, gen); p.z *= build * mix(1.0, 0.95, gen); }
-  else if (bone > 8.5) { float cx = side * 0.185; p.x = cx * sx * mix(1.0, build, 0.6) + (p.x - cx) * build * limb; p.z = -0.01 + (p.z + 0.01) * build * limb; }
-  // prendas opcionales: si no van, se colapsan dentro del cuerpo
-  if (abs(mat - 7.0) < 0.5 && iF.x < 0.5) p = vec3(0.0, 1.63, 0.0);
-  float hs = iX.y; vec3 bind0 = p;
-  if (abs(mat - 13.0) < 0.5 && abs(hs - 1.0) > 0.5) p = vec3(0.0, 1.62, -0.03);
-  if (abs(mat - 15.0) < 0.5 && (abs(hs - 2.0) > 0.5 || iF.x > 0.5)) p = vec3(0.0, 1.63, -0.03);
-  if (abs(mat - 16.0) < 0.5 && abs(hs - 3.0) > 0.5) p = vec3(0.0, 1.62, -0.03);
-  if (abs(mat - 17.0) < 0.5 && iX.z > 0.5) { vec3 hc = vec3(side * 0.185 * sx * mix(1.0, build, 0.6), 0.85, -0.002); p = hc + (p - hc) * vec3(0.62, 1.15, 1.08) + vec3(0.0, -0.008, 0.0); }
-  if (abs(mat - 9.0) < 0.5 && iF.z < 0.5) p = vec3(side * 0.17, 1.43, -0.01);
-  if (abs(mat - 10.0) < 0.5 && iF.w < 0.5) p = vec3(0.0, 1.63, 0.0);
-  // ciclo de carrera
-  float c0 = cos(ph + 0.88);
-  float mode = iX.w, run = mode < 0.5 ? 1.0 : 0.0; amp *= run;
-  float tw = -0.13 * c0 * amp, lean = (0.13 + uLean) * run + 0.03 * (1.0 - run);
+  else if (bone > 2.5 && bone < 8.5) { float cx = side * 0.09; p.x = cx * hipW + (p.x - cx) * limb; p.z *= mix(limb, 1.0, step(5.0, mod(bone - 3.0, 3.0) + 3.0) * 0.8); }
+  else if (bone > 8.5) { float cx = side * 0.185; p.x = cx * shW + (p.x - cx) * limb; p.z = -0.01 + (p.z + 0.01) * limb; }
+  // ciclo
+  float t = fract(ph / 6.2831853), run = mode < 0.5 ? 1.0 : 0.0;
+  float hL = 0.02, kL = 0.05, aL = 0.0, hR = 0.02, kR = 0.05, aR = 0.0, dy = -0.003;
+  if (run > 0.5) {
+    legA(t, walk, amp, fat, hL, kL, aL); legA(fract(t + 0.5), walk, amp, fat, hR, kR, aR);
+    dy = -0.915 - min(footLow(hL, kL, aL), footLow(hR, kR, aR));
+    float u = fract(2.0 * t); dy += 0.034 * amp * (1.0 - walk) * (1.0 - 0.5 * fat) * sin(3.14159 * clamp((u - 0.72) / 0.28, 0.0, 1.0));
+  }
+  float dh = hL - hR;
+  float tw = -0.13 * dh * (1.0 - 0.5 * walk) * run, twT = 0.17 * dh * (1.0 - 0.4 * walk) * (1.0 - 0.3 * fat) * run;
+  float lean = run * (mix(0.12, 0.04, walk) + iB.w + 0.24 * fat) + (1.0 - run) * 0.015;
+  if (run < 0.5) { tw = 0.05 * sin(uTime * 0.7 + ph); twT = -tw * 0.6; }
   vec3 pc = vec3(0.0, 0.98, 0.0);
-  mat3 Rp = rY(tw), Rt = rY(-tw * 1.5) * rX(lean), R = mat3(1.0);
+  mat3 Rp = rY(tw), Rt = rX(lean) * rY(twT), R = mat3(1.0);
   vec3 q = p;
   if (bone < 0.5) { q = pc + Rp * (p - pc); R = Rp; }
   else if (bone < 2.5) {
-    if (bone > 1.5) { vec3 nk = vec3(0.0, 1.5, 0.0); mat3 Rh = rY(tw * 1.1) * rX(-lean * 0.85); q = nk + Rh * (p - nk); R = Rh; }
+    if (bone > 1.5) { vec3 nk = vec3(0.0, 1.5, 0.0); mat3 Rh = rY(-twT * 0.85) * rX(-lean * 0.8 + 0.3 * fat * run);
+      if (run < 0.5) Rh = rY(0.35 * sin(uTime * 0.31 + ph * 3.0)) * rX(-0.06);
+      if (abs(mat - 13.0) < 0.5 || abs(mat - 16.0) < 0.5) { vec3 pv = vec3(0.0, 1.66, -0.1); p = pv + rZ(0.22 * sin(ph * 2.0) * run) * rX(0.12 * cos(ph * 2.0) * run) * (p - pv); }
+      q = nk + Rh * (p - nk); R = Rh; }
     q = pc + Rt * (q - pc); R = Rt * R;
   }
   else if (bone < 8.5) {
-    float f, k, a; legAng(side > 0.0 ? ph : ph + 3.14159265, amp, f, k, a); if (run < 0.5) { f = 0.0; k = 0.04; a = 0.0; }
-    float hxp = side * 0.092 * hx * mix(1.0, build, 0.5);
-    vec3 hip = vec3(hxp, 0.92, 0.0), kn0 = vec3(hxp, 0.495, 0.0), an0 = vec3(hxp, 0.08, 0.0);
-    mat3 Rth = rX(-f), Rsh = rX(-(f - k)), Rft = rX(-(f - k + a));
+    float h = side > 0.0 ? hL : hR, k = side > 0.0 ? kL : kR, a = side > 0.0 ? aL : aR;
+    float hx = side * 0.09 * hipW;
+    vec3 hip = vec3(hx, 0.92, 0.0), kn0 = vec3(hx, 0.5, 0.0), an0 = vec3(hx, 0.08, 0.0);
+    mat3 Ra = rZ(-side * 0.03 * run), Rth = Ra * rX(-h), Rsh = Ra * rX(-(h - k)), Rft = Ra * rX(-(h - k + a));
     vec3 kn = hip + Rth * (kn0 - hip), an = kn + Rsh * (an0 - kn0);
     float seg = mod(bone - 3.0, 3.0);
     if (seg < 0.5) { q = hip + Rth * (p - hip); R = Rth; }
@@ -156,155 +228,239 @@ vec3 poseP(vec3 p, vec3 n, out vec3 nOut){
     q = pc + Rp * (q - pc); R = Rp * R;
   }
   else {
-    float sw = (0.08 - side * 0.48 * c0) * amp, e = 1.42 + 0.1 * sw;
-    vec3 S = vec3(side * 0.185 * sx * mix(1.0, build, 0.6), 1.42, -0.01), E0 = S + vec3(0.0, -0.285, 0.0);
-    mat3 Rua = rZ(side * 0.13) * rX(-sw), Rfa = rZ(side * 0.13) * rY(-side * 0.35) * rX(-(sw + e));
-    if (mode > 0.5) { float tt = uTime + iP.x;
-      if (mode < 1.5) { float cl = 0.5 + 0.5 * sin(tt * 13.0); Rua = rY(side * 0.05) * rZ(side * 0.08) * rX(-0.55); Rfa = rY(-side * (0.75 + 0.55 * cl)) * rX(-1.55); }
-      else if (mode < 2.5 && side < 0.0) { float wv = sin(tt * 8.0); Rua = rZ(side * 0.35) * rX(-2.75); Rfa = rZ(side * (0.35 + 0.45 * wv)) * rX(-2.8); }
-      else { Rua = rZ(side * 0.08) * rX(-0.05); Rfa = rZ(side * 0.06) * rX(-0.25 - (mode > 2.5 ? 0.0 : 0.0)); } }
-    if (bone < 10.5 && bone > 9.5 || bone > 11.5) { vec3 En = S + Rua * (E0 - S); q = En + Rfa * (p - E0); R = Rfa; }
+    // braceo: cada brazo va con la pierna contraria; codo a ~90° que se cierra al ir adelante; fatiga: más bajo, más abierto y más corto
+    float hO = side > 0.0 ? hR : hL, aAmp = (1.0 - 0.35 * fat) * mix(1.0, 0.6, walk);
+    float sw = run * aAmp * (hO - 0.21), sh = sw - 0.05 * run;
+    float el = run * mix(1.5 + 0.3 * sw - 0.55 * fat, 0.3 + 0.12 * sw, walk) + (1.0 - run) * 0.12;
+    vec3 S = vec3(side * 0.185 * shW, 1.42, -0.01), E0 = S + vec3(0.0, -0.285, 0.0);
+    mat3 Rua = rZ(side * (0.1 + 0.05 * fat)) * rX(-sh), Rfa = rZ(side * 0.1) * rY(-side * 0.3 * run) * rX(-(sh + el));
+    if (mode > 0.5) { float tt = uTime + ph;
+      if (mode < 1.5) { float cl = 0.5 + 0.5 * sin(tt * 12.0); Rua = rZ(side * 0.05) * rY(side * 0.15) * rX(-0.6); Rfa = rY(-side * (0.55 + 0.5 * cl)) * rX(-1.7); }
+      else if (mode < 2.5) { if (side < 0.0) { float wv = sin(tt * 7.0); Rua = rZ(-side * 0.4) * rX(-2.7); Rfa = rZ(-side * (0.3 + 0.45 * wv)) * rX(-2.75); } else { Rua = rZ(side * 0.08); Rfa = rZ(side * 0.06) * rX(-0.2); } }
+      else if (mode < 3.5) { Rua = rZ(side * 0.07) * rX(-0.04); Rfa = rZ(side * 0.05) * rY(-side * 0.4) * rX(-0.25 - 0.9 * step(0.5, fract(ph * 7.3)) * step(side, 0.0)); }
+      else { float wv = sin(tt * 5.0 + side); Rua = rZ(-side * (0.35 + 0.1 * wv)) * rX(-2.6); Rfa = rZ(-side * 0.2) * rX(-2.75 - 0.15 * wv); }
+    }
+    if (bone > 9.5 && bone < 10.5 || bone > 11.5) { vec3 En = S + Rua * (E0 - S); q = En + Rfa * (p - E0); R = Rfa; }
     else { q = S + Rua * (p - S); R = Rua; }
     q = pc + Rt * (q - pc); R = Rt * R;
   }
-  q.y += (-0.032 * cos(2.0 * (ph - 0.9)) + 0.012) * amp - (1.0 - run) * 0.035;
-  vBind = bind0;
-  nOut = R * n;
+  q.y += dy;
+  vBind = bind0; nOut = R * n;
   // color por material
   vec3 col = vec3(1.0); float ro = 0.8;
-  if (mat < 0.5) { col = unpackC(iC0.z); ro = 0.36; if (bone > 2.5 && bone < 7.5 && abs(mod(bone - 3.0, 3.0) - 2.0) > 0.5 && bind0.y > iX.x) { col = unpackC(iC0.y); ro = 0.55; mat = 2.0; } }
-  else if (mat < 1.5) col = unpackC(iC0.x);
+  if (mat < 0.5 || abs(mat - 17.0) < 0.5) { col = unpackC(iC0.z); ro = 0.42;
+    if (bone > 2.5 && bone < 8.5) { if (bind0.y > iE.x) { col = unpackC(iC0.y); ro = 0.62; mat = 2.0; } else if (bind0.y < iE.y) { col = unpackC(iC1.z); ro = 0.75; mat = 5.0; } } }
+  else if (mat < 1.5) { col = unpackC(iC0.x); ro = 0.72;
+    bool piel = (abs(top - 1.0) < 0.5 && abs(bind0.x) > 0.112 && bind0.y > 1.31) || (abs(top - 1.0) < 0.5 && bind0.z > 0.0 && bind0.y > 1.38 && abs(bind0.x) < 0.07) || (abs(top - 2.0) < 0.5 && bind0.y < 1.2);
+    if (piel) { col = unpackC(iC0.z); ro = 0.42; mat = 0.0; }
+    if (mod(floor(iE.w / 2.0), 2.0) > 0.5) { float ax = abs(bind0.x); bool v = (bind0.z < 0.0 && ax < 0.115 && bind0.y > 1.12 && bind0.y < 1.40) || (ax > 0.055 && ax < 0.105 && bind0.y > 1.2) || (bind0.z > 0.0 && ax > 0.04 && ax < 0.12 && bind0.y > 1.14 && bind0.y < 1.32);
+      if (v) { col = vec3(0.022, 0.03, 0.05); ro = 0.6; } } }
   else if (mat < 2.5) { col = unpackC(iC0.y); ro = 0.7; }
   else if (mat < 3.5) { col = unpackC(iC0.w); ro = 0.55; }
-  else if (mat < 4.5) { col = vec3(0.82, 0.82, 0.8); ro = 0.7; }
-  else if (mat < 5.5) col = unpackC(iC1.z);
-  else if (mat < 6.5) { col = unpackC(iC1.x); ro = 0.6; }
+  else if (mat < 4.5) { col = vec3(0.8, 0.8, 0.78); ro = 0.7; }
+  else if (mat < 6.5) { col = unpackC(iC1.x); ro = 0.55; }
   else if (mat < 7.5) { col = unpackC(iC1.y); ro = 0.75; }
   else if (mat < 8.5) col = vec3(1.0);
-  else if (mat < 9.5) col = unpackC(iC0.x);
-  else if (mat < 10.5) { col = vec3(0.015); ro = 0.15; }
-  else if (mat < 11.5) { col = vec3(0.02, 0.025, 0.03); ro = 0.3; }
-  else if (mat < 12.5) { col = mix(unpackC(iC0.w), vec3(0.9), 0.65); ro = 0.5; }
-  else if (mat < 13.5) { col = unpackC(iC1.x); ro = 0.6; }
-  else if (mat < 14.5) { col = unpackC(iC0.z); ro = 0.4; }
-  else if (mat < 16.5) { col = unpackC(iC1.x); ro = 0.6; }
-  else { col = unpackC(iC0.z); ro = 0.4; }
-  vCol = col; vMat = mat; vRough = ro;
-  float di = iC1.w; vDuv = mat > 13.5 ? (uv + vec2(3.0, 0.0)) / 4.0 : (vec2(uv.x, 0.13 + uv.y * 0.74) + vec2(mod(di, 4.0), 3.0 - floor(di / 4.0))) / 4.0;
+  else if (mat < 9.5) { col = unpackC(iC0.x); ro = 0.72; }
+  else if (mat < 10.5) { col = vec3(0.012, 0.014, 0.02); ro = 0.12; }
+  else if (mat < 11.5) { col = vec3(0.015, 0.018, 0.022); ro = 0.3; }
+  else if (mat < 12.5) { col = unpackC(iC1.w); ro = 0.5; }
+  else if (mat < 13.5) { col = unpackC(iC1.x); ro = 0.55; }
+  else if (mat < 14.5) { col = unpackC(iC0.z); ro = 0.42; }
+  else if (mat < 16.5) { col = unpackC(iC1.x); ro = 0.55; }
+  else if (mat < 18.5) { col = unpackC(iC1.y); ro = 0.75; }
+  else if (mat < 19.5) col = vec3(1.0);
+  else if (mat < 20.5) { col = unpackC(iC1.y); ro = 0.75; }
+  else if (mat < 22.5) { col = vec3(0.55, 0.62, 0.66); ro = 0.25; }
+  else { col = vec3(0.022, 0.03, 0.05); ro = 0.6; }
+  vCol = col; vMat = mat; vRough = ro; vNum = iE.z; vTex = uv;
   return q;
 }
 `;
 
 // pliegues de tela y oclusión de contacto (axilas, entrepierna, cintura, cuello), en el espacio del cuerpo en reposo
-const FOLDS = `
+const FRAG = /* glsl */`
+vec4 diffuseColor = vec4(vCol, 1.0);
+if (abs(vMat - 8.0) < 0.5 || abs(vMat - 19.0) < 0.5) {
+  diffuseColor.rgb = texture2D(uAtlas, vec2(vTex.x, 0.6 + vTex.y * 0.4)).rgb;
+  vec2 b = (vTex - vec2(0.1, 0.1)) / vec2(0.8, 0.55);
+  if (b.x > 0.0 && b.x < 1.0 && b.y > 0.0 && b.y < 1.0) { float k = floor(b.x * 4.0); float d = mod(floor(vNum / pow(10.0, 3.0 - k) + 0.001), 10.0);
+    vec2 du = vec2((d + fract(b.x * 4.0)) * 0.1, 0.4 + b.y * 0.2);
+    diffuseColor.rgb *= textureGrad(uAtlas, du, dFdx(vTex) * vec2(0.5, 0.36), dFdy(vTex) * vec2(0.5, 0.36)).rgb; }
+} else if (abs(vMat - 14.0) < 0.5) diffuseColor.rgb *= texture2D(uAtlas, vTex * vec2(0.5, 0.4)).rgb;
 { vec3 b = vBind; float ao = 1.0;
   if (vMat > 0.5 && vMat < 2.5 || abs(vMat - 9.0) < 0.5) {
-    float w1 = sin(b.y * 95.0 + sin(b.x * 37.0) * 2.2 + b.z * 20.0), w2 = sin(b.y * 47.0 - b.x * 60.0);
-    float fold = 0.5 + 0.5 * w1 * smoothstep(0.4, 1.0, w2 * 0.5 + 0.5);
-    float zone = vMat < 1.5 ? (smoothstep(1.16, 1.0, b.y) * 0.8 + smoothstep(0.12, 0.17, abs(b.x)) * smoothstep(1.2, 1.36, b.y) * 0.9 + 0.25) : 0.8;
-    ao *= 1.0 - 0.17 * fold * zone;
-    if (vMat < 1.5) ao *= mix(1.0, 0.68, smoothstep(0.125, 0.17, abs(b.x)) * smoothstep(1.24, 1.38, b.y) * (1.0 - smoothstep(1.4, 1.46, b.y)));
-    if (vMat > 1.5 && vMat < 2.5) ao *= mix(1.0, 0.7, (1.0 - smoothstep(0.02, 0.07, abs(b.x))) * smoothstep(0.98, 0.86, b.y));
-    if (vMat > 0.5 && vMat < 1.5) ao *= mix(0.82, 1.0, smoothstep(0.975, 1.02, b.y));
+    float w1 = sin(b.y * 90.0 + sin(b.x * 37.0) * 2.2 + b.z * 20.0), w2 = sin(b.y * 45.0 - b.x * 60.0);
+    ao *= 1.0 - 0.13 * (0.5 + 0.5 * w1) * smoothstep(0.4, 1.0, w2 * 0.5 + 0.5);
+    if (vMat < 1.5) { ao *= mix(1.0, 0.7, smoothstep(0.125, 0.17, abs(b.x)) * smoothstep(1.24, 1.36, b.y) * (1.0 - smoothstep(1.4, 1.45, b.y))); ao *= mix(0.8, 1.0, smoothstep(0.99, 1.03, b.y)); }
+    if (vMat > 1.5 && vMat < 2.5) ao *= mix(1.0, 0.72, (1.0 - smoothstep(0.02, 0.07, abs(b.x))) * smoothstep(0.98, 0.86, b.y));
   }
-  if (vMat < 0.5 || vMat > 13.5) ao *= mix(0.85, 1.0, smoothstep(1.5, 1.545, b.y) + step(b.y, 1.44));
+  if (vMat < 0.5) ao *= mix(0.84, 1.0, smoothstep(1.49, 1.54, b.y) + step(b.y, 1.44));
   diffuseColor.rgb *= ao; }`;
 
-function makeMat(THREE, dorsalTex, uni) {
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8, metalness: 0, envMapIntensity: .55, side: THREE.DoubleSide });
+function makeMat(THREE, atlas, uni) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8, metalness: 0, envMapIntensity: .55 });
+  mat.shadowSide = THREE.DoubleSide;
   mat.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, uni, { uDorsal: { value: dorsalTex } });
+    Object.assign(sh.uniforms, uni, { uAtlas: { value: atlas } });
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + POSE)
       .replace('#include <beginnormal_vertex>', 'vec3 objectNormal; vec3 posedP = poseP(position, normal, objectNormal);')
       .replace('#include <begin_vertex>', 'vec3 transformed = posedP;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vCol; varying float vMat; varying vec2 vDuv; varying float vRough; varying vec3 vBind; uniform sampler2D uDorsal;')
-      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4(vCol, 1.0); if (abs(vMat - 8.0) < 0.5) diffuseColor.rgb = texture2D(uDorsal, vDuv).rgb; else if (vMat > 13.5 && vMat < 14.5) diffuseColor.rgb *= texture2D(uDorsal, vDuv).rgb;' + FOLDS)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vCol; varying float vMat; varying vec2 vTex; varying float vRough; varying vec3 vBind; varying float vNum; uniform sampler2D uAtlas;')
+      .replace('vec4 diffuseColor = vec4( diffuse, opacity );', FRAG)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vRough;');
   };
-  mat.customProgramCacheKey = () => 'gente-cuerpo';
+  mat.customProgramCacheKey = () => 'gente-cuerpo-2';
   const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   depth.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, uni);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + POSE).replace('#include <begin_vertex>', 'vec3 dN; vec3 transformed = poseP(position, normal, dN);');
   };
-  depth.customProgramCacheKey = () => 'gente-sombra';
+  depth.customProgramCacheKey = () => 'gente-sombra-2';
   return { mat, depth };
 }
 
-// dorsales: 16 números en un atlas 4×4
-function dorsalAtlas(ctx) {
-  const r = mul(2026);
-  return ctx.canvasTex(1024, 1024, (g, W) => {
-    const T = W / 4; g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, W);
-    for (let i = 0; i < 15; i++) {
-      const x0 = (i % 4) * T, y0 = Math.floor(i / 4) * T, h = T * .74, y1 = y0 + (T - h) / 2; g.save(); g.beginPath(); g.rect(x0 + 6, y1, T - 12, h); g.clip();
-      g.fillStyle = '#fbfbf8'; g.fillRect(x0, y1, T, h);
-      g.fillStyle = '#4DC4DA'; g.beginPath(); g.moveTo(x0, y1 + h * .78); g.lineTo(x0 + T, y1 + h * .12); g.lineTo(x0 + T, y1 + h * .42); g.lineTo(x0, y1 + h * 1.08); g.closePath(); g.fill();
-      g.fillStyle = '#1d3f8f'; g.font = `700 ${T * .085}px Arial, sans-serif`; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText('MARATÓN CAF', x0 + 14, y1 + 8);
-      g.fillStyle = '#e4002b'; g.fillRect(x0 + T - 44, y1 + 9, 28, 14);
-      const num = i === 0 ? '1726' : String(100 + Math.floor(r() * 9800)); g.fillStyle = '#0a0a0a'; g.font = `900 ${T * (num.length > 3 ? .3 : .36)}px "Arial Black", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, x0 + T / 2, y1 + h * .55);
-      g.fillStyle = '#6b6b6b'; for (let k = 0; k < 3; k++) g.fillRect(x0 + 18 + k * 60, y1 + h - 20, 44, 10);
-      g.restore();
-    }
-    // cara (multiplica el tono de piel): sombras de cuencas, cejas, ojos, nariz y labios
-    const fx = 3 * T, fy = 3 * T, X = u => fx + u * T, Yv = v => fy + v * T;
-    const blob = (u, v, rx, ry, col) => { const gr = g.createRadialGradient(X(u), Yv(v), 1, X(u), Yv(v), rx * T); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.save(); g.translate(X(u), Yv(v)); g.scale(1, ry / rx); g.translate(-X(u), -Yv(v)); g.fillStyle = gr; g.fillRect(X(u - rx), Yv(v - rx), rx * 2 * T, rx * 2 * T); g.restore(); };
+// Atlas 512×640: dorsal sin número (arriba), dígitos 0–9 (franja), cara (abajo a la izquierda)
+function atlas(ctx) {
+  const tex = ctx.canvasTex(512, 640, g => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 512, 640);
+    // dorsal: blanco, diagonal turquesa, encabezado y marcas de chip
+    g.fillStyle = '#fbfbf8'; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#4DC4DA'; g.beginPath(); g.moveTo(0, 210); g.lineTo(512, 40); g.lineTo(512, 112); g.lineTo(0, 282); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(40, 72, 432, 150);
+    g.fillStyle = '#1d3f8f'; g.font = '700 30px Arial, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText('MARATÓN CAF', 22, 14);
+    g.fillStyle = '#e4002b'; g.fillRect(438, 16, 52, 26);
+    g.fillStyle = '#6b6b6b'; for (let k = 0; k < 4; k++) g.fillRect(28 + k * 120, 236, 80, 10);
+    g.strokeStyle = '#c9c9c4'; g.lineWidth = 6; g.strokeRect(3, 3, 506, 250);
+    // dígitos
+    g.fillStyle = '#0a0a0a'; g.font = '900 112px "Arial Black", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let d = 0; d < 10; d++) { g.save(); g.translate(d * 51.2 + 25.6, 322); g.scale(.62, 1); g.fillText(String(d), 0, 2); g.restore(); }
+    // cara (multiplica el tono de piel): cuencas, cejas, ojos, nariz, labios, mejillas
+    const T = 256, X = u => u * T, Yv = w => 384 + w * T;
+    const blob = (u, w, rx, ry, col) => { const gr = g.createRadialGradient(X(u), Yv(w), 1, X(u), Yv(w), rx * T); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.save(); g.translate(X(u), Yv(w)); g.scale(1, ry / rx); g.translate(-X(u), -Yv(w)); g.fillStyle = gr; g.fillRect(X(u - rx), Yv(w - rx), rx * 2 * T, rx * 2 * T); g.restore(); };
     for (const u of [.36, .64]) { blob(u, .37, .1, .06, 'rgba(150,110,95,.75)'); g.fillStyle = '#2a1a14'; g.beginPath(); g.ellipse(X(u), Yv(.375), T * .045, T * .017, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#e8e0d8'; g.beginPath(); g.ellipse(X(u + (u < .5 ? -.016 : .016)), Yv(.374), T * .014, T * .01, 0, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = '#3a2418'; g.lineWidth = T * .02; g.lineCap = 'round'; g.beginPath(); g.moveTo(X(u - .065), Yv(.31)); g.quadraticCurveTo(X(u), Yv(u < .5 ? .285 : .285), X(u + .065), Yv(.31)); g.stroke(); }
+      g.strokeStyle = '#3a2418'; g.lineWidth = T * .02; g.lineCap = 'round'; g.beginPath(); g.moveTo(X(u - .065), Yv(.31)); g.quadraticCurveTo(X(u), Yv(.285), X(u + .065), Yv(.31)); g.stroke(); }
     blob(.5, .6, .05, .07, 'rgba(170,125,105,.6)'); blob(.5, .645, .045, .02, 'rgba(120,80,65,.8)');
     g.fillStyle = 'rgba(165,95,90,.9)'; g.beginPath(); g.ellipse(X(.5), Yv(.765), T * .07, T * .022, 0, 0, Math.PI * 2); g.fill(); g.strokeStyle = 'rgba(90,45,40,.9)'; g.lineWidth = T * .008; g.beginPath(); g.moveTo(X(.435), Yv(.765)); g.lineTo(X(.565), Yv(.765)); g.stroke();
     blob(.14, .55, .1, .2, 'rgba(200,170,155,.55)'); blob(.86, .55, .1, .2, 'rgba(200,170,155,.55)');
   });
+  tex.anisotropy = 4; return tex;
 }
 
-// colores empaquetados (sRGB 24 bits en un float)
+// sombra de contacto: mancha radial
+function blobTex(THREE) {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.45, 'rgba(255,255,255,.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+
 const pack = c => typeof c === 'number' ? c : c.getHex();
-const SHOES = [0xf2f2ef, 0x1b1b1d, 0xff6a2a, 0x2c6cf0, 0xff3d7f, 0x8a8f96, 0xe8ff3a, 0x16b8a6, 0xf2f2ef, 0x1b1b1d, 0xd8d8d0];
-const HAIR = [0x141010, 0x1e1510, 0x2a1d14, 0x3b2a1d, 0x141010, 0x5a4330, 0x9a7a52, 0x8a8a88];
-const CAPS = [0xf4f4f2, 0x1a1a1c, 0xf4f4f2, 0x2f8cff, 0xe83a3a, 0xc6e832, 0xff8a1f, 0x1f4fbf, 0x7a7f86];
+const pick = (r, a) => a[(r() * a.length) | 0];
+const PIEL = [0xf1d0b5, 0xe6bb98, 0xdcab84, 0xd29f78, 0xc68e63, 0xc68e63, 0xb88058, 0xb07850, 0x9e6c48, 0x9a6a46, 0x86593a, 0x7a5236, 0x6e4a30, 0x5a3b26, 0x47301f];
+const PELO = [0x141010, 0x141010, 0x1e1510, 0x2a1d14, 0x3b2a1d, 0x1e1510, 0x5a4330, 0x9a7a52, 0x8a8a88, 0x2a1d14];
+const GORRA = [0xf4f4f2, 0x1a1a1c, 0xf4f4f2, 0x2f8cff, 0xe83a3a, 0xc6e832, 0xff8a1f, 0x1f4fbf, 0x7a7f86, 0xf4f4f2];
+const SHORT = [0x141416, 0x141416, 0x141416, 0x1b1d22, 0x1c2a4a, 0x2c2f36, 0x3a3f48, 0x0f3d5c, 0x5a2a5c, 0x8a8f96];
+const ZAP = [[0xf2f2ef, 0x2c6cf0], [0x1b1b1d, 0xf2f2ef], [0xff6a2a, 0x1b1b1d], [0x2c6cf0, 0xf2f2ef], [0xff3d7f, 0xf2f2ef], [0x8a8f96, 0xff6a2a], [0xe8ff3a, 0x1b1b1d], [0x16b8a6, 0xf2f2ef], [0xf2f2ef, 0xff3d7f], [0x1b1b1d, 0xe8ff3a], [0xd8d8d0, 0x16b8a6], [0xf2f2ef, 0x1b1b1d]];
+const MEDIA = [0xf0f0ec, 0xf0f0ec, 0xf0f0ec, 0x1c1c1e, 0x1c1c1e, 0xff6a2a, 0x2c6cf0, 0xe8ff3a, 0xff3d7f];
 
-function makeInstanced(THREE, ctx, n, geo, uni) {
-  const tex = dorsalAtlas(ctx), { mat, depth } = makeMat(THREE, tex, uni);
-  const iX = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4), iP = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4), iF = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4), iC0 = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4), iC1 = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
-  iP.setUsage(THREE.DynamicDrawUsage);
-  geo.setAttribute('iX', iX); geo.setAttribute('iP', iP); geo.setAttribute('iF', iF); geo.setAttribute('iC0', iC0); geo.setAttribute('iC1', iC1);
-  const mesh = new THREE.InstancedMesh(geo, mat, n); mesh.customDepthMaterial = depth; mesh.frustumCulled = false; mesh.castShadow = mesh.receiveShadow = !!ctx.Q.alta;
-  return { mesh, iP, iF, iC0, iC1, iX };
+// ───────── Fondo común: los tres niveles de detalle, las sombras y las fuentes (pelotón + público) ─────────
+let POOL = null; const KEYS = ['iA', 'iB', 'iC0', 'iC1', 'iD', 'iE'];
+function getPool(ctx) {
+  if (POOL && POOL.ctx === ctx) return POOL;
+  const { THREE, Q } = ctx, tier = !Q.alta ? 'ligera' : Q.media ? 'media' : 'alta';
+  // topes: instancias cerca / media / lejos y radios (m) de cada nivel
+  const CAP = { alta: [36, 110, 260, 24, 60, 320], media: [16, 60, 140, 20, 65, 220], ligera: [8, 36, 90, 16, 48, 160] }[tier];
+  const uni = { uTime: { value: 0 } }, { mat, depth } = makeMat(THREE, atlas(ctx), uni);
+  const sombras = Q.alta && !Q.media;
+  const mk = (geo, n, name, cast) => {
+    const a = {}; for (const k of ['iA', 'iB', 'iC0', 'iC1', 'iD', 'iE']) { a[k] = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4); a[k].setUsage(THREE.DynamicDrawUsage); geo.setAttribute(k, a[k]); }
+    const mesh = new THREE.InstancedMesh(geo, mat, n); mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.customDepthMaterial = depth; mesh.frustumCulled = false; mesh.castShadow = cast; mesh.receiveShadow = sombras; mesh.name = name; mesh.count = 0; mesh.userData.noFusion = true;
+    return { mesh, a, n };
+  };
+  const LOD = [mk(buildBody(THREE, { q: 1, det: 2 }), CAP[0], 'gente-cerca', sombras), mk(buildBody(THREE, { q: .5, det: 1 }), CAP[1], 'gente-media', sombras), mk(buildBody(THREE, { q: .3, det: 0 }), CAP[2], 'gente-lejos', false)];
+  for (const L of LOD) ctx.scene.add(L.mesh);
+  // sombras de contacto: una llamada para todos
+  const NB = CAP[0] + CAP[1] + CAP[2] + 1, bg = new THREE.PlaneGeometry(1, 1); bg.rotateX(-Math.PI / 2);
+  const bmat = new THREE.MeshBasicMaterial({ color: 0x000000, map: blobTex(THREE), transparent: true, opacity: sombras ? .34 : .5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+  const blobs = new THREE.InstancedMesh(bg, bmat, NB); blobs.instanceMatrix.setUsage(THREE.DynamicDrawUsage); blobs.frustumCulled = false; blobs.name = 'gente-sombras'; blobs.count = 0; blobs.renderOrder = 1; blobs.userData.noFusion = true; ctx.scene.add(blobs);
+  POOL = { ctx, THREE, CAP, uni, mat, depth, LOD, blobs, NB, src: null, nSrc: 0, nPack: 0, packCount: 0, pubBase: 0, pubCount: 0, hero: null, stats: {}, frustum: new THREE.Frustum(), m4: new THREE.Matrix4(), sph: new THREE.Sphere(), keys: null, tier };
+  POOL.reserve = (nPack, nPub) => { // fuentes: matriz (16) + 6 atributos (24) por persona
+    const n = nPack + nPub, old = POOL.src; POOL.src = { M: new Float32Array(n * 16), A: new Float32Array(n * 24), kind: new Uint8Array(n) }; POOL.nSrc = n; POOL.keys = new Float64Array(n);
+    if (old) { POOL.src.M.set(old.M.subarray(0, Math.min(old.M.length, POOL.nPack * 16))); POOL.src.A.set(old.A.subarray(0, Math.min(old.A.length, POOL.nPack * 24))); }
+    POOL.nPack = nPack; POOL.pubBase = nPack; for (let i = nPack; i < n; i++) POOL.src.kind[i] = 1;
+  };
+  POOL.reserve(0, 0);
+  // reparte las personas visibles en los tres niveles (las más cercanas primero) y pone las sombras
+  POOL.commit = () => {
+    const { src, LOD, keys, CAP } = POOL, cam = ctx.camera, cp = cam.position; uni.uTime.value = performance.now() / 1000;
+    POOL.m4.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); POOL.frustum.setFromProjectionMatrix(POOL.m4);
+    const rad = sombras ? 3 : 1.3; let k = 0;
+    const consider = i => { const o = i * 16, x = src.M[o + 12], y = src.M[o + 13], z = src.M[o + 14], d2 = (x - cp.x) ** 2 + (y - cp.y) ** 2 + (z - cp.z) ** 2; if (d2 > CAP[5] * CAP[5]) return;
+      POOL.sph.center.set(x, y + .9, z); POOL.sph.radius = rad; if (!POOL.frustum.intersectsSphere(POOL.sph)) return; keys[k++] = Math.floor(d2 * 4) * 1024 + i; };
+    for (let i = 0; i < POOL.packCount; i++) consider(i);
+    for (let i = 0; i < POOL.pubCount; i++) consider(POOL.pubBase + i);
+    const ks = keys.subarray(0, k).sort(); const cnt = [0, 0, 0], BA = POOL.blobs.instanceMatrix.array; let nb = 0;
+    for (let s = 0; s < k; s++) {
+      const i = ks[s] % 1024, d = Math.sqrt(Math.floor(ks[s] / 1024) / 4);
+      const lv = cnt[0] < CAP[0] && d < CAP[3] ? 0 : cnt[1] < CAP[1] && d < CAP[4] ? 1 : cnt[2] < CAP[2] ? 2 : -1; if (lv < 0) continue;
+      const L = LOD[lv], j = cnt[lv]++; L.mesh.instanceMatrix.array.set(src.M.subarray(i * 16, i * 16 + 16), j * 16);
+      let o = i * 24; for (const key of KEYS) { L.a[key].array.set(src.A.subarray(o, o + 4), j * 4); o += 4; }
+      // mancha: alargada en el sentido de la marcha si corre
+      const m = i * 16, pub = src.kind[i] === 1, wx = pub ? .62 : .6, wz = pub ? .62 : .95, b = nb++ * 16;
+      BA[b] = src.M[m] * wx; BA[b + 1] = 0; BA[b + 2] = src.M[m + 2] * wx; BA[b + 3] = 0; BA[b + 4] = 0; BA[b + 5] = 1; BA[b + 6] = 0; BA[b + 7] = 0; BA[b + 8] = src.M[m + 8] * wz; BA[b + 9] = 0; BA[b + 10] = src.M[m + 10] * wz; BA[b + 11] = 0;
+      BA[b + 12] = src.M[m + 12]; BA[b + 13] = src.M[m + 13] + .03; BA[b + 14] = src.M[m + 14]; BA[b + 15] = 1;
+    }
+    const h = POOL.hero; if (h && h.group.visible && h.group.parent) { const p = h.group.position, ry = h.group.rotation.y, c = Math.cos(ry), sn = Math.sin(ry), b = nb++ * 16;
+      BA.set([c * .62, 0, -sn * .62, 0, 0, 1, 0, 0, sn * .95, 0, c * .95, 0, p.x, p.y + .03, p.z, 1], b); }
+    LOD.forEach((L, lv) => { L.mesh.count = cnt[lv]; L.mesh.instanceMatrix.needsUpdate = true; for (const key in L.a) L.a[key].needsUpdate = true; });
+    POOL.blobs.count = nb; POOL.blobs.instanceMatrix.needsUpdate = true;
+    POOL.stats = { cerca: cnt[0], media: cnt[1], lejos: cnt[2], sombras: nb, candidatos: k };
+  };
+  // si el motor no llama a commit (sin pelotón), el público se reparte solo
+  ctx.frameHooks.push(() => { if (!POOL.commited) POOL.commit(); POOL.commited = false; });
+  window.__gente = POOL;
+  return POOL;
 }
+// escribe una persona en las fuentes
+function putSrc(i, A) { const o = i * 24; POOL.src.A.set(A, o); }
 
 export function makeGente(n, ctx) {
-  const { THREE, scene } = ctx, r = mul(160);
-  const uni = { uLean: { value: 0 }, uAmp: { value: 1 }, uCad: { value: .86 }, uTime: { value: 0 } };
-  // dos niveles de detalle: cerca de la cámara (≤ 60) el cuerpo fino; el resto, uno más simple. Los datos de cada corredor viven aquí y se copian al nivel que le toque.
-  const NEAR = 60, LOD = [makeInstanced(THREE, ctx, NEAR, buildBody(THREE, .68, false), uni), makeInstanced(THREE, ctx, n, buildBody(THREE, .3, false), uni)];
-  const mk = () => ({ array: new Float32Array(n * 4), setXYZW(i, a, b, c, d) { this.array.set([a, b, c, d], i * 4); }, setX(i, v) { this.array[i * 4] = v; }, setY(i, v) { this.array[i * 4 + 1] = v; }, setZ(i, v) { this.array[i * 4 + 2] = v; }, setW(i, v) { this.array[i * 4 + 3] = v; } });
-  const iP = mk(), iF = mk(), iC0 = mk(), iC1 = mk(), iX = mk(), cnt = [0, 0], cp = ctx.camera.position;
-  const H = new Float32Array(n);
+  const { THREE } = ctx, r = mul(160), pool = getPool(ctx);
+  pool.reserve(n, pool.nSrc - pool.nPack);
+  // datos fijos de cada corredor
+  const H = new Float32Array(n), CAD = new Float32Array(n), AMP = new Float32Array(n), PH = new Float32Array(n), CAM = new Float32Array(n), FATK = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const fem = r() < .38, h = fem ? .925 + (r() - .5) * .07 : 1.0 + (r() - .5) * .08;
-    H[i] = h; iP.setXYZW(i, 0, h, .92 + r() * .18 + (fem ? -.02 : 0), fem ? 1 : 0);
-    const cap = r() < .55, hs = fem ? [1, 1, 1, 2, 2, 3, 0][(r() * 7) | 0] : (r() < .05 ? 1 : 0);
-    iF.setXYZW(i, cap ? 1 : 0, 0, r() < .72 ? 1 : 0, r() < .3 ? 1 : 0);
-    // short normal, licra corta o licra 3/4 (más frecuentes en mujeres)
-    const q = r(), hem = q < (fem ? .45 : .75) ? .755 : q < (fem ? .78 : .92) ? .6 : .4;
-    iX.setXYZW(i, hem, hs, r() < .35 ? 1 : 0, 0);
-    const shoe = SHOES[(r() * SHOES.length) | 0], sock = r() < .62 ? 0xf0f0ec : r() < .75 ? 0x1c1c1e : [0xff6a2a, 0x2c6cf0, 0xe8ff3a][(r() * 3) | 0];
-    iC0.setW(i, shoe); iC1.setXYZW(i, HAIR[(r() * HAIR.length) | 0], CAPS[(r() * CAPS.length) | 0], sock, 1 + ((r() * 15) | 0));
+    const fem = r() < .4, h = fem ? .925 + (r() - .5) * .07 : 1.0 + (r() - .5) * .09; H[i] = h;
+    const build = .92 + r() * .17 - (fem ? .03 : 0);
+    const hs = fem ? [1, 1, 1, 1, 2, 2, 2, 3, 3, 0][(r() * 10) | 0] : (r() < .04 ? 1 : 0);
+    const hw = r() < (fem ? .3 : .38) ? 1 : r() < (fem ? .22 : .08) ? 2 : 0;
+    const topS = fem && r() < .07 ? 2 : r() < .27 ? 1 : 0;
+    const qb = r(), hem = qb < (fem ? .4 : .74) ? .765 : qb < (fem ? .76 : .9) ? .62 : .42;
+    const qs = r(), sock = qs < .4 ? .1 : qs < .86 ? .17 : .4;
+    const [shoe, acc] = pick(r, ZAP), sk = pick(r, PIEL);
+    const top = pick(r, [0xc6e832, 0xc6e832, 0xf8e100, 0x1f4fbf]), bot = pick(r, SHORT);
+    const num = 1000 + ((r() * 8999) | 0);
+    // iA iB iC0 iC1 iD iE
+    putSrc(i, [r() * 6.283, 0, 0, 1, build, fem ? 1 : 0, 0, 0, top, bot, sk, shoe, pick(r, PELO), pick(r, GORRA), pick(r, MEDIA), acc, hs, hw, topS, r() < .22 ? 1 : 0, hem, sock, num, r() < .3 ? 1 : 0]);
+    CAD[i] = 166 + r() * 20 + (fem ? 4 : 0); AMP[i] = .9 + r() * .18; PH[i] = r() * 6.283; CAM[i] = r() < .06 ? 26 + r() * 16 : 99; FATK[i] = .3 + r() * .7;
   }
   // Formación propia del pelotón: grupos (parejas, combos de club, "trenes") en vez de una lluvia uniforme; más apretado los primeros km
+  // (misma semilla y mismo orden de sorteos que la versión anterior: la formación del pelotón no cambia)
+  const rf = mul(160); for (let i = 0; i < n; i++) { const fem = rf() < .38; rf(); rf(); rf(); if (fem) rf(); else rf(); rf(); rf(); rf(); rf(); rf(); if (!(rf() < .62)) { if (!(rf() < .75)) rf(); } rf(); rf(); rf(); }
   const G = { off: [], lat: [], v: [] }, sG = new Int16Array(n), sOff = new Float32Array(n), sLat = new Float32Array(n), sPh = new Float32Array(n);
-  for (let i = 0; i < n;) { const g = G.off.length, size = 2 + Math.floor(Math.pow(r(), 1.4) * 13); G.off.push(-70 + 320 * Math.pow(r(), 1.35)); G.lat.push((r() - .5) * 1.6); G.v.push((r() - .5) * .45);
-    for (let k = 0; k < size && i < n; k++, i++) { sG[i] = g; sOff[i] = (r() - .5) * (1.6 + size * .55); sLat[i] = (r() - .5) * (.9 + size * .2); sPh[i] = r() * 6.283; } }
-  let tPrev = performance.now(), tAcc = 0; const q = {};
-  for (const L of LOD) scene.add(L.mesh);
+  { const r = rf; for (let i = 0; i < n;) { const g = G.off.length, size = 2 + Math.floor(Math.pow(r(), 1.4) * 13); G.off.push(-70 + 320 * Math.pow(r(), 1.35)); G.lat.push((r() - .5) * 1.6); G.v.push((r() - .5) * .45);
+    for (let k = 0; k < size && i < n; k++, i++) { sG[i] = g; sOff[i] = (r() - .5) * (1.6 + size * .55); sLat[i] = (r() - .5) * (.9 + size * .2); sPh[i] = r() * 6.283; } } }
+  let tPrev = performance.now(), tAcc = 0, dtF = 0, maxI = 0; const q = {};
   return {
-    color(i, franela, short, piel) { iC0.setX(i, pack(franela)); iC0.setY(i, pack(short)); iC0.setZ(i, pack(piel)); },
+    color(i, franela) { if (i < n) pool.src.A[i * 24 + 8] = pack(franela); },
     set(i, x, y, z, rumbo, fase, escala) {
-      if (i === 0) cnt[0] = cnt[1] = 0;
-      const S = ctx.S;
+      if (i >= n) return; const S = ctx.S, o = i * 24, SA = pool.src.A, SM = pool.src.M;
+      if (i === 0) { const now = performance.now(); dtF = Math.min(.1, (now - tPrev) / 1000); tPrev = now; maxI = 0; }
+      maxI = Math.max(maxI, i + 1);
+      let grade = 0, km = 0;
       if (S && ctx.P) {
-        if (i === 0) { const now = performance.now(), dt = Math.min(.1, (now - tPrev) / 1000); tPrev = now; if (!S.paused) { tAcc += dt; for (let g = 0; g < G.off.length; g++) { G.off[g] += G.v[g] * dt * 2; if (G.off[g] > 250) G.off[g] = -70; if (G.off[g] < -70) G.off[g] = 250; } } }
-        const km = ctx.kmOf(S.s), kd = .45 + .55 * Math.min(1, km / 9), g = sG[i];
+        if (i === 0 && !S.paused) { tAcc += dtF; for (let g = 0; g < G.off.length; g++) { G.off[g] += G.v[g] * dtF * 2; if (G.off[g] > 250) G.off[g] = -70; if (G.off[g] < -70) G.off[g] = 250; } }
+        km = ctx.kmOf(S.s); const kd = .45 + .55 * Math.min(1, km / 9), g = sG[i];
         let off = (G.off[g] + sOff[i] + Math.sin(tAcc * .3 + sPh[i]) * .5) * kd;
         const s1 = Math.max(0, Math.min(ctx.TOTAL, S.s + off)); ctx.P(s1, q);
         let L = ctx.ROAD_W / 2 - .8, Rr = L; if (ctx.calzada) { const c = ctx.calzada(s1); L = Math.max(2, c.izq - c.sepAncho - c.contraria.ancho - .7); Rr = Math.max(2, c.der - .7);
@@ -313,53 +469,72 @@ export function makeGente(n, ctx) {
         let lat = (L - Rr) / 2 + G.lat[g] * (L + Rr) * .38 + sLat[i] + Math.sin(tAcc * .21 + sPh[i] * 1.7) * .25; lat = Math.max(-Rr, Math.min(L, lat));
         if (S.cam === 3 && off > -6 && off < 5 && Math.abs(lat) < 1.6) { off += 9; ctx.P(Math.min(ctx.TOTAL, S.s + off), q); }
         else if (S.cam !== 3 && Math.abs(off) < 1.3 && Math.abs(lat) < .8) lat += lat < 0 ? -.9 : .9;
-        x = q.x + q.tz * lat; z = q.z - q.tx * lat; y = q.y + Math.abs(Math.cos(fase)) * .07; rumbo = Math.atan2(q.tx, q.tz);
+        x = q.x + q.tz * lat; z = q.z - q.tx * lat; y = q.y; rumbo = Math.atan2(q.tx, q.tz); grade = q.grade || 0;
       }
-      const dd = (x - cp.x) ** 2 + (z - cp.z) ** 2, lv = dd < 45 * 45 && cnt[0] < NEAR ? 0 : 1, L = LOD[lv], j = cnt[lv]++, A = L.mesh.instanceMatrix.array;
-      for (const [src, dst] of [[iP, L.iP], [iF, L.iF], [iC0, L.iC0], [iC1, L.iC1], [iX, L.iX]]) for (let k = 0; k < 4; k++) dst.array[j * 4 + k] = src.array[i * 4 + k];
-      const sc = escala / 1.12 * H[i], c = Math.cos(rumbo) * sc, sn = Math.sin(rumbo) * sc, o = j * 16;
-      A[o] = c; A[o + 1] = 0; A[o + 2] = -sn; A[o + 3] = 0; A[o + 4] = 0; A[o + 5] = sc; A[o + 6] = 0; A[o + 7] = 0; A[o + 8] = sn; A[o + 9] = 0; A[o + 10] = c; A[o + 11] = 0;
-      A[o + 12] = x; A[o + 13] = y - Math.abs(Math.cos(fase)) * .07; A[o + 14] = z; A[o + 15] = 1;   // el motor suma su propio rebote; el ciclo ya trae el suyo
-      L.iP.array[j * 4] = fase;
+      // zancada propia: cadencia según la velocidad y la pendiente; algunos caminan al final; la fatiga crece después del km 30
+      const walk = km > CAM[i] ? 1 : 0, fat = clamp((km - 28) / 14, 0, .55) * FATK[i], v = S && S.v > .3 ? S.v : 3.1;
+      const spm = walk ? 108 + CAD[i] * .05 : (CAD[i] + (v - 3.1) * 7) * (1 + .004 * clamp(grade, 0, 10)) * (1 - .06 * fat);
+      if (!S || !S.paused) PH[i] = (PH[i] + dtF * Math.PI * spm / 60) % 6.2832;
+      if (!(S && ctx.P)) PH[i] = fase;
+      SA[o] = PH[i]; SA[o + 1] = walk; SA[o + 2] = fat; SA[o + 3] = AMP[i] * (grade > 0 ? 1 - .02 * Math.min(grade, 10) : 1 + .01 * Math.min(-grade, 8));
+      SA[o + 7] = walk ? 0 : clamp(grade * .011, -.05, .1);
+      const sc = (escala || 1.12) / 1.12 * H[i], c = Math.cos(rumbo) * sc, sn = Math.sin(rumbo) * sc, m = i * 16;
+      SM[m] = c; SM[m + 1] = 0; SM[m + 2] = -sn; SM[m + 3] = 0; SM[m + 4] = 0; SM[m + 5] = sc; SM[m + 6] = 0; SM[m + 7] = 0; SM[m + 8] = sn; SM[m + 9] = 0; SM[m + 10] = c; SM[m + 11] = 0;
+      SM[m + 12] = x; SM[m + 13] = (S && ctx.P) ? y : y - Math.abs(Math.cos(fase)) * .07; SM[m + 14] = z; SM[m + 15] = 1;
     },
-    commit(count) { LOD.forEach((L, k) => { L.mesh.count = count ? cnt[k] : 0; L.mesh.instanceMatrix.needsUpdate = L.iP.needsUpdate = L.iF.needsUpdate = L.iC0.needsUpdate = L.iC1.needsUpdate = L.iX.needsUpdate = true; }); },
+    commit(count) { pool.packCount = count ? Math.min(count, maxI) : 0; pool.commit(); pool.commited = true; },
   };
 }
 
 export function makeHero(ctx) {
-  const { THREE } = ctx;
-  const uni = { uLean: { value: 0 }, uAmp: { value: 1 }, uCad: { value: .86 }, uTime: { value: 0 } };
-  const { mesh, iP, iF, iC0, iC1, iX } = makeInstanced(THREE, ctx, 1, buildBody(THREE, 1.6, true), uni);
-  iP.setXYZW(0, 0, 1, 1, 0); iF.setXYZW(0, 1, 0, 1, 1); iX.setXYZW(0, .755, 0, 0, 0);
-  iC0.setXYZW(0, 0xc6e832, 0x14161c, 0xc68e63, 0xff5a1f); iC1.setXYZW(0, 0x1e1510, 0xf4f4f2, 0xf0f0ec, 0);
+  const { THREE } = ctx, pool = getPool(ctx);
+  const geo = buildBody(THREE, { q: 1.35, det: 3 }), a = {};
+  for (const k of ['iA', 'iB', 'iC0', 'iC1', 'iD', 'iE']) { a[k] = new THREE.InstancedBufferAttribute(new Float32Array(4), 4); geo.setAttribute(k, a[k]); }
+  const mesh = new THREE.InstancedMesh(geo, pool.mat, 1); mesh.customDepthMaterial = pool.depth; mesh.frustumCulled = false; mesh.name = 'gente-heroe'; mesh.userData.noFusion = true;
+  mesh.castShadow = ctx.Q.alta; mesh.receiveShadow = ctx.Q.alta && !ctx.Q.media;
+  // el héroe: franela oficial, chaleco de hidratación azul noche con dos frascos, licra corta negra, visera blanca, lentes, reloj, zapatillas blancas con franja turquesa, dorsal 1726
+  a.iB.array.set([1, 0, 0, 0]); a.iC0.array.set([0xc6e832, 0x121316, 0xc68e63, 0xf2f2ef]); a.iC1.array.set([0x1e1510, 0xf4f4f2, 0xf0f0ec, 0x16b8a6]);
+  a.iD.array.set([0, 2, 0, 1]); a.iE.array.set([.62, .17, 1726, 3]); a.iA.array.set([0, 0, 0, 1]);
   mesh.instanceMatrix.array.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); mesh.count = 1;
   const group = new THREE.Group(); group.add(mesh);
-  let lean = 0;
-  return {
+  pool.hero = { group };
+  let ph = 0, lean = 0, walkS = 0, fatS = 0, ampS = 1;
+  const api = {
     group,
-    update({ fase, pausado, dt, v, pendiente }) {
-      iP.array[0] = fase; iP.needsUpdate = true;
-      const want = Math.max(-.08, Math.min(.12, (pendiente || 0) * .012)); lean += (want - lean) * Math.min(1, (dt || .016) * 3); uni.uLean.value = lean;
-      uni.uAmp.value = v > 0 ? Math.max(.75, Math.min(1.15, .75 + v * .1)) : 1;
+    update({ fase, pausado, dt, v, pendiente, fatiga = 0, caminando = false } = {}) {
+      const f = group.userData.forzar; if (f) { if (f.fatiga != null) fatiga = f.fatiga; if (f.caminando != null) caminando = f.caminando; }
+      dt = Math.min(.1, dt || .016); const g = pendiente || 0, vv = v > .3 ? v : 3.1;
+      fatS += (clamp(fatiga, 0, 1) - fatS) * Math.min(1, dt * 1.5); walkS += ((caminando ? 1 : 0) - walkS) * Math.min(1, dt * 2.5);
+      const spmRun = clamp(150 + 10 * vv, 160, 194) * (1 + .004 * clamp(g, 0, 10)) * (1 - .07 * fatS), spm = spmRun + (110 - spmRun) * walkS;
+      if (!pausado) ph = (ph + dt * Math.PI * spm / 60) % 6.2832;
+      const ampT = clamp(.78 + .08 * vv, .84, 1.12) * (g > 0 ? 1 - .02 * Math.min(g, 10) : 1 + .012 * Math.min(-g, 8)); ampS += (ampT - ampS) * Math.min(1, dt * 2);
+      const want = clamp(g * .012, -.05, .12) * (1 - walkS); lean += (want - lean) * Math.min(1, dt * 3);
+      a.iA.array.set([ph, walkS, fatS, ampS * (1 - .15 * fatS)]); a.iB.array[3] = lean; a.iA.needsUpdate = a.iB.needsUpdate = true;
     },
   };
+  group.userData.fx = api;
+  return api;
 }
 
-// Público y voluntarios quietos sobre la acera (aplauden, saludan, miran), alrededor del corredor.
+// Público y voluntarios quietos sobre la acera (aplauden, saludan, levantan los brazos, miran), alrededor del corredor.
 // No se ponen a menos de 120 m de los puntos de animación de landmarks/animacion.js, que ya traen su público.
 const ANIM_KM = [0.10, 2.95, 8.30, 12.70, 17.25, 21.10, 25.10, 31.20, 37.30, 38.00, 41.30, 41.88];
-const ROPA = [0xf2f2ee, 0x1b1b1d, 0xc23b32, 0x2a5aa8, 0x8a8f96, 0x2f7a4a, 0xe8c547, 0x5b3a7a, 0xd96b2b, 0x7fb3d9];
+const ROPA = [0xf2f2ee, 0x1b1b1d, 0xc23b32, 0x2a5aa8, 0x8a8f96, 0x2f7a4a, 0xe8c547, 0x5b3a7a, 0xd96b2b, 0x7fb3d9, 0xf2f2ee, 0x3a4a6a];
+const PANT = [0x2b3a55, 0x1b1b1d, 0x4a4036, 0x6c7a8a, 0x2b3a55, 0x3b4a66, 0xb8ab90];
 export function install(ctx) {
-  const { THREE } = ctx, NS = ctx.Q.alta ? 110 : 60, uni = { uLean: { value: 0 }, uAmp: { value: 0 }, uCad: { value: 1 }, uTime: { value: 0 } };
-  const { mesh, iP, iF, iC0, iC1, iX } = makeInstanced(THREE, ctx, NS, buildBody(THREE, .3, false), uni), r = mul(77), H = new Float32Array(NS);
-  for (let i = 0; i < NS; i++) { const fem = r() < .5, h = fem ? .93 + (r() - .5) * .07 : 1 + (r() - .5) * .08; H[i] = h; iP.setXYZW(i, r() * 50, h, .95 + r() * .2, fem ? 1 : 0); iF.setXYZW(i, r() < .35 ? 1 : 0, 0, 1, r() < .2 ? 1 : 0);
-    iX.setXYZW(i, r() < .5 ? .5 : .755, fem ? [0, 1, 2][(r() * 3) | 0] : 0, 1, 0); iC0.setXYZW(i, ROPA[(r() * ROPA.length) | 0], [0x2b3a55, 0x1b1b1d, 0x4a4036, 0x6c7a8a][(r() * 4) | 0], [0xc68e63, 0x9a6a46, 0xe0b08a, 0x7a5236][(r() * 4) | 0], [0xf2f2ef, 0x1b1b1d, 0x8a8f96][(r() * 3) | 0]);
-    iC1.setXYZW(i, HAIR[(r() * HAIR.length) | 0], CAPS[(r() * CAPS.length) | 0], 0xf0f0ec, 0); }
-  mesh.count = 0; ctx.scene.add(mesh);
+  const pool = getPool(ctx), NS = ctx.Q.alta && !ctx.Q.media ? 110 : 60, r = mul(77);
+  pool.reserve(pool.nPack, NS);
+  const base = pool.pubBase, H = new Float32Array(NS), A0 = [];
+  for (let i = 0; i < NS; i++) {
+    const fem = r() < .5, h = fem ? .93 + (r() - .5) * .07 : 1 + (r() - .5) * .08; H[i] = h;
+    const pants = r() < .6, A = [r() * 50, 0, 0, 1, .92 + r() * .22, fem ? 1 : 0, 3, 0, pick(r, ROPA), pick(r, PANT), pick(r, PIEL), pick(r, [0xf2f2ef, 0x1b1b1d, 0x8a8f96, 0x6a4a30]), pick(r, PELO), pick(r, GORRA), 0xf0f0ec, 0xf2f2ef,
+      fem ? [1, 2, 0, 1][(r() * 4) | 0] : 0, r() < .3 ? 1 : 0, 0, r() < .2 ? 1 : 0, pants ? .085 : .58, .085, -1, 0];
+    A0.push(A); putSrc(base + i, A);
+  }
   const hash = (a, b) => { let h = Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296; };
-  let lastS = -1e9; const o = {}, A = mesh.instanceMatrix.array, D = ctx.D, HID = (D.hidratacion || []).map(Number);
+  let lastS = -1e9; const o = {}, D = ctx.D, HID = (D.hidratacion || []).map(Number);
   function place(sNow) {
-    lastS = sNow; let n = 0; const km0 = ctx.kmOf(sNow);
+    lastS = sNow; let n = 0; const SM = pool.src.M;
     for (let s = Math.max(20, sNow - 120); s < Math.min(ctx.TOTAL - 20, sNow + 320) && n < NS; s += 6) {
       const si = Math.round(s / 6), km = ctx.kmOf(s); if (ANIM_KM.some(k => Math.abs(k - km) < .12) || ctx.cubierto(s) || ctx.enElevado(s)) continue;
       const vol = HID.some(k => Math.abs(k - km) < .05), dens = vol ? .8 : km < 3 || km > 39 ? .3 : .14;
@@ -369,17 +544,17 @@ export function install(ctx) {
         for (let k = 0; k < grp && n < NS; k++) {
           const d = (side > 0 ? c.izq : c.der) + .7 + hash(si * 7 + k, 3) * Math.min(1.6, ac - 1), along = (k - (grp - 1) / 2) * .7, x = o.x + o.tz * d * side + o.tx * along, z = o.z - o.tx * d * side + o.tz * along;
           if ((ctx.calzadaLibre && !ctx.calzadaLibre(x, z)) || ctx.quitado(x, z)) continue;
-          const ry = Math.atan2(-o.tz * side, o.tx * side) + (hash(si, k + 11) - .5) * .8 - side * .35, sc = H[n], cs = Math.cos(ry) * sc, sn = Math.sin(ry) * sc, b = n * 16;
-          A.set([cs, 0, -sn, 0, 0, sc, 0, 0, sn, 0, cs, 0, x, o.y + .16, z, 1], b);
-          const hm = hash(si * 3 + k, 21), mode = hm < .38 ? 1 : hm < .58 ? 2 : 3; iX.array[n * 4 + 3] = mode;
-          if (vol) { iC0.array[n * 4] = hash(si, k) < .5 ? 0x2f8cff : 0xff7a1a; iF.array[n * 4] = 1; }
-          n++;
+          const ry = Math.atan2(-o.tz * side, o.tx * side) + (hash(si, k + 11) - .5) * .8 - side * .35, sc = H[n], cs = Math.cos(ry) * sc, sn = Math.sin(ry) * sc;
+          SM.set([cs, 0, -sn, 0, 0, sc, 0, 0, sn, 0, cs, 0, x, o.y + .16, z, 1], (base + n) * 16);
+          const A = A0[n].slice(), hm = hash(si * 3 + k, 21); A[6] = hm < .34 ? 1 : hm < .5 ? 2 : hm < .62 ? 4 : 3;
+          if (vol) { A[8] = hash(si, k) < .5 ? 0x2f8cff : 0xff7a1a; A[17] = 1; A[6] = hm < .5 ? 1 : 3; }
+          putSrc(base + n, A); n++;
         }
       }
     }
-    mesh.count = n; mesh.instanceMatrix.needsUpdate = iX.needsUpdate = iC0.needsUpdate = iF.needsUpdate = true;
+    pool.pubCount = n;
   }
-  ctx.frameHooks.push((noche, t) => { uni.uTime.value = t; const s = ctx.S ? ctx.S.s : 0; if (Math.abs(s - lastS) > 40) place(s); });
+  ctx.frameHooks.push(() => { const s = ctx.S ? ctx.S.s : 0; if (Math.abs(s - lastS) > 40) place(s); });
   // Solo para pruebas: ?fxcam=dist,alto,ángulo(grados),fov,mirar pone una cámara de retrato alrededor del protagonista
   const m = /[?&]fxcam=([-\d.,]+)/.exec(location.search); if (!m) return;
   const [d, h, ang, fov, lk] = m[1].split(',').map(Number), cam = ctx.camera;

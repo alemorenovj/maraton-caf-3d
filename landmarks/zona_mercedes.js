@@ -20,6 +20,8 @@
 export const meta = {
   id: 'zona_mercedes', nombre: 'Zona mercedes',
   quita: [[10.489679, -66.860998, 20], [10.478599, -66.857049, 8],   // Banfanb (se modela aquí) · techo de la bomba (se modela aquí)
+    [10.485924, -66.865806, 9], [10.485675, -66.865528, 5], [10.483845, -66.863953, 9], [10.483229, -66.862546, 7], [10.483124, -66.862396, 7],   // fachadas de §18 (sin árboles adentro)
+    [10.481939, -66.861167, 7],   // los Mástiles de la Plaza Alfredo Sadel (§14): sin árboles del motor bajo el mirador
     // círculos a lo largo de cada ala del Tamanaco (25) y del Eurobuilding (19): sin ellos el motor sembraba árboles que salían por la azotea
     [10.477456, -66.85705, 11], [10.477455, -66.856936, 11], [10.477453, -66.856822, 11], [10.477452, -66.856708, 11], [10.47745, -66.856594, 11], [10.477449, -66.856479, 11], [10.477447, -66.856365, 11], [10.47742, -66.85642, 11], [10.477491, -66.856324, 11], [10.477561, -66.856228, 11], [10.477631, -66.856132, 11], [10.477702, -66.856036, 11], [10.477772, -66.85594, 11], [10.477842, -66.855845, 11], [10.477869, -66.856036, 15], [10.47795, -66.85594, 15], [10.478031, -66.855845, 15], [10.478112, -66.855749, 15], [10.478193, -66.855653, 15], [10.477366, -66.856164, 10], [10.477295, -66.856106, 10], [10.477223, -66.856047, 10], [10.477151, -66.855989, 10], [10.477079, -66.85593, 10], [10.477007, -66.855872, 10],
     [10.48247, -66.851003, 12], [10.482503, -66.850884, 12], [10.482535, -66.850765, 12], [10.482567, -66.850646, 12], [10.4826, -66.850528, 12], [10.482632, -66.850409, 12], [10.482664, -66.85029, 12], [10.48269, -66.850327, 11], [10.482611, -66.85025, 11], [10.482531, -66.850173, 11], [10.482452, -66.850096, 11], [10.482373, -66.85002, 11], [10.482294, -66.849943, 11], [10.482276, -66.849961, 12], [10.482312, -66.849836, 12], [10.482347, -66.849711, 12], [10.482383, -66.849586, 12], [10.482418, -66.849461, 12], [10.482453, -66.849336, 12]],
@@ -451,6 +453,190 @@ export function build(THREE, api) {
       for (const a of [-9, 0, 9]) for (const b of [-3.5, 3.5]) add(new THREE.BoxGeometry(.5, 5.1, .5), tech, cx + Math.sin(ry) * a + Math.cos(ry) * b, gy + 2.55, cz + Math.cos(ry) * a - Math.sin(ry) * b, ry);
       for (const b of [-3.5, 3.5]) for (const a of [-5, 5]) add(new THREE.BoxGeometry(.8, 1.7, 1.4), gris, cx + Math.sin(ry) * a + Math.cos(ry) * b, gy + .85, cz + Math.cos(ry) * a - Math.sin(ry) * b, ry);
       add(new THREE.BoxGeometry(16, .14, 30), api.concrete(0xb4b2ac), cx, gy + .05, cz, ry); }
+  }
+  // ═════════ 14. Plaza Alfredo Sadel (km 25,06–25,20, a la IZQUIERDA; 21-nov, 7ª pasada) ═════════
+  //  Planta: polígono OSM de la plaza (way 239255209) y la planta del proyecto de W. J. Alcock (guiaccs.com, 2006): jardín elevado
+  //  en cuña al noroeste con muro bajo de granito oscuro, grama y árboles (úcaros, mare mare, araguaney plateado: nodos OSM), gradas
+  //  en la punta sureste, explanada abierta de baldosa terracota en retícula diagonal y los «Mástiles» de Magdalena Fernández (2008)
+  //  en la esquina de la Av. La Trinidad: mirador circular sobre un tubo inclinado y astas blancas con esferas de luz.
+  //  Video (cámara con capó): t=610,5 s semáforo de la Calle Londres (km 25,02) y empieza el adoquín de ladrillo de la calzada con
+  //  bolardos a los dos lados; t=612,5 asoma el asta de la esfera; t≈614,7 el tubo grueso pasa por la izquierda (= km 25,166, nodo
+  //  OSM de la escultura); t=616 cebra de La Trinidad (25,206). En este tramo el índice de fotogramas va ~0,1 km ADELANTADO.
+  const W = (k, l) => { const r = RA(k); return { x: r.x + r.lx * l, z: r.z + r.lz * l, y: r.y, r }; };
+  const dentro = (x, z, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const a = P[i], b = P[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
+  const placa = (P, y0, y1, top, side) => { const cx = P.reduce((s, p) => s + p.x, 0) / P.length, cz = P.reduce((s, p) => s + p.z, 0) / P.length;
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(new THREE.Shape(P.map(p => new THREE.Vector2(p.x - cx, -(p.z - cz)))), { depth: y1 - y0, bevelEnabled: false }), [top, side]);
+    m.rotation.x = -Math.PI / 2; m.position.set(cx, y0, cz); g.add(m); return m; };
+  const tubo = (a, b, r0, r1, mat, seg = 12) => { const d = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z), L = d.length();
+    const m = add(new THREE.CylinderGeometry(r1, r0, L, seg), mat, (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); m.quaternion.setFromUnitVectors(UP, d.normalize()); return m; };
+  const hsh = (a, b) => { const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return v - Math.floor(v); };
+  {
+    const PL = [[10.48244, -66.86196], [10.482538, -66.86191], [10.482475, -66.861771], [10.482051, -66.860836], [10.481915, -66.860902], [10.48161, -66.861058], [10.481952, -66.861439]].map(([a, b]) => LL(a, b));
+    let gMin = 1e9, gMax = -1e9; const xs = PL.map(p => p.x), zs = PL.map(p => p.z);
+    for (let x = Math.min(...xs); x <= Math.max(...xs); x += 3) for (let z = Math.min(...zs); z <= Math.max(...zs); z += 3) if (dentro(x, z, PL)) { const y = GY(x, z); gMin = Math.min(gMin, y); gMax = Math.max(gMax, y); }
+    for (const p of PL) { const y = GY(p.x, p.z); gMin = Math.min(gMin, y); gMax = Math.max(gMax, y); }
+    const yP = Math.max(gMax + .1, RA(25.13).y + .26);   // la explanada queda un pelo sobre la acera del motor (que se mete bajo su borde)
+    const r0 = RA(25.13), giro = Math.atan2(-r0.tz, r0.tx);   // rumbo de la avenida en coordenadas de la forma (x, −z)
+    // baldosa terracota en retícula diagonal con juntas claras cada 5 m (planta del proyecto y foto de la plaza)
+    const pisoT = api.canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#cfc3b4'; x.fillRect(0, 0, w, h); const n = 8, c = w / n;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const f = hsh(i, j); x.fillStyle = `rgb(${150 + f * 24 | 0},${108 + f * 16 | 0},${94 + f * 12 | 0})`; x.fillRect(i * c + 2, j * c + 2, c - 4, c - 4); }
+      x.fillStyle = '#ddd5ca'; x.fillRect(0, 0, w, 10); x.fillRect(0, 0, 10, h); });
+    pisoT.wrapS = pisoT.wrapT = THREE.RepeatWrapping; pisoT.repeat.set(1 / 5, 1 / 5); pisoT.rotation = giro + Math.PI / 4;
+    const piso = new THREE.MeshStandardMaterial({ map: pisoT, roughness: .88 }), bordeP = api.concrete(0x9d9790);
+    placa(PL, gMin - .4, yP, piso, bordeP);
+    // jardín elevado en cuña (0,9 m) con muro de granito oscuro y grama
+    const GA = [W(25.062, 16.5), W(25.138, 17), W(25.151, 32), W(25.074, 23.5)];
+    const gramaT = api.canvasTex(256, 256, (x, w, h) => { x.fillStyle = '#4f6b2a'; x.fillRect(0, 0, w, h); for (let i = 0; i < 900; i++) { const f = hsh(i, 3.7); x.fillStyle = f > .5 ? 'rgba(98,122,48,.55)' : 'rgba(58,78,30,.55)'; x.fillRect(hsh(i, 1.1) * w, hsh(i, 2.3) * h, 3 + f * 6, 2 + f * 4); } });
+    gramaT.wrapS = gramaT.wrapT = THREE.RepeatWrapping; gramaT.repeat.set(1 / 7, 1 / 7);
+    const granito = api.concrete(0x47494b, { roughness: .55 }), granitoC = api.concrete(0x8e8b86, { roughness: .7 });
+    const yJ = yP + .9; placa(GA, gMin - .3, yJ, new THREE.MeshStandardMaterial({ map: gramaT, roughness: 1 }), granito);
+    const cJ = { x: GA.reduce((s, p) => s + p.x, 0) / 4, z: GA.reduce((s, p) => s + p.z, 0) / 4 };
+    const borde = (a, b) => { const L = Math.hypot(b.x - a.x, b.z - a.z), ex = (b.x - a.x) / L, ez = (b.z - a.z) / L; let nx = ez, nz = -ex; if ((a.x - cJ.x) * nx + (a.z - cJ.z) * nz < 0) { nx = -nx; nz = -nz; } return { L, ex, ez, nx, nz, ry: ang(ex, ez) + Math.PI / 2 }; };
+    // gradas de granito claro en la punta sureste, hacia la explanada
+    { const a = GA[1], b = GA[2], e = borde(a, b);
+      for (let i = 0; i < 3; i++) { const d = .45 * (3 - i), hg = .3 * (i + 1); add(new THREE.BoxGeometry(e.L, hg, d), granitoC, (a.x + b.x) / 2 + e.nx * d / 2, yP + hg / 2 - .02, (a.z + b.z) / 2 + e.nz * d / 2, e.ry); } }
+    // bancos de granito delante del muro, hacia la avenida (2ª pasada: sin rótulo; no hay evidencia de que exista)
+    { const a = GA[0], b = GA[1], e = borde(a, b);
+      for (const f of [.2, .36, .52, .68, .84]) { const x = a.x + (b.x - a.x) * f + e.nx * .9, z = a.z + (b.z - a.z) * f + e.nz * .9; add(new THREE.BoxGeometry(2.4, .45, .55), granitoC, x, yP + .22, z, e.ry); }
+    }
+    // arbustos bajos sobre la grama
+    for (let i = 0; i < 9; i++) { const u = hsh(i, 9.1), v = hsh(i, 4.4), k = 25.07 + u * .07, l = 18.5 + v * (5 + u * 9); const p = W(k, l); if (!dentro(p.x, p.z, GA)) continue; copa(p.x, yJ + .5, p.z, .9 + v * .5, yJ); }
+    // luminarias de plaza: poste fino con globo blanco
+    { const poste = api.concrete(0x6d7073, { roughness: .5, metalness: .4 }), globo = api.glow(0xfdf6e6, { dia: .45, noche: 2.4 });
+      for (const [k, l] of [[25.068, 12.4], [25.098, 12.6], [25.128, 12.8], [25.157, 13], [25.182, 13.5], [25.172, 36], [25.158, 24]]) { const p = W(k, l);
+        add(new THREE.CylinderGeometry(.07, .1, 4.4, 8), poste, p.x, yP + 2.2, p.z); add(new THREE.SphereGeometry(.32, 12, 8), globo, p.x, yP + 4.6, p.z); } }
+    // Los Mástiles: mirador circular a ~6 m sobre el tubo grueso inclinado, que sigue arriba como asta; dos astas finas cruzadas y una
+    // cuarta, suelta, con la esfera (foto de referencia: el tubo baja hacia la avenida y las astas se abren hacia el Ávila)
+    { const M = LL(10.481939, -66.861167), tx = r0.tx, tz = r0.tz, lx = r0.lx, lz = r0.lz;
+      const P = (a, l, y) => ({ x: M.x + tx * a + lx * l, y: yP + y, z: M.z + tz * a + lz * l });
+      const acero = new THREE.MeshStandardMaterial({ color: 0xf1f2f2, metalness: .25, roughness: .35 }), luz = api.glow(0xfff4dc, { dia: .7, noche: 2.6 });
+      const c = P(0, 0, 6.3), b = P(1.6, -2.4, 0), dv = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z };
+      tubo(b, c, .75, .68, acero, 16); const top = { x: c.x + dv.x * 3.1, y: c.y + dv.y * 3.1, z: c.z + dv.z * 3.1 }; tubo(c, top, .55, .26, acero, 12);
+      add(new THREE.SphereGeometry(.75, 14, 10), luz, top.x, top.y + .4, top.z);
+      const b2 = P(-2.2, -1.2, 0), t2 = P(3.4, 4.6, 24); tubo(b2, t2, .42, .2, acero, 10); add(new THREE.SphereGeometry(.65, 14, 10), luz, t2.x, t2.y + .4, t2.z);
+      tubo(P(1.4, 2.6, 0), P(-1.6, -1.8, 15), .3, .15, acero, 8);
+      const b4 = P(6.5, -5.5, 0), t4 = P(9.5, -8.5, 12.5); tubo(b4, t4, .24, .15, acero, 8); add(new THREE.SphereGeometry(.75, 14, 10), luz, t4.x, t4.y + .45, t4.z);
+      // el mirador: disco de acero con faldón, baranda de dos aros y parales
+      add(new THREE.CylinderGeometry(3.7, 3.3, .6, 32), acero, c.x, c.y, c.z);
+      add(new THREE.CylinderGeometry(2.2, 1.2, .9, 24), acero, c.x, c.y - .7, c.z);
+      for (const yy of [.55, 1.35]) { const t = add(new THREE.TorusGeometry(3.6, .045, 6, 40), acero, c.x, c.y + yy, c.z); t.rotation.x = Math.PI / 2; }
+      for (let i = 0; i < 24; i++) { const a = i / 24 * 6.283; add(new THREE.BoxGeometry(.05, 1.1, .05), acero, c.x + Math.cos(a) * 3.6, c.y + .85, c.z + Math.sin(a) * 3.6); } }
+  }
+  // ═════════ 15. Calzada adoquinada frente a la plaza (km 25,02–25,205): adoquín de ladrillo rosado gastado y bolardos de concreto a
+  //  los dos lados (t=610,5–615,5). El motor solo pinta de ladrillo las aceras: aquí va una lámina sobre el asfalto con polygonOffset. ═════════
+  {
+    const k0 = 25.02, k1 = 25.205, V = api.D.via;
+    const hwAt = k => { const f = k / V.paso, b0 = Math.min(V.ancho.length - 1, Math.floor(f)), b1 = Math.min(V.ancho.length - 1, b0 + 1), t = f - b0, an = Math.max(8, Math.min(40, (V.ancho[b0] || 14) * (1 - t) + (V.ancho[b1] || 14) * t)); return Math.max(an / 2, 6.8) - .08; };
+    const adoq = api.canvasTex(512, 512, (x, w, h) => { x.fillStyle = '#8a7d70'; x.fillRect(0, 0, w, h); const bw = 25.6, bh = 12.8;
+      for (let r = 0; r < h / bh; r++) for (let c = -1; c <= w / bw; c++) { const o = r % 2 ? bw / 2 : 0, f = hsh(r, c), q = hsh(c * .37, r * 1.9) > .93 ? .82 : 1;
+        x.fillStyle = `rgb(${(132 + f * 20) * q | 0},${(100 + f * 14) * q | 0},${(84 + f * 12) * q | 0})`; x.fillRect(c * bw + o + 1.2, r * bh + 1.2, bw - 2.4, bh - 2.4); } });
+    adoq.wrapS = adoq.wrapT = THREE.RepeatWrapping;
+    const mat = new THREE.MeshStandardMaterial({ map: adoq, roughness: .9, polygonOffset: true, polygonOffsetFactor: -12, polygonOffsetUnits: -30 });
+    const ps = [], uv = [], ix = []; let m = 0, s = 0, prev = null;
+    for (let k = k0; k <= k1 + 1e-6; k += .0025, m++) { const r = RA(k), hw = hwAt(k); if (prev) s += Math.hypot(r.x - prev[0], r.z - prev[1]); prev = [r.x, r.z];
+      for (const l of [hw, -hw]) { ps.push(r.x + r.lx * l, r.y + .03, r.z + r.lz * l); uv.push(l / 4, s / 4); }
+      if (m) { const o = (m - 1) * 2; ix.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); } }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); ge.computeVertexNormals();
+    if (ge.attributes.normal.getY(0) < 0) { for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } ge.setIndex(ix); ge.computeVertexNormals(); }
+    g.add(new THREE.Mesh(ge, mat));
+    // bolardos: cilindros bajos de concreto cada ~2,6 m sobre el borde de las dos aceras (instanciados: una sola llamada de dibujo)
+    const pts = []; for (let k = k0 + .004; k <= k1 - .003; k += .0026) { const r = RA(k), hw = hwAt(k) + .55; for (const l of [hw, -hw]) pts.push([r.x + r.lx * l, r.y + .2 + .3, r.z + r.lz * l]); }
+    const bol = new THREE.InstancedMesh(new THREE.CylinderGeometry(.19, .22, .6, 10), api.concrete(0xa19d96), pts.length);
+    pts.forEach((p, i) => { M4.makeTranslation(p[0], p[1], p[2]); bol.setMatrixAt(i, M4); }); bol.castShadow = true; g.add(bol);
+  }
+  // ═════════ 16. Cerca de obra con grafiti a la izquierda pasada La Trinidad (km 25,212–25,262, t=615–616 s): tablas de ~3,3 m pintadas de
+  //  ondas verticales moradas, azules, rosadas y turquesa (obra de la estación del metro, cuya huella se quita en mercedes.js) ═════════
+  {
+    const grafT = api.canvasTex(1024, 128, (x, w, h) => { const C = ['#5b2a86', '#2a4fb5', '#e0408a', '#27b0b0', '#1b1f4a', '#9a3fc4', '#f07ab0', '#3a8fe0'];
+      for (let i = 0; i < 64; i++) { x.fillStyle = C[(i * 3 + (i >> 2)) % C.length]; x.beginPath(); const x0 = i * w / 64; x.moveTo(x0, 0);
+        for (let y = 0; y <= h; y += 8) x.lineTo(x0 + Math.sin(y / 14 + i * .7) * 6, y); for (let y = h; y >= 0; y -= 8) x.lineTo(x0 + w / 64 + 3 + Math.sin(y / 14 + i * .7 + .5) * 6, y); x.fill(); }
+      x.fillStyle = 'rgba(20,20,30,.5)'; x.fillRect(0, h - 10, w, 10); });
+    grafT.wrapS = THREE.RepeatWrapping;
+    const ps = [], uv = [], ix = []; let m = 0, s = 0, prev = null; const off = 10.4;
+    for (let k = 25.212; k <= 25.262 + 1e-6; k += .004, m++) { const r = RA(k), x = r.x + r.lx * off, z = r.z + r.lz * off; if (prev) s += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z];
+      ps.push(x, r.y - .3, z, x, r.y + 3.3, z); uv.push(s / 26, 0, s / 26, 1); if (m) { const o = (m - 1) * 2; ix.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); ge.computeVertexNormals();
+    g.add(dos(ge, new THREE.MeshStandardMaterial({ map: grafT, roughness: .85 })));
+  }
+  // ═════════ 17. Av. Principal de Las Mercedes (24,47–25,25): grúas de las dos obras que el video muestra (esqueleto de la derecha en el
+  //  24,60, t=597–600 s, y torre de ladrillo detrás del Itaca, t=612,5–613 s) y la reja verde de la izquierda en 24,47–24,60 (t=597–598 s:
+  //  barrotes verde oscuro de ~2,4 m tras la acera, árboles detrás; antes era terreno plano) ═════════
+  {
+    const celT = api.canvasTex(64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = '#d9c23a'; x.lineWidth = 6; x.strokeRect(3, 3, w - 6, h - 6); x.lineWidth = 4; x.beginPath(); x.moveTo(3, 3); x.lineTo(w - 3, h - 3); x.moveTo(w - 3, 3); x.lineTo(3, h - 3); x.stroke(); });
+    celT.wrapS = celT.wrapT = THREE.RepeatWrapping;
+    const celosia = (L) => { const t = celT.clone(); t.needsUpdate = true; t.repeat.set(1, L / 1.6); return new THREE.MeshStandardMaterial({ map: t, alphaTest: .5, side: THREE.DoubleSide, roughness: .6, metalness: .3 }); };
+    const lastre = api.concrete(0x8d8a85);
+    const grua = (x, z, y0, H, J, a) => { const mm = celosia(H), mj = celosia(J);
+      add(new THREE.BoxGeometry(1.6, H, 1.6), [mm, mm, lastre, lastre, mm, mm], x, y0 + H / 2, z);
+      const c = Math.cos(a), sn = Math.sin(a), yj = y0 + H + .7;
+      const jb = add(new THREE.BoxGeometry(1.2, 1.2, J), [mj, mj, mj, mj, lastre, lastre], x + sn * J / 2, yj, z + c * J / 2, a);
+      add(new THREE.BoxGeometry(1.4, 1.1, 11), lastre, x - sn * 5.5, yj, z - c * 5.5, a);
+      add(new THREE.BoxGeometry(2.4, 2.2, 3), lastre, x - sn * 10, yj - .4, z - c * 10, a);
+      add(new THREE.BoxGeometry(1.8, 1.8, 1.8), api.concrete(0xe9e6df), x + sn * 1.4, y0 + H - .2, z + c * 1.4, a);
+      add(new THREE.BoxGeometry(.9, 5, .9), [mm, mm, lastre, lastre, mm, mm], x, y0 + H + 3.2, z);
+      void jb; };
+    { const c = LL(10.481039, -66.861356); grua(c.x, c.z, GY(c.x, c.z) + 14 * 3.2 + 1, 13, 34, 2.2); }
+    { const c = LL(10.485076, -66.865329); grua(c.x - 4, c.z + 3, GY(c.x, c.z) - .3, 36, 40, -.9); }
+    // reja verde a la izquierda (24,47–24,60)
+    const rejaV = api.canvasTex(128, 128, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#1e3a2a'; for (let i = 0; i < 9; i++) x.fillRect(i * w / 9 + 2, 0, 4, h); x.fillRect(0, 6, w, 6); x.fillRect(0, h - 22, w, 6); });
+    rejaV.wrapS = THREE.RepeatWrapping;
+    const ps = [], uv = [], ix = []; let m = 0, s = 0, prev = null; const off = 14.3;
+    for (let k = 24.47; k <= 24.60 + 1e-6; k += .004, m++) { const r = RA(k), x = r.x + r.lx * off, z = r.z + r.lz * off; if (prev) s += Math.hypot(x - prev[0], z - prev[1]); prev = [x, z];
+      ps.push(x, r.y - .2, z, x, r.y + 2.4, z); uv.push(s / 2.6, 0, s / 2.6, 1); if (m) { const o = (m - 1) * 2; ix.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); ge.computeVertexNormals();
+    g.add(dos(ge, new THREE.MeshStandardMaterial({ map: rejaV, alphaTest: .5, roughness: .6 })));
+  }
+  // ═════════ 18. Av. Principal de Las Mercedes, km 24,45–25,0 (2ª pasada, video a 2 cuadros/s con el capó: t=597–609 s) ═════════
+  //  Las cuatro fachadas más reconocibles, sobre sus huellas OSM (las extrusiones del motor se quitan en fx/correcciones/mercedes.js):
+  //  local blanco de dos plantas con franja azul (der., 24,50, t=597) y el cubo celeste a su lado (der., 24,54, t=597,5); la oficina
+  //  blanca de bandas oscuras con el lomo negro (der., 24,80, t=602–602,5); el muro cortina azul sobre planta baja oscura (izq.,
+  //  24,95–25,0, t=608,5). Más el pórtico azul «BARUTA» sobre la vía (t=597), el tótem rojo de KFC (izq., t=599,5) y las letras
+  //  verdes «BARUTA» en la jardinera de la esquina (izq., t=601,5): los tres textos se leen en el video.
+  {
+    // cuerpo extruido de una huella con fachada pintada en metros: tex cubre wt m de ancho y la altura completa h
+    const cuerpo = (ll, h, tex, wt, techo) => { const P = ll.map(([a, b]) => LL(a, b)), y0 = Math.min(...P.map(p => GY(p.x, p.z))) - .3, z0 = .3;
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1 / wt, -1 / h); tex.offset.set(0, (1 - z0) / h);
+      return placa(P, y0, y0 + z0 + h, techo || api.concrete(0xb9b6b0), new THREE.MeshStandardMaterial({ map: tex, roughness: .7 })); };
+    // canvas de fachada: px por metro fijo; fn(x, m) dibuja con m(metros) → px
+    const pinta = (wm, hm, fn) => api.canvasTex(Math.round(wm * 24), Math.round(hm * 24), (x, w, h) => { const m = v => v * 24, Y = v => h - v * 24; fn(x, m, Y, w, h); });
+    // 1) local blanco de dos plantas con franja azul: vitrina oscura abajo, franja azul, cinta de ventanas arriba, antepecho blanco
+    cuerpo([[10.486228, -66.865776], [10.485757, -66.865621], [10.485725, -66.865723], [10.485864, -66.865768], [10.485817, -66.865918], [10.485882, -66.865939], [10.485924, -66.865808], [10.486190, -66.865895]], 7.6,
+      pinta(10, 7.6, (x, m, Y, w) => { x.fillStyle = '#f3f2ee'; x.fillRect(0, 0, w, Y(0)); x.fillStyle = '#2b333b'; x.fillRect(m(.3), Y(3.2), w - m(.6), m(3.2));
+        x.fillStyle = '#e9e8e3'; for (let i = 0; i < 4; i++) x.fillRect(m(2.5 * i), Y(3.2), m(.18), m(3.2));
+        x.fillStyle = '#1f5fb4'; x.fillRect(0, Y(4.3), w, m(1.0)); x.fillStyle = '#26323c'; x.fillRect(m(.4), Y(6.5), w - m(.8), m(1.5)); x.fillStyle = '#eef0f2'; for (let i = 0; i < 5; i++) x.fillRect(m(2 * i), Y(6.5), m(.12), m(1.5)); }), 10);
+    // 2) cubo celeste de una planta (quiosco/local) junto al anterior
+    cuerpo([[10.485764, -66.865551], [10.485754, -66.865606], [10.485574, -66.865496], [10.485606, -66.865460]], 4.2,
+      pinta(6, 4.2, (x, m, Y, w) => { x.fillStyle = '#5ec3d0'; x.fillRect(0, 0, w, Y(0)); x.fillStyle = '#f4f6f6'; x.fillRect(0, 0, w, m(.45)); x.fillStyle = '#2f4f5a'; x.fillRect(m(2), Y(2.6), m(2), m(2.6)); }), 6, api.concrete(0xe9eceb));
+    // 3) oficina blanca de bandas: losas blancas de 1 m y cintas de vidrio oscuro de 2,4 m, planta baja retirada oscura, lomo negro vertical
+    cuerpo([[10.483826, -66.863781], [10.483678, -66.863918], [10.483864, -66.864126], [10.484013, -66.863987]], 14.6,
+      pinta(26, 14.6, (x, m, Y, w) => { x.fillStyle = '#222a31'; x.fillRect(0, 0, w, Y(0));
+        for (let f = 0; f < 4; f++) { const b = 3.6 + f * 2.75; x.fillStyle = '#f2f2ee'; x.fillRect(0, Y(b + 1.0), w, m(1.0)); x.fillStyle = '#3c4a55'; x.fillRect(0, Y(b + 2.75), w, m(1.75)); x.fillStyle = '#56636c'; for (let i = 0; i < 13; i++) x.fillRect(m(2 * i), Y(b + 2.75), m(.08), m(1.75)); }
+        x.fillStyle = '#f2f2ee'; x.fillRect(0, 0, w, m(.6)); x.fillStyle = '#141619'; x.fillRect(m(19), 0, m(3.4), Y(0)); }), 26);
+    // 4) muro cortina azul de cuatro plantas sobre planta baja oscura y retirada (dos huellas contiguas)
+    const azul = () => pinta(12, 17.4, (x, m, Y, w) => { x.fillStyle = '#26292c'; x.fillRect(0, 0, w, Y(0)); x.fillStyle = '#4f7f9c'; x.fillRect(0, 0, w, Y(3.4));
+      const gr = x.createLinearGradient(0, 0, 0, Y(3.4)); gr.addColorStop(0, 'rgba(190,220,240,.35)'); gr.addColorStop(1, 'rgba(20,50,80,.25)'); x.fillStyle = gr; x.fillRect(0, 0, w, Y(3.4));
+      x.fillStyle = '#9bb3c4'; for (let i = 0; i <= 8; i++) x.fillRect(m(1.5 * i) - 1, 0, 3, Y(3.4)); for (let f = 0; f <= 4; f++) x.fillRect(0, Y(3.4 + f * 3.5) - 2, w, 5);
+      x.fillStyle = '#d6d2ca'; for (let i = 0; i < 4; i++) x.fillRect(m(3 * i + 1.2), Y(3.4), m(.5), m(3.4)); });
+    cuerpo([[10.483366, -66.862522], [10.483278, -66.862397], [10.483089, -66.862580], [10.483182, -66.862686]], 17.4, azul(), 12, api.concrete(0x6f7478));
+    cuerpo([[10.483061, -66.862462], [10.482978, -66.862364], [10.483190, -66.862243], [10.483271, -66.862381], [10.483118, -66.862529]], 17.4, azul(), 12, api.concrete(0x6f7478));
+    // pórtico azul «BARUTA» sobre la calzada (t=597): poste a la izquierda y brazo hasta media vía; el panel mira al corredor
+    { const r = RA(24.53), hw = 11.2, pz = add(new THREE.CylinderGeometry(.22, .26, 7.6, 10), api.concrete(0x8c9196, { metalness: .4, roughness: .5 }), r.x + r.lx * (hw + 1.2), r.y + 3.8, r.z + r.lz * (hw + 1.2));
+      const brazo = add(new THREE.BoxGeometry(.25, .25, hw + 1.6), api.concrete(0x8c9196, { metalness: .4, roughness: .5 }), r.x + r.lx * (hw / 2 + .6), r.y + 7.3, r.z + r.lz * (hw / 2 + .6), ang(r.lx, r.lz));
+      const bt = api.canvasTex(512, 96, (x, w, h) => { x.fillStyle = '#1d5ea8'; x.fillRect(0, 0, w, h); x.strokeStyle = '#ffffff'; x.lineWidth = 4; x.strokeRect(5, 5, w - 10, h - 10); x.fillStyle = '#fff'; x.font = 'bold 56px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('BARUTA', w / 2, h / 2 + 3); });
+      const pm = new THREE.MeshStandardMaterial({ map: bt, roughness: .6 }), cs = api.concrete(0x1d5ea8);
+      const pan = add(new THREE.BoxGeometry(8.5, 1.6, .16), [cs, cs, cs, cs, pm, cs], r.x + r.lx * 5.2, r.y + 6.3, r.z + r.lz * 5.2); pan.rotation.y = Math.atan2(-r.tx, -r.tz); void pz; void brazo; }
+    // tótem rojo de KFC (izq., t=599,5) en la acera del local
+    { const r = RA(24.652), x = r.x + r.lx * 14.2, z = r.z + r.lz * 14.2, gy = Math.min(GY(x, z), r.y + .2);
+      const kt = api.canvasTex(128, 512, (c, w, h) => { c.fillStyle = '#d42a2a'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 64px Arial, sans-serif'; c.textAlign = 'center'; ['K', 'F', 'C'].forEach((t, i) => c.fillText(t, w / 2, 90 + i * 72)); });
+      const km = new THREE.MeshStandardMaterial({ map: kt, roughness: .6 }), rr = api.concrete(0xc42424);
+      const b = add(new THREE.BoxGeometry(1.4, 7.5, .7), [rr, rr, rr, rr, km, km], x, gy + 3.75, z); b.rotation.y = Math.atan2(-r.tx, -r.tz); }
+    // letras verdes «BARUTA» en la jardinera de la esquina (izq., t=601,5), recortadas (alphaTest) y con las dos caras frontales
+    { const r = RA(24.722), x = r.x + r.lx * 13.8, z = r.z + r.lz * 13.8, gy = Math.min(GY(x, z), r.y + .2);
+      const lt = api.canvasTex(512, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = '#2f9b3e'; c.font = 'bold 118px Arial Black, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('BARUTA', w / 2, h / 2 + 6); });
+      const dx = -r.tx * .55 - r.lx * .83, dz = -r.tz * .55 - r.lz * .83, ry = Math.atan2(dx, dz);
+      const pg = new THREE.PlaneGeometry(5.2, 1.3); pg.rotateY(ry); pg.translate(x, gy + .85, z);
+      g.add(dos(pg, new THREE.MeshStandardMaterial({ map: lt, alphaTest: .5, roughness: .6 })));
+      add(new THREE.BoxGeometry(5.8, .4, 1.4), api.concrete(0xc9c4ba), x, gy + .2, z, ry); }
   }
   return api.sombras(g);
 }

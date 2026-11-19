@@ -289,7 +289,7 @@ function makeLayer(z, offs, rLoad, rDrop, lift, order, maxPar, SEG) {
 }
 const layers = [makeLayer(18, [-150, 0, 150], Q.mem.z18[0], Q.mem.z18[1], .1, 1, 8, REL.length ? 16 : 4), makeLayer(19, [-45, 0, 45], Q.mem.z19[0], Q.mem.z19[1], .2, 2, 10, REL.length ? 8 : 4)]; let hiNext = 0;
 // ctx.pendientes(): cuánto falta por cargar cerca del corredor (imagen base, mosaicos de detalle, calzada y edificios de detalle).
-// Solo lee el estado; la carga sigue igual. La usa ui/resumen.js para no levantar el fundido de un salto antes de tiempo.
+// Solo lee el estado; la carga sigue igual. La usa ui/velo.js para no levantar el fundido de un salto antes de tiempo.
 ctx.pendientes = () => { const p = P(S.s, {}), pe = ctx.pend || {}; return (ctx.baseLista ? 0 : 1) + (pe.calzada || 0) + (pe.edificios || 0) + layers[1].pend(p.x, p.z, 260) + layers[0].pend(p.x, p.z, 420); };
 ctx.tilesCerca = (x, z) => [...layers[1].urls(x, z, 260), ...layers[0].urls(x, z, 420)];
 function hiUpdate(x, z, now) { if (now < hiNext) return; hiNext = now + 200; for (const f of layers) f(x, z); if (FUSION && FUSION.cull) FUSION.cull(x, z, Q.mem); }
@@ -588,7 +588,6 @@ const PACK = heroFx ? 260 : 160, gente = (fxMods.find(m => m.makeGente)?.makeGen
 
 // ───────── Estado ─────────
 const S = { mode: 'tour', running: false, paused: false, s: 0, clock: 0, scale: 30, target: 4 * 3600, cam: 0, effort: 1, energy: 100, hyd: 100, v: 0, wall: false, wallKm: null, drunk: new Set(), missed: 0, splits: [], tramoLog: [], lastT: -1, seenH: new Set(), toastUntil: 0, drinkPen: 0, effTime: [0, 0, 0, 0] };
-const EFF = [{ n: 'Suave', m: .93 }, { n: 'Objetivo', m: 1 }, { n: 'Fuerte', m: 1.06 }, { n: 'A tope', m: 1.12 }];
 const gradeSpeed = g => g > 0 ? 1 / (1 + .033 * Math.min(g, 12)) : 1 + .016 * Math.min(-g, 6);
 // reparto parejo de esfuerzo: tiempo de paso planificado por punto (para el delta contra el plan)
 const plan = new Float32Array(N); { let t = 0; for (let i = 1; i < N; i++) { t += STEP / gradeSpeed(gradeAt(i * STEP)); plan[i] = t; } const k = 1 / t; for (let i = 0; i < N; i++) plan[i] *= k; }
@@ -646,89 +645,63 @@ function updateHUD() {
   const nw = D.hidratacion.find(k => k > km + .03); $('nWater').innerHTML = nw ? `💧 Hidratación en <b>${((nw - km) * 1000 > 950 ? (nw - km).toFixed(1) + ' km' : Math.round((nw - km) * 100) * 10 + ' m')}</b>` : '💧 No quedan puestos: a meta';
   const cl = climbs.find(c => c.s1 > S.s); $('nHill').innerHTML = !cl ? '⛰ No quedan subidas' : cl.s0 <= S.s ? `⛰ Subiendo ${cl.n}: faltan <b>${cl.s1 - S.s > 950 ? ((cl.s1 - S.s) / 1000).toFixed(1) + ' km' : Math.round((cl.s1 - S.s) / 10) * 10 + ' m'}</b>` : `⛰ ${cl.n} en <b>${(kmOf(cl.s0) - km).toFixed(1)} km</b> (+${cl.gain} m en ${cl.s1 - cl.s0 > 950 ? ((cl.s1 - cl.s0) / 1000).toFixed(1) + ' km' : Math.round((cl.s1 - cl.s0) / 10) * 10 + ' m'})`;
   $('mStreet').textContent = D.calles ? (D.calles[Math.min(D.calles.length - 1, Math.floor(S.s / (STEP * D.callesCada)))] || '') : '';
-  if (S.mode === 'race') {
-    $('rE').textContent = Math.round(S.energy) + '%'; $('bE').style.width = S.energy + '%'; $('bE').style.background = S.energy < 20 ? 'var(--up)' : 'var(--accent)';
-    $('rH').textContent = Math.round(S.hyd) + '%'; $('bH').style.width = S.hyd + '%'; $('bH').style.background = S.hyd < 35 ? 'var(--up)' : 'var(--water)'; $('rEf').textContent = EFF[S.effort].n;
-    const d = S.clock - planAt(S.s), a = Math.abs(Math.round(d)); $('delta').innerHTML = S.wall ? '<b style="color:var(--up)">🧱 El muro: sin glucógeno</b>' : `Contra el plan: <b style="color:${d > 5 ? 'var(--up)' : 'var(--down)'}">${d > 0 ? '+' : '−'}${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}</b>`;
-    const st = D.hidratacion.find(k => Math.abs(sOfKm(k) - S.s) < 70 && !S.drunk.has(k)); $('drink').style.display = st ? 'block' : 'none';
-  }
   drawProfile(); drawMini();
   if (S.toastUntil && performance.now() > S.toastUntil) { $('toast').classList.remove('on'); S.toastUntil = 0; }
 }
 
 // ───────── Simulación ─────────
 function seek(s) { if (Math.abs(s - S.s) > 400) precarga = 1; S.s = clamp(s, 0, TOTAL - 1); if (S.mode === 'tour') S.clock = planAt(S.s); camSnap = true; S.seenH = new Set(D.hitos.filter(h => sOfKm(h.km) < S.s - 30).map(h => h.km)); }
-function drink() { const km = kmOf(S.s), st = D.hidratacion.find(k => Math.abs(sOfKm(k) - S.s) < 70 && !S.drunk.has(k)); if (!st || S.mode !== 'race') return; S.drunk.add(st); const gat = (D.gatorade || []).includes(st); S.hyd = Math.min(100, S.hyd + 14); let m = '+14% hidratación'; if (gat) { S.energy = Math.min(100, S.energy + 2); m = 'Gatorade: +14% hidratación, +2% energía'; } if ((D.geles || []).includes(st)) { S.energy = Math.min(100, S.energy + 9); m += ' · gel GU: +9% energía'; } S.clock += 2; toast((gat ? '🟠' : '💧') + ' Bebiste en el km ' + km.toFixed(1), m, 2.5); }
+function drink() { window.__cafUI?.carrera?.beber(); }   // «Correr la carrera» vive en ui/carrera.js (modelo en ui/carrera_modelo.js)
 function step(dtReal) {
+  if (S.mode === 'race') { window.__cafUI?.carrera?.paso(dtReal); return; }   // la carrera la avanza su modelo (ui/carrera.js)
   const km = kmOf(S.s), g = gradeAt(S.s); let slow = 1;
   // hitos: aviso y cámara lenta al pasar
   for (const h of D.hitos) { const d = sOfKm(h.km) - S.s; if (d < 160 && d > -40) { if (S.mode === 'tour') slow = .4; if (!S.seenH.has(h.km)) { S.seenH.add(h.km); toast('📍 ' + h.nombre, (h.pos ? '' : (h.lado === 'izq' ? 'A tu izquierda. ' : 'A tu derecha. ')) + h.desc, 6.5); } } }
   const dt = dtReal * S.scale * slow;
-  if (S.mode === 'tour') { S.v = VB * gradeSpeed(g); }
-  else {
-    const m = EFF[S.effort].m; let f = 1; if (S.energy < 18) f *= .58 + .42 * S.energy / 18; if (S.hyd < 30) f *= .86 + .14 * S.hyd / 30;
-    S.v = VB * m * gradeSpeed(g) * f; const ds = S.v * dt, heat = 1 + .55 * (S.s / TOTAL);
-    let drain = 106 / TOTAL * Math.pow(m, 4.5) * (g > 0 ? 1 + .075 * g : Math.max(.82, 1 + .03 * g)) * (S.hyd < 40 ? 1.3 : 1) * (.9 + .12 * heat);
-    S.energy = Math.max(0, S.energy - drain * ds); S.hyd = Math.max(0, S.hyd - 100 / 12500 * heat * ds); S.effTime[S.effort] += dt;
-    const ti = tramoIdx(km); (S.tramoLog[ti] = S.tramoLog[ti] || { e: 0, t: 0, ef: 0 }); S.tramoLog[ti].e += drain * ds; S.tramoLog[ti].t += dt; S.tramoLog[ti].ef += S.effort * dt;
-    if (S.energy < 18 && !S.wall) { S.wall = true; S.wallKm = km; toast('🧱 Chocaste con el muro', 'Glucógeno agotado en el km ' + km.toFixed(1) + '. El ritmo se cae aunque quieras apretar.', 6); }
-    for (const k of D.hidratacion) if (!S.drunk.has(k) && S.s - sOfKm(k) > 75 && !S.drunk.has('m' + k)) { S.drunk.add('m' + k); S.missed++; }
-  }
+  S.v = VB * gradeSpeed(g);
   const k5a = Math.floor(km / 5); S.s += S.v * dt; S.clock += dt; const k5b = Math.floor(kmOf(S.s) / 5); if (k5b > k5a && k5b <= 8) S.splits.push({ km: k5b * 5, t: S.clock, e: S.energy });
   if (S.s >= TOTAL - 1) { S.s = TOTAL - 1; finish(); }
 }
 function start(mode, o = {}) {
   S.resumen = !!o.resumen; S.dia = mode !== 'race'; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; document.body.dataset.modo = S.resumen ? 'resumen' : mode;   // recorrido y resumen de día; la carrera con la luz de la hora real
   Object.assign(S, { mode, running: true, paused: false, s: 0, clock: 0, effort: 1, energy: 100, hyd: 100, wall: false, wallKm: null, drunk: new Set(), missed: 0, splits: [], tramoLog: [], lastT: -1, seenH: new Set(), effTime: [0, 0, 0, 0] });
-  VB = vBase(); camSnap = true; $('start').style.display = 'none'; $('end').style.display = 'none'; $('hud').style.display = 'block'; $('race').style.display = mode === 'race' ? 'block' : 'none'; $('drink').style.display = 'none';
-  prof.style.cursor = mode === 'tour' ? 'pointer' : 'default'; setSpeed(S.scale); setEffort(1); drawProfileBase(); $('bPlay').textContent = '⏸ Pausa';
-  toast(mode === 'tour' ? 'Salida: Parque Los Caobos' : '¡Arranca! Objetivo ' + fmtT(S.target), mode === 'tour' ? 'Toca el perfil de abajo para saltar a cualquier km.' : 'No te dejes llevar: los primeros km engañan. Bebe en cada toldo azul.', 6);
+  VB = vBase(); camSnap = true; $('start').style.display = 'none'; $('end').style.display = 'none'; $('hud').style.display = 'block';
+  prof.style.cursor = mode === 'tour' ? 'pointer' : 'default'; setSpeed(S.scale); drawProfileBase(); $('bPlay').textContent = '⏸ Pausa';
+  if (mode === 'tour') toast('Salida: Parque Los Caobos', 'Toca el perfil de abajo para saltar a cualquier km.', 6);
   window.__cafUI?.ayuda?.alEmpezar(mode);
 }
 function finish() {
-  S.running = false; const ok = S.clock <= S.target, near = S.clock <= S.target * 1.03; let html;
+  S.running = false; let html;
   if (S.mode === 'tour') {
     const sub = D.subidas || [], gain = sub.reduce((a, c) => a + c.gain, 0), larga = sub.slice().sort((a, b) => b.gain - a.gain)[0], iTop = R.e.indexOf(eMax), iLow = R.e.indexOf(eMin), P = window.__cafUI?.plan?.calc(S.target), fk = k => k.toLocaleString('es');
     const mmss = t => { t = Math.round(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
     html = `<div class="tag">Ruta reconocida</div><h1>42,195 km <em>en tu cabeza</em></h1><p class="sub">Lo que acabas de ver, en cuatro datos.${P ? ` Con ${fmtT(S.target)} de objetivo la media es ${mmss(P.mean)}/km, pero el km ${P.lentos[0]} sale a ${mmss(P.kms[P.lentos[0] - 1].p)} y el ${P.rapidos[0]} a ${mmss(P.kms[P.rapidos[0] - 1].p)}: tu plan trae los 42.` : ''}</p>
       <div class="kpis"><div><b>${sub.length}</b><span>subidas, +${gain} m entre todas; ${larga ? `la que decide va del km ${fk(larga.km0)} al ${fk(larga.km1)}` : ''}</span></div><div><b>${D.hidratacion.length}</b><span>puestos de agua, ${(D.gatorade || []).length} con isotónico</span></div><div><b>km ${(D.geles || []).map(fk).join(' y ')}</b><span>gel oficial</span></div><div><b>${Math.round(eMax)} m</b><span>el techo, en el km ${fk(Math.round(kmOf(iTop * STEP) * 10) / 10)}; lo más bajo, ${Math.round(eMin)} m en el km ${fk(Math.round(kmOf(iLow * STEP) * 10) / 10)}</span></div></div>`;
-  } else {
-    const stars = ok ? 3 : near ? 2 : 1, d = S.clock - S.target, a = Math.abs(Math.round(d)); let prev = 0;
-    const rows = S.splits.map(x => { const sp = x.t - prev; prev = x.t; return `<tr><td>km ${x.km - 5}–${x.km}</td><td>${fmtT(sp)}</td><td>${fmtP(sOfKm(5) / sp)}</td><td>${Math.round(x.e)}%</td></tr>`; }).join('');
-    const tl = S.tramoLog.map((t, i) => t && ({ i, perKm: t.e / (D.tramos[i].km1 - D.tramos[i].km0), ef: t.ef / t.t })).filter(Boolean).sort((a, b) => b.perKm - a.perKm);
-    const les = []; if (S.wallKm) les.push(`Chocaste con el muro en el km ${S.wallKm.toFixed(1)}. Casi siempre se paga lo que se gastó de más antes del km 25, no lo que pasa en ese momento.`); else les.push(`Llegaste con ${Math.round(S.energy)}% de energía${S.energy > 25 ? ': te sobró para apretar en los últimos 10 km' : ': reparto casi perfecto'}.`);
-    if (tl[0]) les.push(`Donde más energía por km gastaste: <b>${D.tramos[tl[0].i].nombre}</b> (esfuerzo medio «${EFF[Math.round(tl[0].ef)].n}»). ${D.tramos[tl[0].i].consejo}`);
-    if (S.missed) les.push(`Te saltaste ${S.missed} puesto${S.missed > 1 ? 's' : ''} de hidratación. Con menos de 40% de hidratación el gasto de energía sube 30%.`);
-    const hi = S.effTime[2] + S.effTime[3], tot = S.effTime.reduce((a, b) => a + b, 0); if (hi / tot > .3) les.push(`Corriste el ${Math.round(hi / tot * 100)}% del tiempo por encima del ritmo objetivo. Ir 6% más rápido cuesta ~30% más de glucógeno.`);
-    let best = null; try { best = +localStorage.getItem('caf3d-best-' + S.target) || null; if (!best || S.clock < best) localStorage.setItem('caf3d-best-' + S.target, Math.round(S.clock)); } catch (e) { }
-    html = `<div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><h1>${fmtT(S.clock)} <em>${ok ? 'objetivo cumplido' : 'en meta'}</em></h1><p class="sub">Objetivo ${fmtT(S.target)} · ${d > 0 ? '+' : '−'}${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}${best ? ' · tu mejor marca anterior: ' + fmtT(best) : ''}</p><table><tr><th>Parcial</th><th>Tiempo</th><th>Ritmo</th><th>Energía al cierre</th></tr>${rows}</table><ul>${les.map(l => `<li>${l}</li>`).join('')}</ul>`;
   }
-  $('endC').innerHTML = html + `<div class="acts"><button class="go" id="ePlan">Ver mi plan</button><button class="go alt" id="eShare">Compartir</button><button class="go alt" id="eMenu">Empezar de nuevo</button><button class="lnk" id="eAgain">${S.mode === 'tour' ? 'o córrela tú, administrando el esfuerzo' : 'o córrela otra vez'}</button></div>`;
+  $('endC').innerHTML = html + `<div class="acts"><button class="go" id="ePlan">Ver mi plan</button><button class="go alt" id="eShare">Compartir</button><button class="go alt" id="eMenu">Empezar de nuevo</button><button class="lnk" id="eAgain">o córrela tú: arma tu estrategia</button></div>`;
   $('end').style.display = 'flex'; $('eAgain').onclick = () => go('race'); $('eMenu').onclick = menu; $('ePlan').onclick = () => window.__cafUI?.plan?.abrir();
-  $('eShare').onclick = () => window.__cafUI?.plan?.compartir(S.mode === 'race' ? `Corrí el Maratón CAF en 3D en ${fmtT(S.clock)}.` : '');
+  $('eShare').onclick = () => window.__cafUI?.plan?.compartir('');
 }
 function menu() { S.running = false; $('end').style.display = 'none'; $('hud').style.display = 'none'; $('start').style.display = 'flex'; }
 function setSpeed(v) { S.scale = v; document.querySelectorAll('#segSpd button').forEach(b => b.classList.toggle('on', +b.dataset.s === v)); }
-function setEffort(e) { S.effort = clamp(e, 0, 3); document.querySelectorAll('#eff button').forEach(b => b.classList.toggle('on', +b.dataset.e === S.effort)); }
 function togglePause() { if (!S.running) return; S.paused = !S.paused; $('bPlay').textContent = S.paused ? '▶ Seguir' : '⏸ Pausa'; }
 function toggleIdx(f) { const el = $('idx'), on = f ?? el.style.display !== 'block'; el.style.display = on ? 'block' : 'none'; }
 
 // UI
-let selMode = 'resumen'; $('start').dataset.sel = selMode;
-document.querySelectorAll('.mode').forEach(m => m.onclick = () => { selMode = m.dataset.m; $('start').dataset.sel = selMode; document.querySelectorAll('.mode').forEach(x => x.classList.toggle('sel', x === m)); $('bGo').textContent = { resumen: 'Ver la ruta en 60 s →', tour: 'Salir de Los Caobos →', race: 'A la línea de salida →' }[selMode]; });
-// «resumen» = lo esencial en 60 s (ui/resumen.js); si el módulo no cargó, cae en el recorrido guiado
-const go = m => m === 'resumen' ? (window.__cafUI?.resumen ? window.__cafUI.resumen.iniciar() : start('tour')) : (start(m), window.__cafUI?.resumen?.cubrirInicio());
+let selMode = 'tour'; $('start').dataset.sel = selMode;
+document.querySelectorAll('.mode').forEach(m => m.onclick = () => { selMode = m.dataset.m; $('start').dataset.sel = selMode; document.querySelectorAll('.mode').forEach(x => x.classList.toggle('sel', x === m)); $('bGo').textContent = { tour: 'Salir de Los Caobos →', race: 'Armar mi estrategia →' }[selMode]; });
+// «Correr la carrera» pasa primero por la pantalla de estrategia (ui/carrera.js); el recorrido arranca tapado hasta que carga (ui/velo.js)
+const go = m => m === 'race' && window.__cafUI?.carrera ? window.__cafUI.carrera.estrategia() : (start(m === 'race' ? 'tour' : m), window.__cafUI?.velo?.cubrirInicio());
 const seg = (id, fn) => document.querySelectorAll('#' + id + ' button').forEach(b => b.onclick = () => { document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.toggle('on', x === b)); fn(b); });
-seg('segT', b => S.target = +b.dataset.t * 3600); seg('segD', b => S.scale = +b.dataset.s); seg('segSpd', b => setSpeed(+b.dataset.s)); seg('eff', b => setEffort(+b.dataset.e));
+seg('segT', b => S.target = +b.dataset.t * 3600); seg('segD', b => S.scale = +b.dataset.s); seg('segSpd', b => setSpeed(+b.dataset.s));
 $('tramo').onclick = () => $('tramo').classList.toggle('open'); document.querySelectorAll('#segQ button').forEach(b => { b.classList.toggle('on', b.dataset.q === Q.tier); b.onclick = () => { try { localStorage.setItem('caf3d-calidad', b.dataset.q); } catch (e) { } location.reload(); }; });
-$('bGo').onclick = () => go(selMode); $('bPlan').onclick = $('bPlanS').onclick = () => window.__cafUI?.plan?.abrir(); $('bPlay').onclick = togglePause; $('bCam').onclick = () => { S.cam = { 0: 3, 3: 1, 1: 2, 2: 0 }[S.cam] ?? 0; camSnap = true; $('bCam').textContent = '🎥 ' + ['Seguimiento', 'Dron', 'Cenital', 'A bordo'][S.cam]; }; $('bIdx').onclick = () => toggleIdx(); $('bLuz').onclick = () => { S.dia = !S.dia; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; }; $('bMenu').onclick = menu; $('drink').onclick = drink;
+$('bGo').onclick = () => go(selMode); $('bPlan').onclick = $('bPlanS').onclick = () => window.__cafUI?.plan?.abrir(); $('bPlay').onclick = togglePause; $('bCam').onclick = () => { S.cam = { 0: 3, 3: 1, 1: 2, 2: 0 }[S.cam] ?? 0; camSnap = true; $('bCam').textContent = '🎥 ' + ['Seguimiento', 'Dron', 'Cenital', 'A bordo'][S.cam]; }; $('bIdx').onclick = () => toggleIdx(); $('bLuz').onclick = () => { S.dia = !S.dia; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; }; $('bMenu').onclick = menu;
 $('idxL').innerHTML = D.tramos.map((t, i) => `<div class="it" data-i="${i}"><b>km ${t.km0.toFixed(1)}–${t.km1.toFixed(1)}</b><div><b>${t.nombre}</b><br><span>${t.consejo}</span></div></div>`).join('');
 $('idxL').onclick = e => { const it = e.target.closest('.it'); if (!it) return; if (S.mode === 'tour') seek(sOfKm(D.tramos[+it.dataset.i].km0)); toggleIdx(false); };
 addEventListener('keydown', e => {
   if (e.target.closest?.('input,textarea') || window.__cafUI?.plan?.abierto) return;
   if (!S.running) { if (e.key === 'Enter' && $('start').style.display !== 'none') go(selMode); return; }
-  const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); togglePause(); } else if (k === 'c') $('bCam').click(); else if (k === 'f') { S.verFps = !S.verFps; $('fps').style.display = S.verFps ? 'block' : 'none'; } else if (k === 't') toggleIdx(); else if (k === 'escape') toggleIdx(false); else if (k === 'b') drink(); else if (k === 'p') window.__cafUI?.plan?.abrir();
-  else if (k >= '1' && k <= '4') { if (S.mode === 'race') setEffort(+k - 1); } else if (k === 'arrowup') { if (S.mode === 'race') setEffort(S.effort + 1); } else if (k === 'arrowdown') { if (S.mode === 'race') setEffort(S.effort - 1); }
+  const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); togglePause(); } else if (k === 'c') $('bCam').click(); else if (k === 'f') { S.verFps = !S.verFps; $('fps').style.display = S.verFps ? 'block' : 'none'; } else if (k === 't') toggleIdx(); else if (k === 'escape') toggleIdx(false); else if (k === 'p') window.__cafUI?.plan?.abrir();
   else if (k === 'arrowright' && S.mode === 'tour') seek(S.s + 500); else if (k === 'arrowleft' && S.mode === 'tour') seek(S.s - 500);
 });
 $('fine').innerHTML = `Proyecto independiente hecho por un corredor: no es un producto oficial de CAF ni de la organización del maratón. Trazado: ${D.meta.fuente}. Imagen satelital: Esri, Maxar, Earthstar Geographics. Relieve SRTM 30 m y ${(D.edif || []).length.toLocaleString('es')} edificios con su huella real de © OpenStreetMap. Todo está a escala real 1:1; los bordes de la calzada se tiñen de rojo cuando sube y de verde cuando baja. ${D.meta.aviso || ''}`;
@@ -768,7 +741,8 @@ function frame(now) {
   const s = S.running || $('end').style.display === 'flex' ? S.s : (idleS = (idleS + dt * 260) % TOTAL), p = P(s, pa), sc = S.running ? S.scale : 30;
   // héroe
   anim += dt * (S.paused ? 0 : 11); hero.position.set(p.x, p.y, p.z); hero.rotation.y = Math.atan2(p.tx, p.tz); const sw = Math.sin(anim) * .9;
-  if (heroFx) heroFx.update({ fase: anim, pausado: S.paused, dt, v: S.v, pendiente: p.grade }); else { hero.userData.legs[0].rotation.x = sw; hero.userData.legs[1].rotation.x = -sw; hero.userData.arms[0].rotation.x = -sw * .8; hero.userData.arms[1].rotation.x = sw * .8; hero.position.y += Math.abs(Math.cos(anim)) * .12; hero.rotation.x = .08; }
+  if (heroFx) { const cui = window.__cafUI, cst = S.mode === 'race' && S.running && cui && cui.carrera && cui.carrera.st ? cui.carrera.st : null;   /* en carrera, la postura del corredor refleja fatiga, energía baja y el muro */
+    heroFx.update({ fase: anim, pausado: S.paused, dt, v: S.v, pendiente: p.grade, fatiga: cst ? clamp(Math.max(cst.F / 100, cst.muro ? .85 : 0, 1 - cst.E / 35), 0, 1) : 0, caminando: !!(cst && cst.muro && S.v < 2.2) }); } else { hero.userData.legs[0].rotation.x = sw; hero.userData.legs[1].rotation.x = -sw; hero.userData.arms[0].rotation.x = -sw * .8; hero.userData.arms[1].rotation.x = sw * .8; hero.position.y += Math.abs(Math.cos(anim)) * .12; hero.rotation.x = .08; }
   ring.position.set(p.x, p.y + .15, p.z); beam.position.set(p.x, p.y + 4, p.z); const far = S.cam === 2 ? 1 : sc > 45 ? .6 : 0; beam.scale.set(1 + far * 6, 60 + far * 400, 1 + far * 6); beam.visible = far > 0; ring.scale.setScalar(1 + far * 10);
   // pelotón (se dispersa con los km)
   const m4 = frame.m || (frame.m = new THREE.Matrix4()), dens = 1 - .75 * (s / TOTAL); let vis = 0;
@@ -782,7 +756,8 @@ function frame(now) {
   else if (S.cam === 4) { const b = P(s - 55, pb), f = P(s + 140, pc); wantPos.set(b.x, Math.max(b.y, p.y) + 22, b.z); wantTgt.set(f.x, f.y + 4, f.z); camera.up.set(0, 1, 0); }   // dron bajo (resumen de 60 s)
   else if (S.cam === 1) { const a = now * .00008, r = 150 + sc * 2; wantPos.set(p.x + Math.cos(a) * r, p.y + 90 + sc, p.z + Math.sin(a) * r); wantTgt.set(p.x, p.y + 4, p.z); camera.up.set(0, 1, 0); }
   else { wantPos.set(p.x, p.y + 1500, p.z + 260); wantTgt.set(p.x, p.y, p.z - 80); camera.up.set(0, 1, 0); }
-  const fovW = S.cam === 3 ? 74 : 58; if (camera.fov !== fovW) { camera.fov = fovW; camera.updateProjectionMatrix(); } hero.visible = ring.visible = S.cam !== 3;
+  // en vertical, 10° más de campo en seguimiento y a bordo: si no, el teléfono ve un pasillo de ~28° de ancho
+  const fovW = (S.cam === 3 ? 74 : 58) + (camera.aspect < .75 && (S.cam === 0 || S.cam === 3) ? 10 : 0); if (camera.fov !== fovW) { camera.fov = fovW; camera.updateProjectionMatrix(); } hero.visible = ring.visible = S.cam !== 3;
   const vw = S.running && !S.paused ? (S.v || 3) * sc : 0, k = camSnap ? 1 : S.cam === 3 ? 1 - Math.exp(-dt * Math.max(9, vw * .8)) : 1 - Math.exp(-dt * (S.cam === 0 ? Math.max(3.2, vw * .6) : 2)); nearFade.value = S.cam === 0 ? 7.5 : 0; camSnap = false; camPos.lerp(wantPos, k); camTgt.lerp(wantTgt, k);
   const floor = Y(hT(camPos.x, camPos.z)) + (S.cam === 3 ? 1.2 : S.cam === 0 ? 1.6 : 3); if (camPos.y < floor) camPos.y = floor;
   camera.position.copy(camPos); camera.lookAt(camTgt);
@@ -814,18 +789,21 @@ for (const m of fxMods) { try { m.install?.(ctx); } catch (e) { console.error('f
 window.__carga?.(1); $('load').style.display = 'none'; $('start').style.display = 'flex'; requestAnimationFrame(frame);
 { const q = new URLSearchParams(location.search); if (q.get('auto') !== null) ready.push(() => setTimeout(() => { start('tour'); S.scale = 10; S.dia = q.get('dia') !== '0'; S.cam = +(q.get('cam') || 0); seek(sOfKm(+q.get('auto'))); if (!S.dia && q.get('min')) S.clock = +q.get('min') * 60; if (q.get('hud') === '0') $('hud').style.display = 'none'; camSnap = true;   // corre 1,6 s para que la luz se asiente y luego vuelve clavado al km pedido
   setTimeout(() => { seek(sOfKm(+q.get('auto'))); S.paused = true; camSnap = true; setTimeout(() => { document.title = 'listo'; }, 6000); }, 1600); }, 300)); }
-window.__caf = { get fusion() { return FUSION; }, cuadro: frame, hT, Y, ctx, scene, camera, Q, renderer, S, seek, start, P, D, step, drink, setEffort, menu, go, gradeAt, gradeSpeed, planAt, fmtT, fmtP }; // para depurar
-// Producto (ui/): plan de carrera, resumen de 60 s y ayuda de primer uso. Si fallan, el juego sigue igual.
-Promise.all(['plan', 'resumen', 'ayuda'].map(id => import(`./ui/${id}.js${VQ}`))).then(([p, r, a]) => { const ui = window.__cafUI = {}; ui.plan = p.crearPlan(window.__caf); ui.resumen = r.crearResumen(window.__caf, ui); ui.ayuda = a.crearAyuda(window.__caf); }).catch(e => console.error('ui', e));
+window.__caf = { get fusion() { return FUSION; }, cuadro: frame, hT, Y, ctx, scene, camera, Q, renderer, S, seek, start, P, D, step, drink, menu, go, gradeAt, gradeSpeed, planAt, fmtT, fmtP }; // para depurar
+// Producto (ui/): plan de carrera, fundido de carga, ayuda de primer uso y el modo «Correr la carrera». Si fallan, el juego sigue igual.
+Promise.all(['plan', 'velo', 'ayuda', 'carrera'].map(id => import(`./ui/${id}.js${VQ}`))).then(([p, v, a, c]) => { const ui = window.__cafUI = {}; ui.plan = p.crearPlan(window.__caf); ui.velo = v.crearVelo(window.__caf, ui); ui.ayuda = a.crearAyuda(window.__caf); try { ui.carrera = c.crearModoCarrera(window.__caf, ui); } catch (e) { console.error('carrera', e); } }).catch(e => console.error('ui', e));
+// Teléfono: «modo cine» del recorrido (ui/cine.js): píldora arriba, tramo en una línea, tira del perfil y hoja de controles. Si falla, queda el HUD de siempre.
+import(`./ui/cine.js${VQ}`).then(m => { window.__cafCine = m.crearCine(window.__caf); }).catch(e => console.error('cine', e));
 // ?choques=km0,km1 → corre la auditoría de fx/choques.js (cosas atravesadas en la calzada) y la imprime en la consola como «CHOQUES»
 // Retomar tras perder el contexto gráfico: el script en línea de index.html guarda en sessionStorage (caf3d-rescate) el modo, el objetivo y el km,
 // y recarga con ?retoma=1 en una calidad más baja. Aquí se arranca ese modo en ese km (la carrera, con su reloj, energía, hidratación y puestos).
 { let r = null; try { if (_q0.get('retoma')) r = JSON.parse(sessionStorage.getItem('caf3d-rescate') || 'null'); } catch (e) { }
   if (r && r.pend && r.est) ready.push(() => setTimeout(() => { try { const e = r.est; r.pend = false; try { sessionStorage.setItem('caf3d-rescate', JSON.stringify(r)); } catch (x) { }
-    const race = e.modo === 'race'; if (e.target) S.target = e.target; start(race ? 'race' : 'tour'); seek(e.s || 0); setEffort(e.effort ?? 1); if (e.scale) setSpeed(e.scale);
-    if (race) Object.assign(S, { clock: e.clock || 0, energy: e.energy ?? 100, hyd: e.hyd ?? 100, missed: e.missed || 0, splits: e.splits || [], wall: !!e.wall, wallKm: e.wallKm ?? null, drunk: new Set(e.drunk || []) });
+    const race = e.modo === 'race'; if (e.target) S.target = e.target;
+    if (race) { if (!window.__cafUI?.carrera?.retomar(e.carrera)) { start('tour'); seek(e.s || 0); } return; }   // la carrera retoma con su plan y su estado (ui/carrera.js)
+    start('tour'); seek(e.s || 0); if (e.scale) setSpeed(e.scale);
     if (e.dia != null) { S.dia = e.dia; $('bLuz').textContent = S.dia ? '☀️ Pleno día' : '🌅 Hora real'; } if (e.cam != null && e.cam !== 4) { S.cam = e.cam; $('bCam').textContent = '🎥 ' + ['Seguimiento', 'Dron', 'Cenital', 'A bordo'][S.cam]; }
-    window.__cafUI?.resumen?.cubrirInicio(); toast('Seguimos en el km ' + kmOf(S.s).toFixed(1), 'El equipo se quedó sin memoria gráfica; se retomó en calidad ' + ({ media: 'Media', ligera: 'Ligera' }[Q.tier] || Q.tier) + '.', 6);
+    window.__cafUI?.velo?.cubrirInicio(); toast('Seguimos en el km ' + kmOf(S.s).toFixed(1), r.motivo || 'El equipo se quedó sin memoria gráfica; se retomó en calidad ' + ({ media: 'Media', ligera: 'Ligera' }[Q.tier] || Q.tier) + '.', 6);
   } catch (x) { console.error('retoma', x); } }, 400)); }
 // ?mem=1 → contador de memoria en pantalla; ?mem=km0,km1[,paso,cuadros,vueltas] → recorre la ruta y escribe una línea «MEMORIA» por km (fx/memoria.js, fx/memoria.sh)
 { const q = new URLSearchParams(location.search).get('mem'); if (q) import('./fx/memoria.js' + VQ).then(m => { window.__mem = m; if (q === '1') return m.contador(window.__caf);

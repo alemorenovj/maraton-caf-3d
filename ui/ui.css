@@ -1,4 +1,4 @@
-/* Producto: carga, portada de tres modos, objetivo libre, plan de carrera, resumen de 60 s, ayuda y pantalla final */
+/* Producto: carga, portada de dos modos, objetivo libre, plan de carrera, resumen de 60 s, ayuda y pantalla final */
 .tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 /* carga */
 #load{flex-direction:column;gap:16px;padding:24px;text-align:center;font-family:Inter,system-ui,sans-serif;font-size:14px}
@@ -9,10 +9,10 @@
 #load .lb i{display:block;height:100%;width:3%;background:var(--accent);border-radius:4px;transition:width .35s ease-out}
 #load .lx{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);min-height:14px}
 /* portada */
-.modes{grid-template-columns:repeat(3,1fr)}
+.modes{grid-template-columns:repeat(2,1fr)}
 .mode{position:relative}
 .mode .badge{display:inline-block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#1a1400;background:var(--accent);border-radius:6px;padding:2px 7px;margin-bottom:8px;font-weight:600}
-#start[data-sel="resumen"] .opt-dur{opacity:.35;pointer-events:none}
+#start[data-sel="race"] .opt-dur{display:none}
 .obj{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
 .obj input{width:86px;font:600 15px Inter,system-ui,sans-serif;color:var(--bone);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
 .obj input:focus{outline:none;border-color:var(--accent)}
@@ -65,9 +65,7 @@
 .pbar .go{margin-top:0;font-size:15px;padding:12px 22px}
 #aviso{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,160%);z-index:12;padding:12px 18px;font-size:13.5px;max-width:min(460px,92vw);text-align:center;transition:transform .4s cubic-bezier(.2,.9,.2,1)}
 #aviso.on{transform:translate(-50%,0)}
-/* resumen de 60 s */
-#res{position:fixed;inset:0;z-index:6;pointer-events:none}
-#res>*{pointer-events:auto}
+/* fundido de carga (ui/velo.js) */
 #velo{position:fixed;inset:0;z-index:5;background:#07080c;opacity:0;transition:opacity .24s;pointer-events:none;display:flex;align-items:center;justify-content:center}
 #velo.on{opacity:1;pointer-events:auto}
 #velo.ya{transition:none}
@@ -78,19 +76,6 @@
 #lento{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:7;display:flex;gap:10px;align-items:center;padding:10px 12px 10px 16px;font-size:13px;max-width:calc(100vw - 24px)}
 #lento button{white-space:nowrap}
 .qnota{font-size:11px;color:var(--mute);margin-top:6px;max-width:300px;line-height:1.4}
-#res .rtop{position:absolute;left:16px;right:16px;top:calc(14px + env(safe-area-inset-top));pointer-events:none}
-.rbar{display:flex;gap:4px}
-.rbar i{flex:1;height:4px;border-radius:4px;background:rgba(255,255,255,.22);overflow:hidden}
-.rbar b{display:block;height:100%;width:0;background:var(--bone)}
-.rctl{display:flex;gap:8px;align-items:center;margin-top:10px}
-.rctl .rt{flex:1;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,239,230,.85);text-shadow:0 1px 6px rgba(0,0,0,.6)}
-.rctl button{pointer-events:auto;background:rgba(16,18,26,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-#res .rlab{position:absolute;left:24px;bottom:calc(58px + env(safe-area-inset-bottom));width:min(460px,calc(100vw - 48px));padding:16px 20px;opacity:0;transform:translateY(12px);transition:opacity .35s,transform .45s cubic-bezier(.2,.9,.2,1)}
-#res .rlab.in{opacity:1;transform:none}
-#res .rlab h3{font-family:"Instrument Serif",serif;font-weight:400;font-size:34px;line-height:1.05;margin:5px 0 6px}
-#res .rlab p{font-size:14.5px;line-height:1.45;color:#e2dfd7}
-#res .rlab .rm{margin-top:9px;padding-top:9px;border-top:1px solid var(--line);font-size:12.5px;color:var(--accent)}
-#res .rfin{z-index:1;background:radial-gradient(1000px 600px at 50% 30%,rgba(20,24,40,.35),rgba(8,9,14,.82))}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 4px}
 #plan .pt-t td:first-child{white-space:nowrap}
 .kpis div{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.04)}

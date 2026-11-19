@@ -29,6 +29,12 @@
 // viejas (t≈627 = 25,74, t≈630 = 25,86) siguen valiendo.
 // 5ª pasada (19-nov), tras «el Tamanaco y el Eurobuilding no se reconocen»: los dos hoteles rehechos con foto de referencia (ver
 // landmarks/zona_mercedes.js §5) y la calle La Guairita sin la isla ni la calzada contraria inventadas (fx/correcciones/rio_janeiro.js).
+// 7ª pasada (21-nov), Av. Principal y Plaza Alfredo Sadel (24,45–25,30), con el video a 2 cuadros/s (t=596–624 s) y anclas nuevas:
+// t=610,5 semáforo de la Calle Londres = km 25,02 · t≈614,7 el tubo de los Mástiles por la izquierda = 25,166 · t=616 cebra de
+// La Trinidad = 25,206 (el índice de fotogramas va ~0,1 km ADELANTADO aquí: f_0247 cae en 25,18, no en 25,29). La plaza, la
+// calzada adoquinada con bolardos, la cerca con grafiti, las grúas y la reja verde van en landmarks/zona_mercedes.js §14–17; el
+// frente del Tolón en landmarks/tolon_las_mercedes.js. Aquí: árboles de la plaza (nodos OSM), la sección angosta desde 25,00 y
+// los edificios de la derecha frente a la plaza (esqueleto, locales, Itaca, torre de ladrillo en obra) y dos oficinas blancas.
 const COM = 'comercial bajo con santamarías';
 export default {
   edif: [
@@ -85,51 +91,48 @@ export default {
     { ll: [10.488051, -66.865563], a: 'RES', pisos: 10, alt: 1, col: '#c2643c', shop: 1, nota: 'Edificio Forum, ladrillo naranja (izq., f_0237)' },
     { ll: [10.487902, -66.866175], a: 'VID', col: '#2f8a8c', nota: 'Torre Banesco, vidrio verde azulado (der., f_0238)' },
     { ll: [10.487557, -66.865572], a: 'COM', pisos: 3, col: '#d6d0c4' },
-    // ───── Las Mercedes: entrada bajo la autopista y cruce (24,40–24,62)
+    // ───── Las Mercedes: entrada bajo la autopista y cruce (24,40–24,62). 2ª pasada: las huellas del local blanco con franja azul, el cubo
+    // celeste, la oficina de bandas y los dos del muro cortina azul las quitan los círculos `quita` de landmarks/zona_mercedes.js (§18)
     { ll: [10.486540, -66.866348], a: 'COM', pisos: 3, col: '#ecebe6', shop: 0, nota: 'blanco con franja azul tras el elevado' },
     { ll: [10.486348, -66.866175], a: 'COM', pisos: 3, col: '#e4e2dc', shop: 0 },
-    { ll: [10.485924, -66.865806], a: 'COM', pisos: 2, col: '#d8d2c8', nota: 'Edificio CVA' },
     { ll: [10.485467, -66.865920], a: 'COM', pisos: 1, col: '#e0dbd0' },
     { ll: [10.485835, -66.864995], a: 'COM', pisos: 3, col: '#d6c7a6', shop: 0, nota: 'beige de 3 pisos con muro blanco (izq., s=600)' },
     { ll: [10.485076, -66.865329], a: 'COM', pisos: 6, col: '#a39f97', shop: 0, detalle: 0, nota: 'esqueleto de concreto en construcción con andamios (der., s=600)' },
     { ll: [10.485199, -66.864521], a: 'COM', pisos: 1, col: '#c8352e', shop: 1, nota: 'KFC, rojo (izq.)' },
     { ll: [10.484937, -66.864370], a: 'COM', pisos: 2, col: '#d9cfc0', nota: 'Pizza Hut' },
-    { ll: [10.484444, -66.864852], a: 'COM', pisos: 2, col: '#e9e7e2' },
+    { ll: [10.484444, -66.864852], a: 'VID', pisos: 2, alt: 1, col: '#8cc2d6', nota: 'local de vidrio celeste con letrero azul (der., t=600,5–601; 2ª pasada)' },
     { ll: [10.484375, -66.864533], a: 'COM', pisos: 2, col: '#e9e7e2' },
-    { ll: [10.484285, -66.864393], a: 'COM', pisos: 2, col: '#e9e7e2', nota: 'Supermercado Yeet' },
+    { ll: [10.484285, -66.864393], a: 'RES', alt: 1, pisos: 3, col: '#f2f1ed', shop: 1, nota: 'Supermercado Yeet: blanco de 3 plantas con logo azul (der., t=601,5; 2ª pasada: era caja gris)' },
     { ll: [10.484861, -66.864180], a: 'RES', pisos: 4, alt: 1, col: '#e2d9c8', nota: 'Residencias La Joya' },
     { ll: [10.484677, -66.863972], a: 'BRI', pisos: 6, col: '#d9d6cf', nota: 'Centro Bancaribe' },
     // ───── Av. Principal (24,75–25,05): concesionarios, oficinas blancas de 3–4 pisos, quintas
-    { ll: [10.483994, -66.864147], a: 'VID', pisos: 2, alt: 1, col: '#9fb4c4', nota: 'Multimarca, vitrina de concesionario (der., s=601,8)' },
-    { ll: [10.483845, -66.863953], a: 'BRI', pisos: 4, alt: 1, col: '#e4e2dc', nota: 'oficina blanca de bandas con franja oscura (der., s=602,5)' },
+    { ll: [10.483994, -66.864147], a: 'COM', pisos: 1, alt: 1, col: '#e9eef1', nota: 'Multimarca: vitrina baja (der., t=601,8); 2ª pasada: de 2 a 1 planta, tapaba la oficina de bandas que en el video se ve entera (t=602)' },
     { ll: [10.483699, -66.864131], a: 'COM', pisos: 3, col: '#e0ddd5' },
-    { ll: [10.483536, -66.863588], a: 'COM', pisos: 3, col: '#ecebe7', shop: 1, nota: 'blanco con letrero Frigorífico Trébol (der., f_0243)' },
-    { ll: [10.483307, -66.863455], a: 'BRI', pisos: 4, col: '#e8e6e0', nota: 'Centro Belsu' },
-    { ll: [10.483187, -66.863316], a: 'BRI', pisos: 4, col: '#e8e6e0', nota: 'oficina blanca de ventanas corridas (der., s=607)' },
-    { ll: [10.483036, -66.863103], a: 'BRI', pisos: 3, col: '#efede8', nota: 'Multicentro Las Mercedes' },
-    { ll: [10.482865, -66.862893], a: 'BRI', pisos: 3, col: '#f0efe9', nota: 'blanco moderno con palmas (der., f_0244)' },
+    { ll: [10.483536, -66.863588], a: 'RES', alt: 1, pisos: 3, col: '#efeeea', shop: 1, nota: 'blanco con letrero Frigorífico Trébol (der., f_0243; 2ª pasada: RES de retícula, el COM salía gris)' },
+    { ll: [10.483307, -66.863455], a: 'RES', alt: 1, pisos: 4, col: '#ecebe6', shop: 1, nota: 'Centro Belsu, blanco (der., t=607)' },
+    { ll: [10.483187, -66.863316], a: 'VID', pisos: 4, alt: 1, col: '#ecebe6', nota: 'oficina blanca de ventanas corridas (der., s=607)' },
+    { ll: [10.483036, -66.863103], a: 'RES', alt: 1, pisos: 3, col: '#f0efe9', shop: 1, nota: 'Multicentro Las Mercedes, blanco' },
+    { ll: [10.482865, -66.862893], a: 'RES', alt: 1, pisos: 3, col: '#f2f1ec', shop: 1, nota: 'blanco moderno con palmas y toldos (der., t=608–608,5)' },
     { ll: [10.482686, -66.862679], a: 'VID', pisos: 3, alt: 1, col: '#a9bfcf', nota: 'Parcela 340, vidrio claro' },
-    { ll: [10.482345, -66.862327], a: 'BRI', pisos: 4, col: '#e6e3dc', nota: 'Centro Profesional Las Mercedes' },
-    { ll: [10.482079, -66.862060], a: 'COM', pisos: 2, col: '#d8d8d4', nota: 'Rustiaco, concesionario' },
+    { ll: [10.482345, -66.862327], a: 'VID', pisos: 4, col: '#34414c', nota: 'Centro Profesional Las Mercedes: vidrio oscuro con rampa (der., t=611 s; 21-nov)' },
+    { ll: [10.482079, -66.862060], a: 'COM', pisos: 5, col: '#a39f97', shop: 0, detalle: 0, nota: 'esqueleto de concreto de 5 losas con lámina gris abajo y la señal verde Valle Arriba (der., t=611,5–612 s; 21-nov)' },
     { ll: [10.484550, -66.863606], a: 'CASA', pisos: 2, col: '#f1eee6' },
     { ll: [10.484254, -66.863244], a: 'COM', pisos: 2, col: '#e9e4d9', nota: 'Edificio Banesco' },
-    { ll: [10.483903, -66.863246], a: 'CASA', pisos: 2, col: '#f1eee6', nota: 'Quinta Los Manolos, blanca de techo rojo (izq., s=607)' },
+    { ll: [10.483903, -66.863246], a: 'RES', pisos: 3, col: '#f1efe9', old: 1, shop: 0, nota: 'casa vieja blanca de 3 plantas con balcones en la esquina (izq., t=606,5–607; 2ª pasada)' },
     { ll: [10.483760, -66.863074], a: 'CASA', pisos: 2, col: '#f3efe4', nota: 'Quinta Las Gracielas' },
     { ll: [10.483441, -66.862942], a: 'COM', pisos: 1, col: '#e6dfd2' },
     { ll: [10.483658, -66.862793], a: 'COM', pisos: 2, col: '#e6dfd2' },
     { ll: [10.483345, -66.862658], a: 'COM', pisos: 2, col: '#dad3c6', nota: 'Casino Humboldt' },
-    { ll: [10.483229, -66.862546], a: 'VID', pisos: 4, col: '#3f7f86', nota: 'vidrio verde azulado sobre base oscura con cerca de láminas (izq., f_0244)' },
     { ll: [10.483413, -66.862378], a: 'VID', pisos: 4, col: '#3f7f86' },
-    { ll: [10.483124, -66.862396], a: 'VID', pisos: 4, col: '#3f8088', nota: 'CC La Mansión: el mismo bloque de vidrio verde azulado' },
     { ll: [10.482849, -66.862022], a: 'VID', pisos: 4, col: '#3f8088', nota: 'Centro Summum: muro cortina verde azulado sobre planta baja retirada, cerca de láminas (izq., f_0244)' },
     // ───── Plaza Alfredo Sadel y Tolón (25,05–25,45)
     { ll: [10.482692, -66.861700], a: 'COM', pisos: 3, col: '#b5654a', shop: 0, nota: 'ladrillo rojizo de 3 pisos tras el de vidrio (izq., f_0244)' },
     { ll: [10.482572, -66.861467], a: 'COM', pisos: 2, col: '#e5ddcf', nota: 'Edificio BVC' },
-    { ll: [10.481773, -66.861691], a: 'COM', pisos: 2, col: '#cfcac0', nota: 'obra de 2 pisos' },
+    { ll: [10.481773, -66.861691], a: 'COM', pisos: 2, col: '#bf9a80', shop: 1, alt: 1, nota: 'locales de santamarías grises con franja terracota (der., t=612,5 s; 21-nov: era un galpón gris de 8 m)' },
     { ll: [10.481438, -66.861767], a: 'CASA', pisos: 2, col: '#e8dcc4' },
-    { ll: [10.481501, -66.861349], a: 'RES', pisos: 5, col: '#e5dccb', nota: 'Edificio Itaca' },
+    { ll: [10.481501, -66.861349], a: 'RES', pisos: 5, col: '#ecebe5', nota: 'Edificio Itaca, blanco, frente a la plaza (der., t=613 s)' },
     { ll: [10.481212, -66.861319], a: 'RES', pisos: 6, alt: 1, col: '#d8cdb8' },
-    { ll: [10.481039, -66.861356], a: 'BRI', pisos: 12, col: '#cfcac0', nota: 'Torre 422' },
+    { ll: [10.481039, -66.861356], a: 'RES', alt: 1, pisos: 14, col: '#b3644a', shop: 0, nota: 'torre de ladrillo en obra con grúa en la azotea (der., t=612,5–613 s; la grúa va en landmarks/zona_mercedes.js §17)' },
     { ll: [10.481744, -66.860674], a: 'RES', pisos: 6, col: '#e2d6c0', nota: 'Maracapana' },
     { ll: [10.481546, -66.860777], quitar: true, nota: 'obra de la estación: en el video es la plaza arbolada (f_0245)' },
     { ll: [10.481289, -66.860509], a: 'BRI', pisos: 4, alt: 1, col: '#e2ddd2', nota: 'Goizalde: blanco de bandas con vidrio y escalinata (izq., f_0247)' },
@@ -197,10 +200,14 @@ export default {
     { km0: 23.85, km1: 23.95, set: { 'veg.palR': 1 } },
     { km0: 24.15, km1: 24.28, set: { canales: 4, calzadas: 1, sep: 'ninguno', ancho: 18 } },
     // Av. Principal de Las Mercedes: muy ancha, sin isla, comercio bajo
-    { km0: 24.45, km1: 25.04, set: { canales: 6, calzadas: 1, sep: 'ninguno', ancho: 22, 'L.tipo': COM, 'R.tipo': COM, 'L.col': ['#ecebe6', '#e2dccf', '#d8d4cb', '#cfc6b2'], 'R.col': ['#efeee9', '#e4e0d6', '#d9d3c5', '#c9ccce'], 'veg.palL': .6, 'veg.palR': .6, 'veg.L': .3, 'veg.R': .3 } },
+    { km0: 24.45, km1: 24.99, set: { canales: 6, calzadas: 1, sep: 'ninguno', ancho: 22, 'L.tipo': COM, 'R.tipo': COM, 'L.col': ['#ecebe6', '#e2dccf', '#d8d4cb', '#cfc6b2'], 'R.col': ['#efeee9', '#e4e0d6', '#d9d3c5', '#c9ccce'], 'veg.palL': .6, 'veg.palR': .6, 'veg.L': .3, 'veg.R': .3 } },
     // 19-nov: entre 24,45 y 24,6 el video no tiene palmas (reja y copas anchas, f_0240); empiezan en f_0241
     { km0: 24.45, km1: 24.60, set: { 'veg.palL': 0, 'veg.palR': 0, 'veg.L': .4, 'veg.R': .4 } },
-    { km0: 25.05, km1: 25.22, set: { canales: 3, calzadas: 1, sep: 'ninguno', ancho: 15, 'L.tipo': COM, 'R.tipo': COM, 'veg.L': .55, 'veg.R': .5, 'veg.palL': 0, 'veg.palR': 0, 'veg.denL': 3 } },
+    // 2ª pasada (t=601–609): palmas reales altas a la izquierda y casi ninguna a la derecha frente a la oficina de bandas; palmas de dátil a los dos lados al final
+    { km0: 24.61, km1: 24.85, set: { 'veg.palL': .75, 'veg.palR': .12, 'veg.R': .25 } },
+    { km0: 24.86, km1: 24.99, set: { 'veg.palL': .6, 'veg.palR': .6 } },
+    { km0: 25.00, km1: 25.22, set: { canales: 3, calzadas: 1, sep: 'ninguno', ancho: 15, 'L.tipo': COM, 'R.tipo': COM, 'veg.L': .55, 'veg.R': .5, 'veg.palL': 0, 'veg.palR': 0, 'veg.denL': 3 } },
+    { km0: 25.10, km1: 25.21, set: { 'veg.L': .2 } },   // 21-nov: que los Mástiles se lean desde la vía (t=612,5–614,5 s)
     { km0: 25.23, km1: 25.64, set: { canales: 5, calzadas: 1, sep: 'ninguno', ancho: 20, 'L.tipo': COM, 'R.tipo': COM, 'L.col': ['#ecebe6', '#e2dccf', '#d8d4cb'], 'R.col': ['#efeee9', '#e4e0d6', '#d9d3c5'] } },
     { km0: 25.23, km1: 25.64, set: { 'veg.L': .5, 'veg.R': .45, 'veg.denL': 3, 'veg.denR': 3, 'veg.palL': .3 } },
     { km0: 25.25, km1: 25.40, set: { 'veg.palR': 1 } },
@@ -213,6 +220,14 @@ export default {
   // árboles del motor sembrados abajo a los dos lados del puente de El Ciempiés (las copas asoman sobre el parapeto, t=642–650 s)
   // y en la ladera del Tamanaco (el hotel asoma sobre copas, t=622–627 s)
   arboles: [
+    // Plaza Alfredo Sadel (25,10–25,16 izq.): los árboles inventariados en OSM (úcaros, mare mare, un araguaney plateado; 2023)
+    { ll: [10.482117, -66.861295], especie: 'caobo', alto: 11.5 }, { ll: [10.482178, -66.861271], especie: 'caobo', alto: 10.5 },
+    { ll: [10.482178, -66.861206], especie: 'caobo', alto: 12.0 },
+    { ll: [10.482102, -66.861234], especie: 'caobo', alto: 11.0 },
+    { ll: [10.482135, -66.861358], especie: 'apamate', alto: 10.5 }, { ll: [10.482206, -66.861345], especie: 'apamate', alto: 9.5 },
+    { ll: [10.482302, -66.861531], especie: 'apamate', alto: 10.0 }, { ll: [10.482274, -66.86148], especie: 'apamate', alto: 11.0 },
+    { ll: [10.482268, -66.861537], especie: 'apamate', alto: 9.0 }, { ll: [10.482341, -66.861532], especie: 'apamate', alto: 10.5 },
+    { ll: [10.48225, -66.861306], especie: 'araguaney', alto: 9.0 },
     // talud arbolado sobre el muro de contención de la rampa, a la derecha (t=636–638 s): antes era foto plana en sombra
     { ll: [10.479538, -66.854451], especie: 'mijao', alto: 15.6 },
     { ll: [10.479462, -66.854371], especie: 'caobo', alto: 13.5 },

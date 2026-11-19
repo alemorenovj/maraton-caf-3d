@@ -52,11 +52,11 @@ export function crearPlan(caf) {
 
   // ───── objetivo (se recuerda) ─────
   let U = 't'; try { U = localStorage.getItem(KEYU) === 'p' ? 'p' : 't'; const v = +localStorage.getItem(KEY); if (v >= 7200 && v <= 27000) S.target = v; } catch (e) { }
-  const widgets = [];
+  const widgets = [], cambios = [];   // cambios: avisos a otros módulos (la estrategia de carrera) cuando cambia el objetivo
   function setObjetivo(t, guardar = true) {
     S.target = Math.max(7200, Math.min(27000, Math.round(t)));
     if (guardar) try { localStorage.setItem(KEY, S.target); } catch (e) { }
-    sync(); if (abierto) render();
+    sync(); if (abierto) render(); cambios.forEach(f => f(S.target));
   }
   function parse(txt, u) {
     const m = String(txt).trim().replace(/\s*(h|\/km|min)\s*/gi, ':').replace(/:$/, '').match(/^(\d{1,2})(?:[:.,'](\d{1,2}))?(?:[:.,'](\d{1,2}))?$/); if (!m) return null;
@@ -70,7 +70,7 @@ export function crearPlan(caf) {
     const inp = el.querySelector('input'), eq = el.querySelector('.eq');
     el.querySelectorAll('[data-rap] button').forEach(b => b.onclick = () => setObjetivo(+b.dataset.t * 3600));
     el.querySelectorAll('.u button').forEach(b => b.onclick = () => { U = b.dataset.u; try { localStorage.setItem(KEYU, U); } catch (e) { } sync(); });
-    inp.addEventListener('input', () => { const t = Math.round(parse(inp.value, U) || 0); if (t) { S.target = t; try { localStorage.setItem(KEY, t); } catch (e) { } sync(inp); if (abierto) render(); } else { eq.textContent = U === 't' ? 'Escribe h:mm, por ejemplo 4:15' : 'Escribe min:seg por km, por ejemplo 5:50'; eq.classList.add('mal'); } });
+    inp.addEventListener('input', () => { const t = Math.round(parse(inp.value, U) || 0); if (t) { S.target = t; try { localStorage.setItem(KEY, t); } catch (e) { } sync(inp); if (abierto) render(); cambios.forEach(f => f(t)); } else { eq.textContent = U === 't' ? 'Escribe h:mm, por ejemplo 4:15' : 'Escribe min:seg por km, por ejemplo 5:50'; eq.classList.add('mal'); } });
     inp.addEventListener('change', () => sync());
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); e.stopPropagation(); });
     widgets.push({ el, inp, eq }); sync();
@@ -174,13 +174,18 @@ export function crearPlan(caf) {
   async function guardar() { const b = await blob(await lienzo()); descargar(b, nombreImg()); aviso('Imagen guardada. Ponla de fondo de pantalla o súbela a tu historia.'); }
   async function compartir(extra = '') {
     const url = location.origin + location.pathname, text = `${extra ? extra + ' ' : ''}Mi plan para el Maratón CAF: ${fT(S.target)}, ${fP(S.target / KM)}/km de media, con el ritmo de cada km según las subidas reales. Arma el tuyo: ${url}`;
-    let b = null; try { b = await blob(await lienzo()); } catch (e) { }
-    const file = b && typeof File === 'function' ? new File([b], nombreImg(), { type: 'image/png' }) : null;
-    try {
-      if (file && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Mi plan · Maratón CAF', text }); return; }
-      if (navigator.share) { await navigator.share({ title: 'Mi plan · Maratón CAF', text, url }); return; }
-    } catch (e) { if (e && e.name === 'AbortError') return; }
-    if (b) descargar(b, nombreImg()); try { await navigator.clipboard.writeText(text); aviso('Imagen descargada y texto con el enlace copiado.'); } catch (e) { aviso('Imagen descargada.'); }
+    let c = null; try { c = await lienzo(); } catch (e) { }
+    return compartirLienzo(c, nombreImg(), text, 'Mi plan · Maratón CAF');
   }
-  return { fmt: { fT, fHM, fP, fH, fK }, abrir, cerrar, calc, setObjetivo, lienzo, guardar, compartir, aviso, get abierto() { return abierto; } };
+  // comparte un lienzo ya dibujado (lo usa también el resultado de «Correr la carrera»); sin Web Share, lo descarga y copia el texto
+  async function compartirLienzo(c, nombre, text, title) {
+    const url = location.origin + location.pathname; let b = null; try { if (c) b = await blob(c); } catch (e) { }
+    const file = b && typeof File === 'function' ? new File([b], nombre, { type: 'image/png' }) : null;
+    try {
+      if (file && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title, text }); return; }
+      if (navigator.share) { await navigator.share({ title, text, url }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    if (b) descargar(b, nombre); try { await navigator.clipboard.writeText(text); aviso('Imagen descargada y texto con el enlace copiado.'); } catch (e) { aviso('Imagen descargada.'); }
+  }
+  return { fmt: { fT, fHM, fP, fH, fK }, abrir, cerrar, calc, setObjetivo, lienzo, guardar, compartir, compartirLienzo, aviso, widget, alCambiar: f => cambios.push(f), get abierto() { return abierto; } };
 }

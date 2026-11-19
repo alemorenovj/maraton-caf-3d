@@ -6,10 +6,16 @@ const PASOS = {
     { el: 'tramo', t: 'Qué hacer en cada tramo', d: 'Esta tarjeta cambia con el tramo y te dice cómo correrlo. En el teléfono, tócala para ver el consejo.' },
     { el: 'bPlan', t: 'Tu plan, para llevártelo', d: 'Ritmo por kilómetro para tu objetivo, hora de paso por cada puesto y una imagen para el fondo de pantalla.' },
   ],
+  // teléfono, «modo cine» del recorrido (ui/cine.js)
+  cine: [
+    { el: 'cProf', t: 'Toca la tira para saltar', d: 'Es el perfil de la ruta: rojo sube, verde baja y las marcas azules son puestos de agua. Toca o arrastra para ir a cualquier kilómetro.' },
+    { el: 'cTr', t: 'El tramo, en una línea', d: 'Al entrar a un tramo se abre unos segundos con su clave. Tócalo para ver el detalle y lo que viene.' },
+    { el: 'cMas', t: 'Lo demás está aquí', d: 'Velocidad, cámara, hora del día, tramos, Mi plan, sonido y calidad. Si no tocas la pantalla los botones se esconden: un toque los trae de vuelta.' },
+  ],
   race: [
-    { el: 'race', t: 'Tú decides el esfuerzo', d: 'Sube o baja el esfuerzo con estos botones (o 1–4). Ir más rápido gasta mucha más energía.' },
-    { el: 'prof', t: 'Mira lo que viene', d: 'Rojo sube, verde baja. En cada punto azul hay un puesto: bebe con el botón azul o con la tecla B.' },
-    { el: 'bPlan', t: 'Tu plan de referencia', d: 'El ritmo de cada kilómetro a esfuerzo parejo: es el plan contra el que se mide tu carrera.' },
+    { el: 'crMed', t: 'Mantén la aguja en verde', d: 'Cada toque da un impulso que dura unos segundos. Uno cada 2 o 3 s te deja en la zona; sin toques el ritmo cae y muy seguidos te pasas al rojo, te cansas y viene un bajón.' },
+    { el: 'crBarras', t: 'Energía y agua', d: 'La energía baja con el ritmo y las subidas; el agua, con el calor. Cuando aparezcan el gel y el vaso junto al pulgar, tócalos a tiempo (o G y B).' },
+    { el: 'crBtn', t: 'Toca aquí abajo', d: 'Toda la mitad inferior de la pantalla sirve para correr. En el teclado, la barra espaciadora; P o Esc pausan.' },
   ],
 };
 export function crearAyuda(caf) {
@@ -22,7 +28,7 @@ export function crearAyuda(caf) {
   if (!lentoVisto && !q.get('calidad') && caf.Q?.tier !== 'ligera' && caf.ctx.frameHooks) {
     let acc = 0, n = 0, malo = 0;
     caf.ctx.frameHooks.push((noche, t, dt) => {
-      if (lentoVisto || !S.running || S.paused || document.hidden || window.__cafUI?.resumen?.cubierto) { acc = n = 0; return; }
+      if (lentoVisto || !S.running || S.paused || document.hidden || window.__cafUI?.velo?.cubierto) { acc = n = 0; return; }
       acc += dt; n++; if (acc < 1) return; const fps = n / acc; acc = n = 0; malo = fps < 20 ? malo + 1 : 0;
       if (malo >= 10) { lentoVisto = true; try { localStorage.setItem('caf3d-aviso-lento', '1'); } catch (e) { }
         const a = document.createElement('div'); a.id = 'lento'; a.className = 'panel'; a.innerHTML = '<span>Va lento en este equipo: cambia a Ligera</span><button class="on" data-a="l">Cambiar</button><button data-a="x" aria-label="Cerrar">×</button>'; document.body.appendChild(a);
@@ -44,8 +50,9 @@ export function crearAyuda(caf) {
   function cerrar() { marc?.classList.remove('coach-hl'); marc = null; box.style.display = 'none'; visto = true; try { localStorage.setItem(KEY, '1'); } catch (e) { } if (S.running) S.paused = pausaPrev; const b = document.getElementById('bPlay'); if (b) b.textContent = S.paused ? '▶ Seguir' : '⏸ Pausa'; }
   function alEmpezar(mode) {
     try { if (localStorage.getItem(KEY)) visto = true; } catch (e) { }
-    if (visto || S.resumen || !PASOS[mode]) return;
-    const intentar = () => { if (window.__cafUI?.resumen?.cubierto) return setTimeout(intentar, 400); if (visto || S.resumen || !S.running) return; pasos = PASOS[mode]; n = 0; pausaPrev = S.paused; S.paused = true; const b = document.getElementById('bPlay'); if (b) b.textContent = '▶ Seguir'; poner(); }; setTimeout(intentar, 1400);
+    const clave = mode === 'tour' && document.body.classList.contains('cine') ? 'cine' : mode;
+    if (visto || S.resumen || !PASOS[clave]) return;
+    const intentar = () => { if (window.__cafUI?.velo?.cubierto) return setTimeout(intentar, 400); if (visto || S.resumen || !S.running) return; pasos = PASOS[document.body.classList.contains('cine') && mode === 'tour' ? 'cine' : mode]; n = 0; pausaPrev = S.paused; S.paused = true; const b = document.getElementById('bPlay'); if (b) b.textContent = '▶ Seguir'; poner(); }; setTimeout(intentar, 1400);
   }
   addEventListener('resize', () => { if (box.style.display === 'block') poner(); });
   // si aparece la pantalla final o se vuelve al inicio con la ayuda abierta, se cierra (sin trabajo por cuadro)

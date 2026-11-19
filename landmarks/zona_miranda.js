@@ -168,8 +168,76 @@ export function build(THREE, api) {
     const lt = api.canvasTex(256, 32, (c, w, h) => { c.fillStyle = '#2b2e33'; c.fillRect(0, 0, w, h); c.fillStyle = '#e9e9e6'; c.font = '20px sans-serif'; c.fillText('Los Dos Caminos', 40, 23); });
     const lp = add(new THREE.PlaneGeometry(6, .5), new THREE.MeshStandardMaterial({ map: lt }), 3.02, 3.2, 0, B); lp.rotation.y = Math.PI / 2;
   }
-  // torre cilíndrica de vidrio azul del Millennium Mall, asoma tras el elevado (f_0327)
-  { const c = ll(10.4950864, -66.8326605); add(new THREE.CylinderGeometry(11, 11, 44, 32), api.glass(0x2f6fb3), c.x, c.y + 22, c.z); add(new THREE.CylinderGeometry(11.4, 11.4, 1.2, 32), blanco, c.x, c.y + 44.6, c.z); }
+  // ───────── 8b. C.C. Millennium Mall y Plaza Miranda (km 35,45–35,75, der.; arqs. Pimentel y Capiello, 2008) ─────────
+  // Planta: triángulo OSM «Centro Comercial Millennium Mall» (punta al O sobre la plaza, lado S en diagonal hacia la Miranda, lado E sobre
+  // la Av. Principal de Los Dos Caminos), confirmado en la foto satelital. Lo reconocible es el ala: el tercio O del techo sale en voladizo
+  // como una cuchilla negra que sube hacia la punta, sobre columnas blancas en trípode invertido (guiaccs.com, Millenium Mall – Plaza Miranda).
+  // Altura: ~30 m sobre la Rómulo Gallegos (sombra en la satelital); la caja blanca del techo, 4 m más. Desde la Miranda NO se ve de frente:
+  // al pasar por la Av. Principal de Los Dos Caminos lo tapa el edificio de retícula azul (video, s 812–814); asoma a la derecha desde el
+  // elevado (s 815–818). La torre cilíndrica azul que antes iba aquí es otra (al N de la Rómulo Gallegos, corrección en miranda.js).
+  { const P = (la, lo) => api.xz(la, lo), A = P(10.495659, -66.833753), C = P(10.494749, -66.83246), Dn = P(10.495424, -66.832299);
+    const lerp2 = (p, q, t) => ({ x: p.x + (q.x - p.x) * t, z: p.z + (q.z - p.z) * t });
+    const g0 = Math.min(api.ground(A.x, A.z), api.ground(C.x, C.z), api.ground(Dn.x, Dn.z)), gN = api.ground(Dn.x, Dn.z), yT = gN + 30;
+    const cut = .30, B1 = lerp2(A, C, cut), B2 = lerp2(A, Dn, cut);
+    // sólido a partir de triángulos sueltos: corrige el orden de cada uno para que su normal mire hacia fuera del centro dado
+    const solido = (tris, mat, cen) => { const pos = []; for (const [a, b, c] of tris) { const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+        const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, mx = (a[0] + b[0] + c[0]) / 3 - cen[0], my = (a[1] + b[1] + c[1]) / 3 - cen[1], mz = (a[2] + b[2] + c[2]) / 3 - cen[2];
+        if (nx * mx + ny * my + nz * mz < 0) pos.push(...a, ...c, ...b); else pos.push(...a, ...b, ...c); }
+      const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2)); ge.computeVertexNormals(); return add(ge, mat, 0, 0, 0); };
+    // prisma de planta poligonal (x,z) entre y0 e y1, con tapas
+    const prisma = (pl, y0, y1, mat) => { const sh = new THREE.Shape(); pl.forEach((p, i) => (i ? sh.lineTo : sh.moveTo).call(sh, p.x, -p.z)); const ge = new THREE.ExtrudeGeometry(sh, { depth: y1 - y0, bevelEnabled: false }); ge.rotateX(-Math.PI / 2); return add(ge, mat, 0, y0, 0); };
+    // paño plano pegado a la cara exterior del segmento p→q (su cara frontal mira hacia fuera de `cen`)
+    const pano = (p, q, y0, y1, mat, cen, sep = .18, w0 = 0, w1 = 1) => { const a = lerp2(p, q, w0), b = lerp2(p, q, w1), L = Math.hypot(b.x - a.x, b.z - a.z); let nx = (b.z - a.z) / L, nz = -(b.x - a.x) / L;
+      if (nx * ((a.x + b.x) / 2 - cen.x) + nz * ((a.z + b.z) / 2 - cen.z) < 0) { nx = -nx; nz = -nz; }
+      const m = add(new THREE.PlaneGeometry(L, y1 - y0), mat, (a.x + b.x) / 2 + nx * sep, (y0 + y1) / 2, (a.z + b.z) / 2 + nz * sep); m.rotation.y = Math.atan2(nx, nz); return m; };
+    const cen = { x: (B1.x + C.x + Dn.x + B2.x) / 4, z: (B1.z + C.z + Dn.z + B2.z) / 4 };
+    // cuerpo comercial (concreto claro) y la caja blanca del techo (cines)
+    prisma([B1, C, Dn, B2], g0 - 2, yT, api.concrete(0xd3d1cb));
+    { const u = { x: (C.x - A.x) / Math.hypot(C.x - A.x, C.z - A.z), z: (C.z - A.z) / Math.hypot(C.x - A.x, C.z - A.z) }; let v = { x: -u.z, z: u.x }; if (v.x * (Dn.x - A.x) + v.z * (Dn.z - A.z) < 0) v = { x: u.z, z: -u.x };
+      const q = (s, t) => ({ x: A.x + u.x * s + v.x * t, z: A.z + u.z * s + v.z * t }); prisma([q(64, 3), q(136, 3), q(136, 27), q(64, 27)], yT - 1, yT + 4, api.concrete(0xf1f0eb)); }
+    // fachadas: muro cortina verdeazulado al N (Rómulo Gallegos) y al O (bajo el ala, hacia la plaza); al S y al E, bandas de concreto y vidrio
+    const cort = api.facade({ pared: '#3d5a63', vidrio: '#2c4f5e', pisos: 8, vanos: 12, marco: .06, encendidas: .35, roughness: .2, metalness: .6, env: 1.1 }); cort.map.repeat.set(4, 1); cort.emissiveMap.repeat.set(4, 1);
+    const band = api.facade({ pared: '#d7d3c9', vidrio: '#56707c', pisos: 7, vanos: 10, bandas: 1, encendidas: .2 }); band.map.repeat.set(5, 1); band.emissiveMap.repeat.set(5, 1);
+    const cortO = api.facade({ pared: '#3d5a63', vidrio: '#2c4f5e', pisos: 8, vanos: 8, marco: .06, encendidas: .35, roughness: .2, metalness: .6, env: 1.1 });
+    pano(B2, Dn, g0, yT, cort, cen); pano(B1, B2, g0, yT, cortO, cen); pano(C, Dn, g0, yT, band, cen); pano(B1, C, g0, yT, band, cen);
+    // pantallas LED y letrero «MILLENNIUM» (brillan más de noche)
+    const led = api.canvasTex(512, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#0b2a5c'); gr.addColorStop(1, '#2a74c9'); c.fillStyle = gr; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#e8eef5'; c.beginPath(); c.ellipse(w * .62, h * .62, w * .26, h * .13, 0, 0, 7); c.fill(); c.fillStyle = '#c9312b'; c.fillRect(w * .4, h * .55, w * .44, h * .09);
+      c.fillStyle = '#fff'; c.font = 'bold 56px sans-serif'; c.fillText('NUEVO', 26, 78); c.font = '30px sans-serif'; c.fillText('Millennium Mall', 26, 122); });
+    const ledM = new THREE.MeshStandardMaterial({ map: led, emissive: 0xffffff, emissiveMap: led, emissiveIntensity: .45, roughness: .4 }); api.onFrame(st => { ledM.emissiveIntensity = .45 + 1.1 * st.noche; });
+    pano(B1, B2, g0 + 9, g0 + 24, ledM, cen, .4, .55, .95); pano(B2, Dn, g0 + 12, g0 + 26, ledM, cen, .4, .08, .3);
+    const letr = api.canvasTex(1024, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = '#ffffff'; c.font = 'bold 96px sans-serif'; c.textAlign = 'center'; c.fillText('MILLENNIUM', w / 2, 100); });
+    const letM = new THREE.MeshStandardMaterial({ map: letr, alphaTest: .5, emissive: 0xffffff, emissiveMap: letr, emissiveIntensity: .2 }); api.onFrame(st => { letM.emissiveIntensity = .2 + 1.2 * st.noche; });
+    pano(B2, Dn, yT - 5.5, yT - 1, letM, cen, .5, .38, .78); pano(B1, C, yT - 5.5, yT - 1, letM, cen, .5, .2, .45);
+    // zócalo rojo ladrillo y vidrio verde a la altura de la plaza, bajo el ala (foto de referencia)
+    pano(B1, B2, g0, g0 + 4.5, api.glass(0x2f6b55, { roughness: .25 }), cen, .3); pano(B1, B2, g0 + 4.5, g0 + 8.5, api.concrete(0x9c3b2c), cen, .3);
+    // el ala: cuchilla triangular que sale del techo y sube hacia la punta, gris metálico arriba y negra por debajo
+    const R1 = lerp2(A, C, .40), R2 = lerp2(A, Dn, .40), yR = yT + .5, yP = yT + 15, tR = 3.2, tP = .35;
+    const top = [[A.x, yP + tP / 2, A.z], [R1.x, yR + tR / 2, R1.z], [R2.x, yR + tR / 2, R2.z]], bot = [[A.x, yP - tP / 2, A.z], [R1.x, yR - tR / 2, R1.z], [R2.x, yR - tR / 2, R2.z]];
+    const wc = [(A.x + R1.x + R2.x) / 3, (yP + 2 * yR) / 3, (A.z + R1.z + R2.z) / 3];   // centroide real: las tapas quedan a uno y otro lado
+    solido([top, [top[0], bot[0], top[1]], [top[1], bot[0], bot[1]], [top[0], top[2], bot[0]], [top[2], bot[2], bot[0]], [top[1], bot[1], top[2]], [top[2], bot[1], bot[2]]], api.concrete(0x7f858b, { roughness: .45, metalness: .45 }), wc);
+    solido([bot], api.concrete(0x1d1f22, { roughness: .6 }), [wc[0], wc[1] + 50, wc[2]]);
+    // trípodes blancos: fuste desde la plaza y tres brazos abiertos hasta el ala
+    const blancoT = api.concrete(0xf3f3f0, { roughness: .5 }), up = new THREE.Vector3(0, 1, 0), tubos = [];
+    const tubo = (a, b, r) => { const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = d.length(), m = add(new THREE.CylinderGeometry(r, r * 1.15, L, 8), blancoT, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); m.quaternion.setFromUnitVectors(up, d.normalize()); tubos.push(m); };
+    for (const f of [.3, .5, .68]) { const c0 = lerp2(A, lerp2(R1, R2, .5), f), x = c0.x, z = c0.z, yb = api.ground(x, z), ys = yb + 11, yw = yP + (yR - yP) * f - (tP + (tR - tP) * f) / 2 - .1;
+      tubo([x, yb - .5, z], [x, ys, z], .75); const half = Math.hypot(R1.x - R2.x, R1.z - R2.z) * f * .2, ex = (R1.x - R2.x) / Math.hypot(R1.x - R2.x, R1.z - R2.z), ez = (R1.z - R2.z) / Math.hypot(R1.x - R2.x, R1.z - R2.z), ax = -ez, az = ex;
+      for (const [s, t] of [[1, 0], [-1, 0], [0, 1]]) { const px = x + ex * half * s + ax * 3.5 * t, pz = z + ez * half * s + az * 3.5 * t; tubo([x, ys, z], [px, yw + (s ? 0 : -.6), pz], .45); } }
+    // Plaza Miranda: plataforma con espejos de agua turquesa, estatua de Miranda, jardineras y chaguaramos (las palmas van en `arboles`)
+    const agua = new THREE.MeshStandardMaterial({ color: 0x48b7c9, roughness: .08, metalness: .15, emissive: 0x2a8fa8, emissiveIntensity: 0 }); api.onFrame(st => { agua.emissiveIntensity = .35 * st.noche; });
+    const piedra = api.concrete(0xcfc6b4);
+    const espejo = (pts) => { const pl = pts.map(([a, b]) => P(a, b)), gy = Math.max(...pl.map(p => api.ground(p.x, p.z))) + .45, c = { x: pl.reduce((s, p) => s + p.x, 0) / pl.length, z: pl.reduce((s, p) => s + p.z, 0) / pl.length };
+      const out = pl.map(p => { const dx = p.x - c.x, dz = p.z - c.z, L = Math.hypot(dx, dz); return { x: p.x + dx / L * .9, z: p.z + dz / L * .9 }; });
+      prisma(out, gy - 1.6, gy + .15, piedra); const sh = new THREE.Shape(); pl.forEach((p, i) => (i ? sh.lineTo : sh.moveTo).call(sh, p.x, -p.z)); const ge = new THREE.ShapeGeometry(sh); ge.rotateX(-Math.PI / 2); add(ge, agua, 0, gy + .2, 0); return gy; };
+    const gyE = espejo([[10.495832, -66.834647], [10.495832, -66.834486], [10.495620, -66.834486], [10.495620, -66.834647]]);
+    espejo([[10.495604, -66.834695], [10.495604, -66.834558], [10.495232, -66.834647], [10.495232, -66.834789]]);
+    { const s = P(10.495710, -66.834593), bronce = api.concrete(0x3b3428, { roughness: .5, metalness: .4 }); add(new THREE.BoxGeometry(2.4, 3.2, 2.4), piedra, s.x, gyE + 1.6, s.z);
+      add(new THREE.CylinderGeometry(.42, .5, 1.9, 8), bronce, s.x, gyE + 4.15, s.z); add(new THREE.SphereGeometry(.3, 8, 6), bronce, s.x, gyE + 5.4, s.z);
+      const br = add(new THREE.BoxGeometry(.16, 1.7, .16), bronce, s.x + .55, gyE + 5.3, s.z); br.rotation.z = -.5; }
+    // jardineras escalonadas al S de la plataforma (franjas verdes de la satelital)
+    { const ver = api.concrete(0x4f7a3b), bor = api.concrete(0xb9b2a3); [[10.495420, -66.834430], [10.495420, -66.834250], [10.495330, -66.834520], [10.495330, -66.834340], [10.495240, -66.834430], [10.495240, -66.834180]].forEach(([a, b]) => { const p = P(a, b), y = api.ground(p.x, p.z);
+        add(new THREE.BoxGeometry(12, .7, 6), bor, p.x, y + .35, p.z).rotation.y = -.42; add(new THREE.BoxGeometry(11.2, .12, 5.2), ver, p.x, y + .72, p.z).rotation.y = -.42; }); }
+  }
 
   // ───────── 9. Pasarela de Parque del Este (km 36,18) ─────────
   { const P = grupo(36.18, 0, 0, api.routeAt(36.18).y); const H = 5.7, xL = 25, xR = -11.5, L = xL - xR, cx = (xL + xR) / 2;

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Maratón CAF 3D — Reconoce la ruta y arma tu plan</title>
-<meta name="description" content="Los 42,195 km del Maratón CAF de Caracas en 3D, sobre el trazado GPS real. Mira en 60 segundos dónde sube y dónde se bebe, y llévate el ritmo de cada kilómetro para tu tiempo objetivo.">
+<meta name="description" content="Los 42,195 km del Maratón CAF de Caracas en 3D, sobre el trazado GPS real. Reconoce dónde sube y dónde se bebe, o córrela con tu estrategia de geles, agua y ritmo.">
 <meta name="theme-color" content="#0d0f16">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_VE">
@@ -52,17 +52,7 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 #mini{position:absolute;right:14px;top:14px;padding:8px;width:300px}
 #mini canvas{width:100%;display:block;border-radius:8px}
 #mini .cap{font-size:10px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;padding:4px 4px 0;display:flex;justify-content:space-between}
-/* carrera */
-#race{position:absolute;right:14px;top:210px;width:300px;padding:12px 14px;display:none}
-.bar{height:9px;border-radius:9px;background:rgba(255,255,255,.1);overflow:hidden;margin:4px 0 10px}
-.bar i{display:block;height:100%;border-radius:9px;transition:width .2s}
-#race .lab{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
-#race .lab b{color:var(--bone)}
-#eff{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:4px}
-#eff button{font-size:11px;padding:8px 2px}
-#delta{font-size:13px;margin-top:10px;text-align:center}
-#drink{position:absolute;left:50%;bottom:190px;transform:translateX(-50%);display:none;font-size:17px;padding:14px 26px;background:var(--water);color:#06203c;border:0;font-weight:700;box-shadow:0 8px 30px rgba(74,168,255,.5);animation:pulse 1s infinite}
-@keyframes pulse{50%{transform:translateX(-50%) scale(1.06)}}
+/* carrera: ui/carrera.css */
 /* toast */
 #toast{position:absolute;left:50%;top:18px;transform:translate(-50%,-140%);padding:11px 18px;max-width:min(520px,calc(100vw - 660px));min-width:280px;transition:transform .45s cubic-bezier(.2,.9,.2,1);text-align:center}
 #toast.on{transform:translate(-50%,0)}
@@ -115,15 +105,15 @@ kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-fami
  #tramo{top:auto;bottom:182px;left:8px;right:8px;width:auto;padding:10px 12px;cursor:pointer}#tramo p,#tramo .tip{display:none}#tramo.open .tip{display:block}#tramo h3::after{content:' ›';color:var(--mute)}#tramo h3{font-size:20px}#next{flex-direction:row;gap:12px;flex-wrap:wrap}
  #stats{left:8px;top:8px;padding:8px 12px;min-width:0}#stats .km{font-size:32px}#stats .row{gap:4px 12px;margin-top:6px}#stats .v{font-size:14px}
  #mini{right:8px;top:8px;width:150px;padding:5px}#mini .cap{display:none}
- #race{right:8px;top:104px;width:190px;padding:8px 10px}#eff button{font-size:10px;padding:7px 0}
  #toast{top:auto;bottom:300px;max-width:92vw;min-width:0;transform:translate(-50%,400%)}#toast.on{transform:translate(-50%,0)}
  #bottom{left:8px;right:8px;bottom:8px;padding:8px}#prof{height:64px}#legend{display:none}
- #drink{bottom:300px}.modes{grid-template-columns:1fr}.card{padding:20px}
+ .modes{grid-template-columns:1fr}.card{padding:20px}
  button{padding:8px 10px;font-size:12px}
 }
 </style>
-<link rel="stylesheet" href="ui/ui.css?v=5">
-<link rel="stylesheet" href="ui/movil.css?v=5">
+<link rel="stylesheet" href="ui/ui.css?v=6">
+<link rel="stylesheet" href="ui/movil.css?v=6">
+<link rel="stylesheet" href="ui/carrera.css?v=4">
 </head>
 <body>
 <div id="load"><div class="lt">Maratón CAF <em>en 3D</em></div><div class="ls">Reconoce los 42 km antes de correrlos: dónde sube, dónde se bebe y a qué ritmo ir en cada kilómetro.</div><div class="lb"><i id="loadB"></i></div><div class="lx" id="loadT">Cargando la ruta</div></div>
@@ -152,15 +142,7 @@ kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-fami
   </div>
   <div id="mini" class="panel"><canvas id="miniC" width="568" height="300"></canvas>
     <div class="cap"><span>Norte ↑ · El Ávila</span><span id="mStreet"></span></div></div>
-  <div id="race" class="panel">
-    <div class="lab"><span>Energía (glucógeno)</span><b id="rE">100%</b></div><div class="bar"><i id="bE" style="background:var(--accent);width:100%"></i></div>
-    <div class="lab"><span>Hidratación</span><b id="rH">100%</b></div><div class="bar"><i id="bH" style="background:var(--water);width:100%"></i></div>
-    <div class="lab"><span>Esfuerzo</span><b id="rEf"></b></div>
-    <div id="eff"><button data-e="0">Suave</button><button data-e="1">Objetivo</button><button data-e="2">Fuerte</button><button data-e="3">A tope</button></div>
-    <div id="delta"></div>
-  </div>
   <div id="toast" class="panel"><div class="t" id="toT"></div><div class="d" id="toD"></div></div>
-  <button id="drink">💧 Beber <kbd style="background:rgba(0,0,0,.2);color:#06203c">B</kbd></button>
   <div id="bottom" class="panel">
     <canvas id="prof"></canvas>
     <div id="ctl">
@@ -183,17 +165,16 @@ kbd{background:rgba(255,255,255,.12);border-radius:5px;padding:1px 6px;font-fami
     <h1>Maratón CAF <em>en 3D</em></h1>
     <p class="sub">Los 42,195 km de Caracas sobre el trazado GPS real, con su relieve, sus edificios y El Ávila al fondo. Mira dónde sube y dónde se bebe, y llévate el ritmo de cada kilómetro para tu tiempo objetivo.</p>
     <div class="modes">
-      <div class="mode sel" data-m="resumen"><span class="badge">Si es tu primera vez</span><h3>Lo esencial en 60 s</h3><p>Un vuelo por los puntos que deciden la carrera: las subidas, los geles, la media maratón y la meta, con la hora a la que pasarás por cada uno.</p></div>
-      <div class="mode" data-m="tour"><h3>Reconocer la ruta</h3><p>Recorrido guiado completo. Te cuenta cada tramo y cada hito, y puedes saltar a cualquier kilómetro tocando el perfil.</p></div>
-      <div class="mode" data-m="race"><h3>Correr la carrera</h3><p>Tú decides el esfuerzo. Administra energía e hidratación en las subidas para llegar a meta en tu tiempo objetivo sin chocar con el muro.</p></div>
+      <div class="mode sel" data-m="tour"><h3>Reconocer la ruta</h3><p>Recorrido guiado completo. Te cuenta cada tramo y cada hito, y puedes saltar a cualquier kilómetro tocando el perfil.</p></div>
+      <div class="mode" data-m="race"><span class="badge">Juego</span><h3>Correr la carrera</h3><p>Arma tu estrategia (geles, agua y ritmo) y córrela a toques: mantén la aguja en verde, bebe y toma el gel a tiempo, y llega a meta sin chocar con el muro.</p></div>
     </div>
     <div class="opts">
       <div><label>Tiempo objetivo</label><div class="seg" id="segT"><button data-t="3.25">3:15</button><button data-t="3.5">3:30</button><button data-t="4" class="on">4:00</button><button data-t="4.5">4:30</button><button data-t="5">5:00</button></div><div id="objStart"></div></div>
       <div class="opt-dur"><label>Duración del recorrido</label><div class="seg" id="segD"><button data-s="60">≈4 min</button><button data-s="30" class="on">≈8 min</button><button data-s="10">≈24 min</button></div></div>
       <div><label>Gráficos</label><div class="seg" id="segQ"><button data-q="alta" title="Sombras, reflejos, bloom y gradación de color">Alta</button><button data-q="media" title="La misma ciudad sin sombras ni efectos: para teléfonos">Media</button><button data-q="ligera" title="Ciudad simplificada, para equipos modestos">Ligera</button></div><div class="qnota">Alta: sombras y efectos. Media: la misma ciudad sin ellos (teléfonos). Ligera: lo mínimo, para equipos lentos.</div></div>
     </div>
-    <div class="startacts"><button class="go" id="bGo">Ver la ruta en 60 s →</button><button class="lnk" id="bPlanS">Ver mi plan de carrera</button></div>
-    <div class="keys"><kbd>Espacio</kbd> pausa · <kbd>←</kbd><kbd>→</kbd> saltar 500 m · <kbd>C</kbd> cámara (seguimiento, a bordo, dron, cenital) · <kbd>M</kbd> sonido · <kbd>F</kbd> fps · <kbd>T</kbd> tramos · en carrera: <kbd>1</kbd>–<kbd>4</kbd> esfuerzo, <kbd>B</kbd> beber</div>
+    <div class="startacts"><button class="go" id="bGo">Salir de Los Caobos →</button><button class="lnk" id="bPlanS">Ver mi plan de carrera</button></div>
+    <div class="keys"><kbd>Espacio</kbd> pausa · <kbd>←</kbd><kbd>→</kbd> saltar 500 m · <kbd>C</kbd> cámara (seguimiento, a bordo, dron, cenital) · <kbd>M</kbd> sonido · <kbd>F</kbd> fps · <kbd>T</kbd> tramos · en carrera: <kbd>Espacio</kbd> correr, <kbd>G</kbd> gel, <kbd>B</kbd> beber, <kbd>P</kbd> pausa</div>
     <div class="fine" id="fine"></div>
   </div>
 </div>
@@ -212,7 +193,7 @@ b.appendChild(r);document.body.appendChild(b);}
    recarga UNA vez sola en el nivel de calidad de abajo con ?retoma=1; game.js retoma desde ahí. Si ya hubo una recarga automática hace menos de
    10 min, si la página ya venía de una (?retoma) o si sessionStorage no funciona, no se recarga sola: se ofrece con un botón (sin bucles). */
 function perdido(){var g=window.__caf,S=g&&g.S,Q=g&&g.Q,u=new URL(location.href),tier=(Q&&Q.tier)||u.searchParams.get('calidad')||'alta',baja={alta:'media',fija:'media',media:'ligera'}[tier]||null,est=null,prev=null,ok=false;
-try{if(S&&S.running){est={modo:S.resumen?'tour':S.mode,s:S.s,km:g.ctx.kmOf(S.s),clock:S.clock,target:S.target,energy:S.energy,hyd:S.hyd,effort:S.effort,scale:S.scale,cam:S.cam,dia:S.dia,missed:S.missed,splits:S.splits,wall:S.wall,wallKm:S.wallKm,drunk:Array.from(S.drunk||[])};}}catch(x){}
+try{if(S&&S.running){est={modo:S.resumen?'tour':S.mode,s:S.s,km:g.ctx.kmOf(S.s),clock:S.clock,target:S.target,energy:S.energy,hyd:S.hyd,effort:S.effort,scale:S.scale,cam:S.cam,dia:S.dia,missed:S.missed,splits:S.splits,wall:S.wall,wallKm:S.wallKm,drunk:Array.from(S.drunk||[]),carrera:(window.__cafUI&&__cafUI.carrera&&__cafUI.carrera.estado())||null};}}catch(x){}
 try{prev=JSON.parse(sessionStorage.getItem('caf3d-rescate')||'null');}catch(x){}
 var reg={t:Date.now(),de:tier,a:baja,est:est,pend:!!est},km=est?' desde el km '+est.km.toFixed(1):'';
 var guarda=function(){try{sessionStorage.setItem('caf3d-rescate',JSON.stringify(reg));if(baja)localStorage.setItem('caf3d-calidad',baja);return true;}catch(x){return false;}};
@@ -231,6 +212,6 @@ window.__aviso=aviso;})();
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script src="data/caf-data.js?v=55"></script>
 <script>window.__carga && __carga(.62, 'Levantando la ciudad');</script>
-<script type="module" src="game.js?v=93"></script>
+<script type="module" src="game.js?v=102"></script>
 </body>
 </html>
