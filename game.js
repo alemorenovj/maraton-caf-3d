@@ -6,11 +6,12 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { makeApi, kmFns, componerRuta } from './landmarks/api.js?v=5';
-import RUTA21 from './data/ruta-21k.js?v=1';
+import { makeApi, kmFns, componerRuta } from './landmarks/api.js?v=6';
+import RUTA21 from './data/ruta-21k.js?v=5';
+import HISTORIA from './data/hitos-historia.js?v=1';
 import HITOS_IDS from './landmarks/index.js';
 import { fusionar } from './fx/fusion.js?v=6';
-import FX_IDS from './fx/index.js?v=2';
+import FX_IDS from './fx/index.js?v=3';
 import FIX_IDS from './fx/correcciones/index.js';
 const VQ = new URL(import.meta.url).search;   // la versión de game.js (?v=N en index.html) se propaga a los módulos que se cargan en caliente: sin esto el navegador se queda con copias viejas
 // Módulos de realismo (fx/*.js). ?fx=a,b carga solo esos; ?fx=0 ninguno. Cada uno puede sustituir una parte del motor (meta.reemplaza).
@@ -23,7 +24,9 @@ const _q0 = new URLSearchParams(location.search);
 const FIX = _q0.get('fix') === '0' ? [] : (await Promise.all(FIX_IDS.map(id => import(`./fx/correcciones/${id}.js${VQ}`).then(m => m.default).catch(e => { console.error('corrección ' + id, e); return null; })))).filter(Boolean);
 window.__carga?.(.86, 'Ubicando hitos y puestos');
 const SUST = new Set(fxMods.flatMap(m => m.meta?.reemplaza || []));
-const ctx = { THREE, D: window.CAF, SUST };
+// Capa de realismo de nov-2026 (detalle del suelo, color de cámara en media/ligera, follaje y sombra moteada; ver README «Realismo»). ?realismo=0 la apaga entera (A/B).
+const REALISMO = _q0.get('realismo') !== '0';
+const ctx = { THREE, D: window.CAF, SUST, realismo: REALISMO };
 const nearFade = { value: 0 };   // m: lo que queda más cerca que esto de la cámara de seguimiento (follaje) se desvanece en vez de taparla
 
 const D = window.CAF, R = D.ruta, N = R.x.length, STEP = R.step, TOTAL = (N - 1) * STEP;
@@ -153,8 +156,9 @@ let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 214748364
 // carrera usan la ruta activa A (ctx.A, el mismo objeto siempre): con 42K son las mismas funciones y datos de referencia, así que nada cambia;
 // con 21K es la ruta compuesta de data/ruta-21k.js (landmarks/api.js, componerRuta). S.s es la distancia en la ruta activa; S.sr, la s de
 // referencia que le corresponde (para todo lo anclado al 42K: calzada, túneles, entorno, público). ?dist=21 o el selector de la portada.
+HISTORIA(D, xzLL, km => { const o = P(sOfKm(km)); return [o.x, o.z]; });   // historia de los hitos, antes de armar 42K/21K y los rótulos
 const A = {}, DIST = {};
-DIST['42'] = { id: '42', KM, corto: '42K', nombre: 'Maratón', P, kmOf, sOfKm, TOTAL, N, STEP, x: R.x, z: R.z, e: R.e, ref: null, sRef: s => s, gradeAt, mapKm: k => k,
+DIST['42'] = { id: '42', KM, corto: '42K', nombre: 'Maratón', P, kmOf, sOfKm, TOTAL, N, STEP, x: R.x, z: R.z, e: R.e, ref: null, sRef: s => s, gradeAt, mapKm: k => k, giro: () => 0,
   hidratacion: D.hidratacion, gatorade: D.gatorade || [], geles: D.geles || [], tramos: D.tramos, hitos: D.hitos, subidas: D.subidas || [], aviso: D.meta.aviso || '',
   calle: s => D.calles ? (D.calles[Math.min(D.calles.length - 1, Math.floor(s / (STEP * D.callesCada)))] || '') : '' };
 { const C = componerRuta(D, RUTA21, R); if (C.err.length) console.error('ruta 21K: ' + C.err.join('; '));
@@ -165,9 +169,22 @@ DIST['42'] = { id: '42', KM, corto: '42K', nombre: 'Maratón', P, kmOf, sOfKm, T
     const w = clamp((30 - Math.sqrt(b)) / 14, 0, 1); C.e[i] = lerp(C.e[i], R.e[bj], w * w * (3 - 2 * w)); }
   for (let i = 0; i < C.N; i++) if (C.ref[i] < 0) { const h = hT(C.x[i], C.z[i]); if (h > C.e[i] + .02) C.e[i] = h - .02; }
   const NA = C.N, X = C.x, Z = C.z, E = C.e, LT = C.lat, _pA = { x: 0, y: 0, z: 0, e: 0, tx: 1, tz: 0, grade: 0 }, r2 = k => Math.round(k * 100) / 100;
+  // Cerca de los conectores (C.zona: el retorno en U y las esquinas de Las Acacias) la posición sigue una Catmull-Rom por las muestras de 10 m y
+  // el rumbo es su derivada: curva y rumbo continuos, sin las esquinas secas de la interpolación lineal. Lejos, como el 42K (lineal + cuerda de 50 m).
+  const ZN = C.zona, GI = C.giro, CV = C.curvas, cr = (p0, p1, p2, p3, t) => .5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t),
+    crd = (p0, p1, p2, p3, t) => .5 * ((p2 - p0) + 2 * (2 * p0 - 5 * p1 + 4 * p2 - p3) * t + 3 * (3 * p1 - p0 - 3 * p2 + p3) * t * t);
   const PA = (s, o = _pA) => { s = clamp(s, 0, C.TOTAL); const f = s / STEP, i = Math.min(NA - 2, Math.floor(f)), t = f - i;
     o.x = lerp(X[i], X[i + 1], t); o.z = lerp(Z[i], Z[i + 1], t); o.e = lerp(E[i], E[i + 1], t); o.y = Y(o.e);
     const a = Math.max(0, i - 2), b = Math.min(NA - 1, i + 3); let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; o.tx = tx / l; o.tz = tz / l;
+    let enCurva = false; for (const cv of CV) if (s >= cv.i0 * STEP && s <= cv.i1 * STEP) {   // retorno en U: la curva fina (Hermite) por largo de arco, con su rumbo exacto
+      const d = (s - cv.i0 * STEP) / ((cv.i1 - cv.i0) * STEP) * cv.cu[cv.cu.length - 1], P2 = cv.pts, U = cv.cu; let j = 1; while (j < U.length - 1 && U[j] < d) j++; const u = (d - U[j - 1]) / ((U[j] - U[j - 1]) || 1);
+      o.x = lerp(P2[j - 1][0], P2[j][0], u); o.z = lerp(P2[j - 1][1], P2[j][1], u); const ja = Math.max(0, j - 2), jb = Math.min(P2.length - 1, j + 1), dx = P2[jb][0] - P2[ja][0], dz = P2[jb][1] - P2[ja][1], dl = Math.hypot(dx, dz) || 1; o.tx = dx / dl; o.tz = dz / dl; enCurva = true; break; }
+    const w = enCurva ? 0 : lerp(ZN[i], ZN[i + 1], t); if (w > 0) { const i0 = Math.max(0, i - 1), i3 = Math.min(NA - 1, i + 2);
+      o.x = lerp(o.x, cr(X[i0], X[i], X[i + 1], X[i3], t), w); o.z = lerp(o.z, cr(Z[i0], Z[i], Z[i + 1], Z[i3], t), w);
+      let dx = crd(X[i0], X[i], X[i + 1], X[i3], t), dz = crd(Z[i0], Z[i], Z[i + 1], Z[i3], t); const dl = Math.hypot(dx, dz) || 1; dx = lerp(o.tx, dx / dl, w); dz = lerp(o.tz, dz / dl, w); const m = Math.hypot(dx, dz) || 1; o.tx = dx / m; o.tz = dz / m; }
+    if (!enCurva) for (const cv of CV) { const dA = cv.i0 * STEP - s, dB = s - cv.i1 * STEP, P2 = cv.pts, n2 = P2.length;   // 12 m antes y después de la U el rumbo se funde con el de la curva: sin quiebre en los empalmes
+      const tg = dA > 0 && dA < 12 ? [P2[1][0] - P2[0][0], P2[1][1] - P2[0][1], 1 - dA / 12] : dB > 0 && dB < 12 ? [P2[n2 - 1][0] - P2[n2 - 2][0], P2[n2 - 1][1] - P2[n2 - 2][1], 1 - dB / 12] : null;
+      if (tg) { const l2 = Math.hypot(tg[0], tg[1]) || 1, k = tg[2] * tg[2] * (3 - 2 * tg[2]), dx = lerp(o.tx, tg[0] / l2, k), dz = lerp(o.tz, tg[1] / l2, k), m = Math.hypot(dx, dz) || 1; o.tx = dx / m; o.tz = dz / m; } }
     const g0 = Math.max(0, i - 5), g1 = Math.min(NA - 1, i + 5); o.grade = (E[g1] - E[g0]) / ((g1 - g0) * STEP) * 100;
     const la = lerp(LT[i], LT[i + 1], t); if (la) { o.x += o.tz * la; o.z -= o.tx * la; } return o; };
   const gA = s => { const i = clamp(Math.round(s / STEP), 0, NA - 1), g0 = Math.max(0, i - 5), g1 = Math.min(NA - 1, i + 5); return (E[g1] - E[g0]) / ((g1 - g0) * STEP) * 100; };
@@ -176,8 +193,10 @@ DIST['42'] = { id: '42', KM, corto: '42K', nombre: 'Maratón', P, kmOf, sOfKm, T
   const subidas = (D.subidas || []).map(c => ({ ...c, km0: C.mapKm(c.km0), km1: C.mapKm(c.km1) })).filter(c => c.km0 != null && c.km1 != null && c.km1 > c.km0).map(c => ({ ...c, km0: r2(c.km0), km1: r2(c.km1) }));
   const tramos = RUTA21.tramos.map(t => t.de ? { ...D.tramos.find(q => q.nombre === t.de) } : { ...t }); tramos[tramos.length - 1].km1 = RUTA21.KM;
   DIST['21'] = { id: '21', KM: RUTA21.KM, corto: '21K', nombre: RUTA21.nombre, P: PA, kmOf: C.kmOf, sOfKm: C.sOfKm, TOTAL: C.TOTAL, N: NA, STEP, x: X, z: Z, e: E, ref: C.ref, lat: LT, sRef: C.sRef, gradeAt: gA, mapKm: C.mapKm,
+    giro: s => { const f = clamp(s / STEP, 0, NA - 1), i = Math.min(NA - 2, Math.floor(f)); return lerp(GI[i], GI[i + 1], f - i); },   // 0..1 cerca del retorno en U (pelotón y cámaras)
     hidratacion: mk(D.hidratacion), gatorade: mk(D.gatorade || []), geles: mk(D.geles || []), tramos, hitos, subidas, aviso: RUTA21.aviso, calle: s => C.calle(s, D.calles, D.callesCada),
-    conectores: (() => { const out = []; let cur = null; for (let i = 0; i < NA; i++) { if (C.ref[i] < 0) { if (!cur) out.push(cur = [[X[i - 1], Z[i - 1], E[i - 1]]]); cur.push([X[i], Z[i], E[i]]); } else if (cur) { cur.push([X[i], Z[i], E[i]]); cur = null; } } return out; })() }; }
+    // ejes de los conectores, muestreados cada 2 m sobre la curva suave de PA (de la última muestra del 42K antes a la primera después)
+    conectores: (() => { const out = [], o = {}; let i = 0; while (i < NA) { if (C.ref[i] >= 0) { i++; continue; } let j = i; while (j < NA && C.ref[j] < 0) j++; const c = []; for (let u = (i - 1) * STEP; u <= j * STEP + .01; u += 2) { PA(u, o); c.push([o.x, o.z, o.e]); } out.push(c); i = j; } return out; })() }; }
 Object.assign(A, DIST['42']);
 const distGuardada = () => { const q = _q0.get('dist'); if (q === '21' || q === '42') return q; try { const v = localStorage.getItem('caf3d-distancia'); if (v === '21' || v === '42') return v; } catch (e) { } return '42'; };
 
@@ -236,7 +255,10 @@ Object.assign(api, { conectores: CONECT, distConector, ruta21: DIST['21'] });
 // pasadas; en Las Acacias, el lado izquierdo de las dos esquinas del 42K queda como bocacalle (por ahí sigue derecho el 21K)
 const ABRE = []; { const C = DIST['21'], rf = C.ref;
   let i = 0; while (i < C.N) { if (rf[i] >= 0) { i++; continue; } let j = i; while (j < C.N && rf[j] < 0) j++; const sa = rf[i - 1], sb = rf[j], L = (j - i + 1) * STEP;
-    for (const s of [sa, sb]) ABRE.push(L < 80 ? { s0: s - 14, s1: s + 14, sep: true } : { s0: s - 18, s1: s + 18, L: true }); i = j; } }
+    if (L >= 80) { for (const s of [sa, sb]) ABRE.push({ s0: s - 18, s1: s + 18, L: true }); i = j; continue; }
+    // retorno en U: se abre el separador en las filas del 42K que quedan a menos de 14 m del arco (en las dos pasadas), con 6 m de margen
+    const arco = C.conectores.find(c => Math.hypot(c[0][0] - C.x[i - 1], c[0][1] - C.z[i - 1]) < 1), cerca = s => { const k = Math.round(s / STEP); return arco.some(q => Math.hypot(R.x[k] - q[0], R.z[k] - q[1]) < 14); };
+    for (const s of [sa, sb]) { let a = s, b = s; for (let d = STEP; d <= 120; d += STEP) { if (cerca(s - d)) a = s - d; if (cerca(s + d)) b = s + d; } ABRE.push({ s0: a - 6, s1: b + 6, sep: true }); } i = j; } }
 const hitosListos = Promise.all(HITOS_IDS.map(id => import(`./landmarks/${id}.js${VQ}`).then(m => { (m.meta?.quita || []).forEach(q => { const p = api.xz(q[0], q[1]); QUITA.push([p.x, p.z, q[2]]); }); const o = m.build(THREE, api); o.traverse(n => { if (n.isMesh && !Q.alta) n.castShadow = false; }); scene.add(o); HROOTS.push(o); }).catch(e => console.error('hito ' + id, e)))).then(() => { if (new URLSearchParams(location.search).get('fusion') !== '0') try { FUSION = fusionar(THREE, HROOTS, st => api.tickSeguro(st)); console.info('fusion', JSON.stringify(FUSION)); } catch (e) { console.error('fusion', e); } });
 Object.assign(ctx, { A, DIST, conectores: CONECT, aberturas: ABRE, distConector, HROOTS, scene, camera, renderer, composer, bloom, grade, ShaderPass, Q, api, sun, hemi, sunDir, skyU, skyMat, skyDome, frameHooks, P, hT, Y, kmOf, sOfKm, KM, TOTAL, STEP, N, R, ROAD_W, clamp, lerp, rnd, inTunnel, enElevado, cubierto, nearRoute, canvasTex, label, elevH, edifFix, relieve, EX, nearFade,
   /** añade un pase de posproceso justo antes de la gradación de color */ addPass(p) { composer.insertPass(p, composer.passes.indexOf(grade)); } });
@@ -273,6 +295,32 @@ const groundTint = new THREE.Color(0xffffff);
 let sampler = null; // lectura de color de la imagen (para techos y para saber dónde hay verde)
 function sample(x, z) { if (!sampler) return null; const u = (tileX(lonOf(x), Z0) - bx0) / bnx, v = (tileY(latOf(z), Z0) - by0) / bny; if (u < 0 || u >= 1 || v < 0 || v >= 1) return null; const i = (Math.floor(v * sampler.h) * sampler.w + Math.floor(u * sampler.w)) * 4, d = sampler.d; return [d[i], d[i + 1], d[i + 2]]; }
 const isGreen = c => c && c[1] > c[0] * 1.04 && c[1] > c[2] * 1.12 && c[1] < 190;
+// Detalle del suelo cerca de la cámara (realismo): la foto satelital (0,3–4,8 m/px) se ve borrosa a pie de calle. Sin texturas nuevas:
+// 1) enfoque local con UNA muestra extra (la misma foto 2,5 niveles de mipmap más borrosa: luz/borroso realza el grano real de la foto) y
+// 2) ruido de valor procedural en coordenadas del mundo (3 octavas; en lo verde, más contraste y manchas secas amarillentas).
+// Se desvanece con la distancia (nada más allá de ~320 m: sin centelleo). Mismo programa para la base y todos los mosaicos; sirve igual en media/ligera.
+const sueloDet = m => { if (!REALISMO) return m;
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vSdW;').replace('#include <project_vertex>', '#include <project_vertex>\nvSdW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vSdW;
+float sdH(vec2 p) { p = mod(p, 4096.0); vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float sdN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(sdH(i), sdH(i + vec2(1.0, 0.0)), f.x), mix(sdH(i + vec2(0.0, 1.0)), sdH(i + 1.0), f.x), f.y); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_MAP
+{ float sdD = length(vSdW - cameraPosition), sdK = 1.0 - smoothstep(60.0, 320.0, sdD);
+  if (sdK > 0.002) {
+    vec3 t0 = texture2D(map, vMapUv).rgb, tb = texture2D(map, vMapUv, 2.5).rgb;
+    float l0 = dot(t0, vec3(0.2126, 0.7152, 0.0722)), lb = dot(tb, vec3(0.2126, 0.7152, 0.0722));
+    diffuseColor.rgb *= mix(1.0, clamp(l0 / max(lb, 1e-3), 0.55, 1.7), 0.55 * sdK);
+    vec2 p = vSdW.xz; float n = sdN(p * 0.43) * 0.5 + sdN(p * 1.9) * 0.3 + (sdN(p * 7.1) - 0.5) * 0.4 * (1.0 - smoothstep(12.0, 70.0, sdD)) + 0.1;
+    float gv = clamp((t0.g - max(t0.r, t0.b)) * 16.0, 0.0, 1.0);
+    diffuseColor.rgb *= 1.0 + (n - 0.5) * sdK * (0.26 + 0.3 * gv);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.05, 0.78), gv * sdK * smoothstep(0.55, 0.8, sdN(p * 0.21 + 3.7)) * 0.7);
+  } }
+#endif`);
+  };
+  m.customProgramCacheKey = () => 'sueloDet'; return m; };
 (function terrain() {
   const { nx, nz, x0, z0, dx, h } = T, pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2);
   for (let j = 0, k = 0; j < nz; j++) for (let i = 0; i < nx; i++, k++) {
@@ -282,7 +330,7 @@ const isGreen = c => c && c[1] > c[0] * 1.04 && c[1] > c[2] * 1.12 && c[1] < 190
   const idx = new Uint32Array((nx - 1) * (nz - 1) * 6); let q = 0;
   for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1; idx[q++] = a; idx[q++] = d; idx[q++] = b; idx[q++] = b; idx[q++] = d; idx[q++] = e; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(new THREE.BufferAttribute(idx, 1));
-  scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: baseTex, color: groundTint })));
+  scene.add(new THREE.Mesh(g, sueloDet(new THREE.MeshBasicMaterial({ map: baseTex, color: groundTint }))));
   // Cota más baja que se dibuja en (x, z): esta malla base (hundida junto al relieve lateral, se ve donde la capa fina no ha cargado) o las capas z18/z19
   // (retícula de ~9,4 m, mismas divisiones que `layers`, que corta los escalones bruscos). Los edificios asientan su base aquí para no quedar en el aire.
   const tri = (u, v, a, b, d, e) => u + v <= 1 ? a + u * (b - a) + v * (d - a) : e + (1 - u) * (d - e) + (1 - v) * (b - e);
@@ -316,7 +364,7 @@ function makeLayer(z, offs, rLoad, rDrop, lift, order, maxPar, SEG) {
       loading--; if (t.st !== 1) { tex.dispose(); return; } tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const n = SEG + 1, pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2); for (let j = 0, k = 0; j < n; j++) for (let i = 0; i < n; i++, k++) { const x = xOfTile(t.tx + i / SEG, z), zz = zOfTile(t.ty + j / SEG, z); pos[k * 3] = x; pos[k * 3 + 1] = Y(hT(x, zz)) - GAP + lift; pos[k * 3 + 2] = zz; uv[k * 2] = i / SEG; uv[k * 2 + 1] = 1 - j / SEG; }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(hiIdx);
-      t.mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, color: groundTint, polygonOffset: true, polygonOffsetFactor: -2 * order, polygonOffsetUnits: -4 * order })); t.mesh.renderOrder = order; t.mesh.userData.mem = 'mosaico' + z; scene.add(t.mesh); t.st = 2;
+      t.mesh = new THREE.Mesh(g, sueloDet(new THREE.MeshBasicMaterial({ map: tex, color: groundTint, polygonOffset: true, polygonOffsetFactor: -2 * order, polygonOffsetUnits: -4 * order }))); t.mesh.renderOrder = order; t.mesh.userData.mem = 'mosaico' + z; scene.add(t.mesh); t.st = 2;
     }, undefined, () => { loading--; t.st = 3; });
   };
   const upd = (x, zc) => {
@@ -808,13 +856,16 @@ function frame(now) {
   // seguimiento: baja y pegada al corredor, por debajo de las copas; va SOBRE la ruta (no corta esquinas) aunque el tiempo vaya comprimido
   if (S.cam === 0) { const tun = cubierto(sr) || cubierto(A.sRef(s - 14)), kq = Math.min(sc, 60) / 60, back = tun ? 7 : 8.5 + kq * 5, hgt = tun ? 2.4 : 3 + kq * 1.4, la = 30 + kq * 30, b = A.P(s - back, pb), f = miraAdelante(s, p, la, pc), wu = giroU(s); wantPos.set(b.x, Math.max(b.y, p.y - 1) + hgt, b.z); wantTgt.set(f.x, (f.y + p.y) / 2 + 1.6, f.z); camera.up.set(0, 1, 0);
     if (wu) { wantPos.x = lerp(wantPos.x, p.x - giroU.tx * back, wu); wantPos.z = lerp(wantPos.z, p.z - giroU.tz * back, wu); wantTgt.x = lerp(wantTgt.x, p.x + giroU.tx * la, wu); wantTgt.z = lerp(wantTgt.z, p.z + giroU.tz * la, wu); } }
-  else if (S.cam === 3) { const f = A.P(s + 60, pc), bob = S.paused ? 0 : Math.abs(Math.sin(anim)) * .05; wantPos.set(p.x, p.y + 1.62 + bob, p.z); wantTgt.set(f.x, f.y + 1.5, f.z); camera.up.set(0, 1, 0); }
+  else if (S.cam === 3) { const f = A.P(s + 60, pc), bob = S.paused ? 0 : Math.abs(Math.sin(anim)) * .05; wantPos.set(p.x, p.y + 1.62 + bob, p.z); wantTgt.set(f.x, f.y + 1.5, f.z); camera.up.set(0, 1, 0);
+    { const gw = A.giro(s); if (gw > 0) { wantTgt.x = lerp(wantTgt.x, p.x + p.tx * 25, gw); wantTgt.z = lerp(wantTgt.z, p.z + p.tz * 25, gw); wantTgt.y = lerp(wantTgt.y, p.y + 1.5, gw); } } }   // a bordo en el retorno en U: mira según el rumbo (continuo), no a 60 m de ruta, que salta a la otra calzada
   else if (S.cam === 4) { const b = A.P(s - 55, pb), f = A.P(s + 140, pc); wantPos.set(b.x, Math.max(b.y, p.y) + 22, b.z); wantTgt.set(f.x, f.y + 4, f.z); camera.up.set(0, 1, 0); }   // dron bajo (resumen de 60 s)
   else if (S.cam === 1) { const a = now * .00008, r = 150 + sc * 2; wantPos.set(p.x + Math.cos(a) * r, p.y + 90 + sc, p.z + Math.sin(a) * r); wantTgt.set(p.x, p.y + 4, p.z); camera.up.set(0, 1, 0); }
   else { wantPos.set(p.x, p.y + 1500, p.z + 260); wantTgt.set(p.x, p.y, p.z - 80); camera.up.set(0, 1, 0); }
   // en vertical, 10° más de campo en seguimiento y a bordo: si no, el teléfono ve un pasillo de ~28° de ancho
   const fovW = (S.cam === 3 ? 74 : 58) + (camera.aspect < .75 && (S.cam === 0 || S.cam === 3) ? 10 : 0); if (camera.fov !== fovW) { camera.fov = fovW; camera.updateProjectionMatrix(); } hero.visible = ring.visible = S.cam !== 3;
-  const vw = S.running && !S.paused ? (S.v || 3) * sc : 0, k = camSnap ? 1 : S.cam === 3 ? 1 - Math.exp(-dt * Math.max(9, vw * .8)) : 1 - Math.exp(-dt * (S.cam === 0 ? Math.max(3.2, vw * .6) : 2)); nearFade.value = S.cam === 0 ? 7.5 : 0; camSnap = false; camPos.lerp(wantPos, k); camTgt.lerp(wantTgt, k);
+  // seguimiento en el retorno en U del 21K (gwc): la cámara rodea la U con su ritmo propio (k ≤ 1 − e^(−8·dt)) en vez del latigazo de media vuelta
+  const vw = S.running && !S.paused ? (S.v || 3) * sc : 0, gwc = S.cam === 0 && !camSnap ? A.giro(s) : 0, k0 = camSnap ? 1 : S.cam === 3 ? 1 - Math.exp(-dt * Math.max(9, vw * .8)) : 1 - Math.exp(-dt * (S.cam === 0 ? Math.max(3.2, vw * .6) : 2)),
+    k = gwc > 0 ? lerp(k0, Math.min(k0, 1 - Math.exp(-dt * 8)), gwc) : k0; nearFade.value = S.cam === 0 ? 7.5 : 0; camSnap = false; camPos.lerp(wantPos, k); camTgt.lerp(wantTgt, k);
   const floor = Y(hT(camPos.x, camPos.z)) + (S.cam === 3 ? 1.2 : S.cam === 0 ? 1.6 : 3); if (camPos.y < floor) camPos.y = floor;
   camera.position.copy(camPos); camera.lookAt(camTgt);
   skyDome.position.set(camPos.x, 0, camPos.z); S.min = sky(S.dia ? 150 : S.running || $('end').style.display === 'flex' ? S.clock / 60 : 110);
@@ -867,4 +918,5 @@ import(`./ui/cine.js${VQ}`).then(m => { window.__cafCine = m.crearCine(window.__
   const [a, b, paso, cuadros, vueltas] = q.split(',').map(Number), espera = () => ctx.baseLista ? new Promise(r => setTimeout(r, 2500)) : new Promise(r => setTimeout(r, 300)).then(espera);
   return espera().then(() => m.recorrer(window.__caf, { km0: a || 0, km1: isNaN(b) ? A.KM - .005 : b, paso, cuadros, vueltas, log: f => console.info('MEMORIA ' + (f.vuelta ? 'v=' + f.vuelta + ' ' : '') + m.linea(f)) }))
     .then(r => { console.info('MEMORIA DESGLOSE ' + JSON.stringify(m.desglose(window.__caf))); console.info('MEMORIA FIN ' + Q.tier + ' max ' + JSON.stringify(r.max)); }); }).catch(e => console.error('mem', e)); }
+{ const q = new URLSearchParams(location.search).get('rmedir'); if (q) hitosListos.then(() => setTimeout(() => import('./fx/rmedir.js' + VQ).then(m => m.default(window.__caf, q.split(',').map(Number))).catch(e => console.error('rmedir', e)), 3000)); }   // llamadas de dibujo y triángulos por km (fx/rmedir.js)
 { const q = new URLSearchParams(location.search).get('choques'); if (q) hitosListos.then(() => setTimeout(() => import('./fx/choques.js' + VQ).then(m => m.default(window.__caf, +q.split(',')[0], +q.split(',')[1])).then(r => console.info('CHOQUES ' + q + ' → ' + r.split('\n').join(' ¦ ') + ' ¦ FIN')).catch(e => console.error('choques', e)), 5000)); }

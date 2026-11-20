@@ -194,5 +194,28 @@ export function build(THREE, api) {
     }
   }
 
+  // ───────── Reja verde-turquesa de Los Caobos, derecha de la salida (km 0,085–0,205; f_0005–f_0006) ─────────
+  // auditoría final 19-nov: en el video el parque queda tras una reja de barrotes verde-turquesa de ~2,6 m sobre murete gris, con la
+  // defensa baja al borde de la calzada; el juego dejaba la grama abierta. Antes del 0,085 está el arco y el público de salida_meta.js;
+  // desde el 0,2 la vía baja a la trinchera. Paño de dos caras frontales (oclusión ambiental) y postes instanciados.
+  {
+    const LAT = -9.4, pts = []; for (let k = .085; k <= .2051; k += .003) { const r = api.routeAt(k), x = r.x + r.lx * LAT, z = r.z + r.lz * LAT; pts.push({ x, z, y: api.ground(x, z), tx: r.tx, tz: r.tz }); }
+    const paño = (y0, h, mat, uEsc) => { const pos = [], uv = [], ia = [], ib = []; let acc = 0;
+      pts.forEach((p, i) => { if (i) acc += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z); pos.push(p.x, p.y + y0, p.z, p.x, p.y + y0 + h, p.z); uv.push(acc / uEsc, 0, acc / uEsc, 1);
+        if (i) { const a = (i - 1) * 2; ia.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); ib.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } });
+      for (const ix of [ia, ib]) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(ix); geo.computeVertexNormals(); g.add(new THREE.Mesh(geo, mat)); } };
+    const tex = api.canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = '#1f8a7c'; c.lineWidth = 4; for (let x = 4; x < w; x += 16) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); }
+      c.lineWidth = 7; for (const y of [4, h - 10]) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); } });
+    tex.wrapS = THREE.RepeatWrapping;
+    paño(.5, 2.2, new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: .4, roughness: .6, metalness: .3 }), 1.3);
+    paño(0, .5, api.concrete(0x9d9b94), 3);
+    const pg = new THREE.BoxGeometry(.12, 2.9, .12), pm = api.concrete(0x1f8a7c, { roughness: .5 }), PI = pts;
+    const im = new THREE.InstancedMesh(pg, pm, PI.length), M4 = new THREE.Matrix4(); PI.forEach((p, i) => im.setMatrixAt(i, M4.makeTranslation(p.x, p.y + 1.45, p.z))); g.add(im);
+    // defensa baja de concreto pintada al borde de la calzada (f_0006)
+    const D = [];
+    for (let k = .09; k <= .2; k += .003) { const r = api.routeAt(k), x = r.x - r.lx * 7.3, z = r.z - r.lz * 7.3; D.push(new THREE.Matrix4().compose(new THREE.Vector3(x, api.ground(x, z) + .27, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(r.tx, r.tz), 0)), new THREE.Vector3(1, 1, 1))); }
+    const db2 = new THREE.InstancedMesh(new THREE.BoxGeometry(.35, .55, 2.9), api.concrete(0xb9b7b0), D.length); D.forEach((m, i) => db2.setMatrixAt(i, m)); g.add(db2);
+  }
+
   return api.sombras(g);
 }

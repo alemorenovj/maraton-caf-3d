@@ -53,7 +53,12 @@ export function install(ctx) {
   for (const k in TG) TG[k] = !OFF.has(k);
   TG.ao = TG.ao && q.get('ao') !== '0'; // GTAO a 1/4 de resolución, 8 muestras, recalculada cada 2 cuadros (~1–2,5 ms); &ao=0 o &sinfx=ao la apagan
   if (!Q.alta) TG.ao = TG.rayos = TG.destello = TG.mb = false;
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  // Realismo (nov-2026, ?realismo=0 lo apaga): color calibrado con números contra 8 fotogramas del video (fx/capturas/realismo_ab.jpg, README «Realismo»):
+  // el juego salía ~10 % más claro en medios y altas (p50 103 vs 91, p90 173 vs 158) con las sombras iguales, y con los colores intensos más
+  // saturados (saturación p90 0,88 vs 0,80; mediana igual). Se baja el blanco (no la exposición: las sombras ya coincidían) y se cambia saturación por vibrancia.
+  const REAL = ctx.realismo !== false;
+  if (REAL) Object.assign(COLOR, { wht: 0.97, sat: 0.95, vib: 0.22 });   // ronda 2: saturación 1,0 → 0,95
+  const clamp =(v, a, b) => Math.max(a, Math.min(b, v)), sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
   // ═════════ 1. Perspectiva aérea + sombras de nubes en TODOS los materiales (parche del trozo de niebla de three) ═════════
   // Uniformes compartidos por referencia: three clona los uniformes de ShaderLib, pero un objeto plano {x,y,z,w} o un Float32Array
@@ -114,6 +119,47 @@ export function install(ctx) {
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
  }
 #endif`;
+  // ═════════ 1b. «Cámara en el material» (realismo): media y ligera dibujan directo a la pantalla, sin posproceso, así que no tenían la curva
+  // de color de la cámara (balance, niveles, gamma, curva en S, saturación/vibrancia, polarizador del cielo, verdes, viñeta) y además three
+  // aplicaba el ACES y el sRGB ANTES de la bruma (la perspectiva aérea se mezclaba con colores ya comprimidos). Aquí, solo cuando se dibuja a la
+  // pantalla (TONE_MAPPING definido: nunca en alta, que dibuja a un búfer intermedio), el ACES + sRGB pasan al final de la bruma y detrás va la misma
+  // curva que el pase «cámara» de alta. Coste: unas 30 operaciones por píxel, sin pases ni búferes nuevos. El cielo y las nubes (ShaderMaterial
+  // propios, que no pasaban ni por el ACES ni por el sRGB en media: de ahí el azul eléctrico) llevan la misma cola.
+  const GR = new Float32Array([REAL ? 1 : 0, COLOR.gam, 1 / 1280, 1 / 720]);   // x activo, y gamma (de noche baja), zw 1/resolución (viñeta)
+  const f3 = v => v.toFixed(4);
+  const GRADE = `uniform vec4 cafGr;
+ vec3 cafGrade( vec3 c ) {
+  c *= vec3( ${COLOR.wb.map(f3).join(', ')} ); c = clamp( ( c - ${f3(COLOR.blk)} ) / ${f3(COLOR.wht - COLOR.blk)}, 0.0, 1.0 );
+  c = pow( c, vec3( cafGr.y ) ); vec3 s = c * c * ( 3.0 - 2.0 * c ); c = mix( c, s, ${f3(COLOR.con)} );
+  float mx = max( c.r, max( c.g, c.b ) ), mn = min( c.r, min( c.g, c.b ) ), st = mx - mn, l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) );
+  c = mix( vec3( l ), c, ${f3(COLOR.sat)} + ${f3(COLOR.vib)} * ( 1.0 - st ) * ( 1.0 - st ) );
+  float azul = clamp( ( c.b - max( c.r, c.g ) ) * 4.0, 0.0, 1.0 ) * smoothstep( 0.25, 0.6, c.b ); c = mix( c, c * vec3( 0.78, 0.9, 1.0 ) * ( 0.95 + 0.05 * c.b ), azul * ${f3(COLOR.cieloAzul)} );
+  float vrd = clamp( ( c.g - max( c.r, c.b ) ) * 5.0, 0.0, 1.0 ); c = mix( c, c * vec3( 0.88, 1.06, 0.82 ), vrd * ${f3(COLOR.verde)} );
+  vec2 q = gl_FragCoord.xy * cafGr.zw - 0.5; c *= 1.0 - ${f3(COLOR.vig)} * smoothstep( 0.05, 0.55, dot( q, q ) * 1.6 );
+  return clamp( c, 0.0, 1.0 ); }
+`;
+  const GR_COLA = `#if defined( TONE_MAPPING )
+ if ( cafGr.x > 0.5 ) { gl_FragColor.rgb = cafGrade( linearToOutputTexel( vec4( toneMapping( gl_FragColor.rgb ), 1.0 ) ).rgb ); }
+ else { gl_FragColor.rgb = linearToOutputTexel( vec4( toneMapping( gl_FragColor.rgb ), 1.0 ) ).rgb; }
+#else
+ gl_FragColor = linearToOutputTexel( gl_FragColor );
+#endif`;
+  if (REAL) {
+    for (const id in THREE.ShaderLib) { const u = THREE.ShaderLib[id].uniforms; if (u && u.fogColor) u.cafGr = { value: GR }; }
+    // los materiales que traen la bruma (casi todos los de three) definen CAF_POST: su ACES + sRGB se hace al final de la bruma
+    C.fog_pars_fragment += '\n#define CAF_POST\n' + GRADE;
+    C.tonemapping_fragment = '#ifndef CAF_POST\n' + C.tonemapping_fragment + '\n#endif';
+    C.colorspace_fragment = '#ifndef CAF_POST\n' + C.colorspace_fragment + '\n#endif';
+    // ronda 2 · lejanía (El Ávila, los cerros del sur): el video los muestra azulados y sin contraste a partir de ~2 km, aunque estén altos.
+    // La bruma del motor cae con la altura (1/700 m) y dejaba la montaña verde y nítida: se suma una extinción que solo depende de la
+    // distancia (5e-5/m desde 1,5 km, plena a 9 km) y la bruma lejana se tiñe de azul.
+    C.fog_fragment = C.fog_fragment.replace('float aF = min( 1.0 - exp( - aTau ), aerP.w );', 'float aFar = smoothstep( 1500.0, 9000.0, aD ); aTau += aD * 5.0e-5 * aFar; float aF = min( 1.0 - exp( - aTau ), aerP.w );')
+      .replace('gl_FragColor.rgb = mix( gl_FragColor.rgb, aHz, aF );', 'aHz = mix( aHz, aHz * vec3( 0.82, 0.95, 1.2 ), aFar ); gl_FragColor.rgb = mix( gl_FragColor.rgb, aHz, aF );');
+    C.fog_fragment += '\n' + GR_COLA;
+    ctx.frameHooks.push(noche => { GR[1] = COLOR.gam + (COLOR.gamNoche - COLOR.gam) * noche; const sz = renderer.getDrawingBufferSize(_grv); GR[2] = 1 / sz.x; GR[3] = 1 / sz.y; });
+  }
+  const _grv = new THREE.Vector2();
+  const cola = f => REAL ? f.replace('void main(){', GRADE + ' void main(){').replace(/\}\s*$/, GR_COLA + '\n}') : f;   // cielo y nubes: misma cola de color
 
   // ═════════ 2. Cielo físico ═════════
   // Dispersión simple (Nishita) Rayleigh + Mie con sombra del planeta (crepúsculo correcto), en km. Se precalcula en una tabla 192×96
@@ -180,9 +226,9 @@ export function install(ctx) {
   #endif
   gl_FragColor = vec4( max( c, 0.0 ), 0.0 );   // alfa 0 = cielo (lo usan los rayos de luz y el destello)
  }`;
-  skyMat.fragmentShader = SKY_FRAG; skyMat.needsUpdate = true;
+  skyMat.fragmentShader = cola(SKY_FRAG); skyMat.needsUpdate = true; if (REAL) skyU.cafGr = { value: GR };
   // entorno de reflejos: el mismo cielo, con suelo oscuro abajo (el vidrio de las torres refleja calle, no cielo)
-  const envMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: skyU, defines: { ENV: 1 }, vertexShader: skyMat.vertexShader, fragmentShader: SKY_FRAG });
+  const envMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: skyU, defines: { ENV: 1 }, vertexShader: skyMat.vertexShader, fragmentShader: cola(SKY_FRAG) });
   const envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), envMat));
   const pmrem = new THREE.PMREMGenerator(renderer); let envRT = null;
 
@@ -269,6 +315,7 @@ export function install(ctx) {
   col = mix( col, fogColor + aerMie.rgb * pow( mu, 6.0 ) * 0.55 * aerSun.w, aF * 0.85 );
   gl_FragColor = vec4( col, dens * opac );
  }` });
+    cloudMat.fragmentShader = cola(cloudMat.fragmentShader); if (REAL) NUBE_U.cafGr = { value: GR };
     cloudMesh = new THREE.Mesh(g, cloudMat); cloudMesh.frustumCulled = false; cloudMesh.renderOrder = -5; cloudMesh.userData.noAO = true; scene.add(cloudMesh);
     // orden de atrás hacia adelante (cada ~0,4 s), sin crear memoria
     const ord = new Uint32Array(n), dist = new Float32Array(n), cmp = (a, b) => dist[b] - dist[a];

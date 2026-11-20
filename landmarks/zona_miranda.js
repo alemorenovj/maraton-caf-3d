@@ -388,5 +388,20 @@ export function build(THREE, api) {
       add(new THREE.BoxGeometry(.5, 1.1, .5), amarillo, 0, .55, 3.6, G); add(new THREE.BoxGeometry(2.2, 2.6, 2.2), blanco, 2.2, 1.3, 5.2, G); }
   }
 
+  // ───────── 14. Bocas del Metro La California (km 33,35) y Los Cortijos (km 34,60), acera derecha (auditoría final, 19-nov) ─────────
+  // Las estaciones (OSM: nodos «La California» 10.482001,−66.818383 y «Los Cortijos» 10.489565,−66.826730) van bajo la avenida, a 8–10 m del eje;
+  // en el video no se distingue cada boca, así que pongo la señal que todo caraqueño reconoce: tótem con la M naranja (las dos caras miran a lo
+  // largo de la acera) y el letrero de la estación, con la baranda gris de la escalera. Posición exacta de la boca sin confirmar (dentro de ±30 m).
+  { const Mt = new THREE.MeshStandardMaterial({ map: api.canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#f07c1b'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 50px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('M', w / 2, h / 2 + 3); }), roughness: .6 });
+    const nombre = t => new THREE.MeshStandardMaterial({ map: api.canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#20262c'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = 'bold 30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, w / 2, h / 2 + 2); }), roughness: .7 });
+    const geoBar = new THREE.BoxGeometry(.2, 1.05, 6), geoFondo = new THREE.BoxGeometry(2.9, 1.05, .2), geoPoste = new THREE.CylinderGeometry(.08, .08, 3.6, 8), geoM = new THREE.BoxGeometry(1, 1, .18), geoN = new THREE.BoxGeometry(1.7, .42, .14);
+    for (const [km, off, txt] of [[33.35, -9.4, 'La California'], [34.60, -9.6, 'Los Cortijos']]) {
+      const G = grupo(km, off), N = nombre(txt);
+      for (const x of [-1.45, 1.45]) add(geoBar, grisC, x, .52, 0, G);          // baranda de la escalera (la boca baja hacia adelante)
+      add(geoFondo, grisC, 0, .52, -3, G);
+      add(geoPoste, grisC, 0, 1.8, 3.6, G);
+      add(geoM, [grisC, grisC, grisC, grisC, Mt, Mt], 0, 3.7, 3.6, G);
+      add(geoN, [grisC, grisC, grisC, grisC, N, N], 0, 2.95, 3.6, G); } }
+
   return api.sombras(g);
 }

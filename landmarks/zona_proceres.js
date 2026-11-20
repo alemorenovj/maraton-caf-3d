@@ -357,6 +357,22 @@ export function build(THREE, api) {
       for (const x of [-1.4, 1.4]) add(new THREE.BoxGeometry(.4, 1.6, .4), mo, x, .8, 0, T); }
   }
 
+  // ═════════ 12. C.C. Los Ilustres (km 15,33 der.): letrero de McDonald's y franja de rótulos oscuros en la fachada blanca (f_0147) ═════════
+  // auditoría final 19-nov: la huella (OSM, 15 m, blanca en fx/correcciones/proceres.js) salía lisa. Cara este, la que mira a la avenida:
+  // esquina norte (10.482893, −66.895924) → esquina sur (10.482457, −66.895639); el McDonald's queda en la punta norte, la que se ve primero desde la redoma.
+  { const A = api.xz(10.482893, -66.895924), B = api.xz(10.482457, -66.895639), C = api.xz(10.482572, -66.896120);
+    const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L; let nx = -uz, nz = ux;
+    if ((A.x + B.x) / 2 * nx + (A.z + B.z) / 2 * nz < C.x * nx + C.z * nz) { nx = -nx; nz = -nz; }   // normal hacia afuera (la avenida)
+    const yaw = Math.atan2(nx, nz), y0 = Math.min(api.ground(A.x, A.z), api.ground(B.x, B.z));
+    const pon = (t, h, w, alto, mat, sal = .35) => { const m = add(new THREE.BoxGeometry(w, alto, .3), mat, A.x + dx * t + nx * sal, y0 + h, A.z + dz * t + nz * sal); m.rotation.y = yaw; return m; };
+    const mc = api.canvasTex(512, 96, (k, w, h) => { k.fillStyle = '#d52b1e'; k.fillRect(0, 0, w, h); k.fillStyle = '#ffc72c'; k.font = 'bold 84px Arial'; k.textBaseline = 'middle'; k.fillText('M', 380, h / 2 + 4);
+      k.fillStyle = '#fff'; k.font = 'bold 50px Arial'; k.fillText("McDonald's", 40, h / 2 + 2); });
+    const mcM = api.glow(0xffffff, { dia: .12, noche: .9 }); mcM.map = mcM.emissiveMap = mc; mcM.needsUpdate = true; const rojo = api.concrete(0xd52b1e), negro = api.concrete(0x1e1f22);
+    pon(.16, 8.4, 8, 1.5, [rojo, rojo, rojo, rojo, mcM, rojo]);
+    pon(.16, 6.6, 8, .6, api.concrete(0xe0582a));                        // franja naranja bajo el letrero
+    pon(.5, 6.9, 22, 1.1, negro, .25);                                  // franja de rótulos oscuros (tiendas y cine)
+    pon(.5, 1.1, L * .9, 2.2, api.concrete(0x7d7a73), .6); }            // muro bajo de piedra gris con reja (planta baja, f_0147)
+
   if (arboles.length) plantaArboles();
   return api.sombras(g);
 }

@@ -10,6 +10,13 @@
 const BL = '#efece4', BL2 = '#e7e3d8';   // blanco de los bloques de El Silencio
 export default {
   edif: [
+    // auditoría final 19-nov: el generador pinta murales de colores de arriba abajo en las medianeras de las torres a < 160 m de la ruta
+    // entre los km 3,6 y 5,6 (MURALES de fx/edificios.js). Desde el 4,5 se veían dos al fondo (afz_4.6: la Torre A y la torre flaca del
+    // 4,76); en el video (f_0050–0052) son lisas. Reglas de zona que solo apagan el mural (tipo, color y altura no cambian; las puntuales
+    // mandan). La de Maternidad es la que corrige lo visto; las de Artigas son preventivas para las torres que asoman al fondo.
+    { ll: [10.4920, -66.9446], r: 340, mural: 0 },   // torres de 60–99 m de Artigas y La Paz; r < 400: game.js descarta reglas a más de 400 m
+    { ll: [10.4904, -66.9404], r: 200, mural: 0 },   // torres de 56–79 m junto al Metro Artigas (km 5,7–6,0)
+    { ll: [10.4960, -66.9325], r: 130, mural: 0 },   // Torre A, Torre B y las torres flacas de Maternidad (km 4,66–4,8, der.)
     // ── El Silencio (km 3,1–3,45; f_0033–0037): bloques blancos de 4–6 pisos con balcones y arcadas en planta baja
     { ll: [10.503649, -66.920357], a: 'RES', pisos: 6, col: BL, shop: 1, old: 1, alt: 0, nota: 'Bloque 1 de El Silencio, km 3,10 der. (f_0033)' },
     // km 3,13: la esquina redondeada del Bloque 1 (huella con la arcada) se metía en el borde derecho; recortada a 7,5 m del eje
@@ -92,6 +99,10 @@ export default {
     { ll: [10.495842, -66.930006], a: 'RES', pisos: 4, col: '#e3b53e', shop: 0, rail: 1, old: 1 },
     { ll: [10.496539, -66.932043], a: 'RES', pisos: 9, col: '#e2a24e', shop: 1, alt: 1, nota: 'edificio ocre-naranja de aires acondicionados, km 4,66 der. (f_0050)' },
     { ll: [10.495829, -66.932584], a: 'RES', pisos: 24, col: '#efeee8', shop: 1, alt: 1, nota: 'Torre A: blanca de 24 pisos, km 4,74 der. (f_0051)' },
+    // auditoría final 19-nov: las dos huellas de la Torre B (OSM 25 niveles, 80 m) quedaban sin corregir y el generador las pintaba con un
+    // mural psicodélico de arriba abajo, visible al fondo desde el km 4,5 (afa_4.6). En f_0050–0051 es una torre crema lisa.
+    { ll: [10.496588, -66.932580], a: 'RES', pisos: 25, col: '#e6dcc6', shop: 0, rail: 1, alt: 1, mural: 0, nota: 'Torre B (cuerpo sur), km 4,70 der., 88 m del eje' },
+    { ll: [10.496778, -66.932654], a: 'RES', pisos: 25, col: '#e6dcc6', shop: 0, rail: 1, alt: 1, mural: 0, nota: 'Torre B (cuerpo norte), km 4,70 der., 114 m del eje' },
     { ll: [10.495869, -66.932832], a: 'RES', pisos: 18, col: '#e6e3da', shop: 0, alt: 1 },
     // km 4,81: caseta de 5 m que entró con el trazado nuevo a 5,7 m del eje, en la acera de la boca del Metro (la marquesina va a mano)
     { ll: [10.495353, -66.933304], quitar: true, nota: 'caseta sobre la acera del Metro Maternidad, km 4,81 der.' },

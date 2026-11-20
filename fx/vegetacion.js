@@ -93,6 +93,11 @@ export function install(ctx) {
   });
 
   // ───────── Materiales (viento, translucidez, sombra calada) ─────────
+  const REAL = ctx.realismo !== false;
+  const MIP_ALFA = `#ifdef USE_MAP
+ { vec2 tsz = vec2(textureSize(map, 0)), du = dFdx(vMapUv * tsz), dv = dFdy(vMapUv * tsz); diffuseColor.a *= 1.0 + max(0.5 * log2(max(dot(du, du), dot(dv, dv))), 0.0) * 0.3; }
+#endif
+`;
   const U = { uTime: { value: 0 }, uWind: { value: .22 }, uSunV: { value: V3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uTransl: { value: .9 } };
   const windVS = leaf => `
     #ifdef USE_INSTANCING
@@ -108,23 +113,31 @@ export function install(ctx) {
       mat3 wim = mat3(instanceMatrix); transformed += transpose(wim) * wo / dot(wim[0], wim[0]);
     #else
       transformed += wo;
+    #endif
+    #ifdef USE_INSTANCING
+      { float lf = smoothstep(2.5, 11.0, position.y); mat3 lim = mat3(instanceMatrix); transformed += transpose(lim) * vec3(aLean.x, 0.0, aLean.y) * lf / dot(lim[0], lim[0]); }
     #endif`;
   function patch(mat, { leaf = false, transl = false, noFlip = false, paint = false } = {}) {
     mat.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, U);
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aWind; uniform float uTime; uniform float uWind;')
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aWind; uniform float uTime; uniform float uWind;\n#ifdef USE_INSTANCING\nattribute vec2 aLean;\n#endif')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + windVS(leaf));
       if (paint) { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vPaint; varying float vLy;').replace('#include <color_vertex>', '#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n vPaint = instanceColor.b > 2.0 ? 1.0 : 0.0; vColor = color;\n#endif\n vLy = position.y;');
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPaint; varying float vLy;').replace('#include <color_fragment>', '#include <color_fragment>\n if (vPaint > 0.5 && vLy < 1.3 - 0.03 * sin(vLy * 40.0)) diffuseColor.rgb = vec3(0.78, 0.78, 0.74);'); }
+      // realismo: el alfa de las hojas se promedia en los mipmaps y con alphaTest las copas lejanas se vacían (palmas en «estrella», copas
+      // ralas). Se escala el alfa con el nivel de mipmap (derivadas de pantalla): la copa conserva su cobertura a cualquier distancia. Sin muestras extra.
+      if (REAL && leaf) sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', MIP_ALFA + '#include <alphatest_fragment>');
+      if (REAL && paint) sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= vec3(1.7, 1.66, 1.6);');   // corteza: gris pardo como en el video, no casi negra
       if (sh.fragmentShader.includes('#include <opaque_fragment>')) {
         // lo que queda pegado a la cámara de seguimiento se desvanece (tramado) en vez de taparla
         if (ctx.nearFade) { sh.uniforms.uNearFade = ctx.nearFade; sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uNearFade;').replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n if (uNearFade > 0.0) { float cd = length(vViewPosition) / uNearFade; if (cd < 1.0 && fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) > cd * cd) discard; }'); }
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uSunV; uniform vec3 uSunCol; uniform float uTransl;');
         if (noFlip) sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0; vec3 normal = normalize(vNormal); vec3 nonPerturbedNormal = normal;');
+        if (transl && REAL) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{ float sl = max(dot(normal, uSunV), 0.0); outgoingLight *= mix(vec3(0.94, 0.97, 1.0), vec3(1.2, 1.14, 0.78), sl); }\n#include <opaque_fragment>`);   // cara al sol: verde amarillento; cara en sombra: más fría (como en el video)
         if (transl) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{ vec3 vdir = normalize(-vViewPosition); float tr = pow(max(dot(vdir, uSunV), 0.0), 5.0); outgoingLight += diffuseColor.rgb * uSunCol * uTransl * (tr * 1.1 + 0.16 * (1.0 - max(dot(normal, uSunV), 0.0))); }\n#include <opaque_fragment>`);
       }
     };
-    mat.customProgramCacheKey = () => 'veg' + (+leaf) + (+transl) + (+noFlip) + (+paint);
+    mat.customProgramCacheKey = () => 'veg' + (+leaf) + (+transl) + (+noFlip) + (+paint) + (+REAL);
     return mat;
   }
   const leafMat = patch(new THREE.MeshLambertMaterial({ map: leafTex, alphaTest: .5, side: THREE.DoubleSide, vertexColors: true }), { leaf: true, transl: true, noFlip: true });
@@ -188,6 +201,7 @@ export function install(ctx) {
     araguaneyFlor: { H: 11.5, tH: 4.4, r0: .26, nP: 4, arch: .35, rh: 4.6, rv: 3.1, cy: 8.6, bot: 5.9, n2: 4, cards: 9, size: 2.1, tiles: [[2, .88], [1, .12]], elev: [-.35, 1], tint: [1.2, 1.12, 1.1] },
     mango: { H: 11, tH: 2.3, r0: .42, nP: 5, arch: .3, rh: 6.2, rv: 4.4, cy: 6.6, bot: 2.6, n2: 5, cards: 12, size: 2.4, tiles: [[1, 1]], elev: [-.55, 1], hang: 1, tint: [.66, .74, .66] },
   };
+  if (REAL) for (const k in SP) SP[k].size *= 1.15;   // realismo: copas más llenas con las mismas tarjetas (0 triángulos más)
   const NAMES = Object.keys(SP), CAS = NAMES.length, PALM0 = CAS + 1, NPALM = 3, isPalm = k => k >= PALM0; // casuarina y tres chaguaramos
   function buildTree(sp, seed) {
     const r = mul(seed), T = new Builder(), L = new Builder(), ctr = V3(0, sp.cy, 0);
@@ -260,7 +274,7 @@ export function install(ctx) {
       for (let i = 0; i <= seg; i++) { rows.push([p.clone(), d.clone()]); p.addScaledVector(d, Lf / seg); d.y -= .2 + .045 * i; d.normalize(); }
       const base = F.p.length / 3;
       for (let i = 0; i <= seg; i++) {
-        const [pp, dd] = rows[i], t = i / seg, wd = .78, up = side.clone().cross(dd).normalize().multiplyScalar(-1); if (up.y < 0) up.multiplyScalar(-1);
+        const [pp, dd] = rows[i], t = i / seg, wd = REAL ? 1.2 : .78, up = side.clone().cross(dd).normalize().multiplyScalar(-1); if (up.y < 0) up.multiplyScalar(-1);
         const droop = up.clone().multiplyScalar(-(.55 + .35 * t) * wd), L0 = pp.clone().addScaledVector(side, -wd).add(droop), R0 = pp.clone().addScaledVector(side, wd).add(droop);
         const col = seca ? [1.25, .8, .45] : [.8 + .25 * t, .85 + .2 * t, .8 + .2 * t], w = (.45 + .55 * t) * (seca ? .4 : 1);
         F.v(L0, up, 0, 1 - t, col, w); F.v(pp, up, .5, 1 - t, col, w); F.v(R0, up, 1, 1 - t, col, w);
@@ -288,6 +302,7 @@ export function install(ctx) {
   }
   const imMat = new THREE.MeshLambertMaterial({ map: imRT.texture, alphaTest: .5, side: THREE.DoubleSide });
   imMat.onBeforeCompile = sh => {
+    if (REAL) sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', MIP_ALFA + '#include <alphatest_fragment>');
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTile;')
       .replace('#include <uv_vertex>', `#include <uv_vertex>\n vMapUv = (vec2(mod(aTile, ${GX}.0), floor(aTile / ${GX}.0)) + uv * vec2(1.0, 1.0)) / vec2(${GX}.0, ${GY}.0);`)
       .replace('#include <defaultnormal_vertex>', 'vec3 icn = instanceMatrix[3].xyz; vec3 transformedNormal = normalize((viewMatrix * vec4(normalize(normalize(cameraPosition - icn) * vec3(1.0, 0.0, 1.0) * 0.6 + vec3(0.0, 0.8, 0.0)), 0.0)).xyz);')
@@ -295,15 +310,16 @@ export function install(ctx) {
         vec3 iwp = icn + icr * position.x * length(instanceMatrix[0].xyz) + vec3(0.0, position.y * length(instanceMatrix[1].xyz), 0.0);
         vec4 mvPosition = viewMatrix * vec4(iwp, 1.0); gl_Position = projectionMatrix * mvPosition;`);
   };
-  imMat.customProgramCacheKey = () => 'vegImp';
+  imMat.customProgramCacheKey = () => 'vegImp' + (+REAL);
 
   // ───────── Instancias ─────────
   const CAPN = Q.alta ? 220 : 110, NEARTOT = Q.alta ? 300 : 140, CAPF = 14000, NEAR_R = Q.alta ? 280 : 170, FAR_R = Q.alta ? 2800 : 1800;
   const near = TPL.map((t, i) => {
     const pal = isPalm(i), tr = new THREE.InstancedMesh(t.trunk, pal ? palmMat : barkMat, CAPN), lv = new THREE.InstancedMesh(t.leaves, pal ? frondMat : leafMat, CAPN);
     tr.customDepthMaterial = barkDepth; lv.customDepthMaterial = pal ? frondDepth : leafDepth;
-    for (const m of [tr, lv]) { m.frustumCulled = false; m.castShadow = m.receiveShadow = Q.alta; m.count = 0; scene.add(m); }
-    lv.setColorAt(0, new THREE.Color(1, 1, 1)); tr.setColorAt(0, new THREE.Color(1, 1, 1)); return { tr, lv };
+    for (const m of [tr, lv]) { m.frustumCulled = false; m.castShadow = m.receiveShadow = Q.alta; m.count = 0; if (REAL) m.userData.noAO = true; scene.add(m); }   // realismo: el pase de normales del GTAO no conoce la inclinación de la copa (dejaba su silueta sin inclinar como mancha sobre el cielo)
+    lv.setColorAt(0, new THREE.Color(1, 1, 1)); tr.setColorAt(0, new THREE.Color(1, 1, 1));
+    const la = new THREE.InstancedBufferAttribute(new Float32Array(CAPN * 2), 2); t.trunk.setAttribute('aLean', la); t.leaves.setAttribute('aLean', la); return { tr, lv, la };
   });
   const qg = new THREE.BufferGeometry(); qg.setAttribute('position', new THREE.Float32BufferAttribute([-.5, 0, 0, .5, 0, 0, .5, 1, 0, -.5, 1, 0], 3)); qg.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], 3)); qg.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2)); qg.setIndex([0, 1, 2, 0, 2, 3]);
   const tileAttr = new THREE.InstancedBufferAttribute(new Float32Array(CAPF), 1); qg.setAttribute('aTile', tileAttr);
@@ -315,6 +331,14 @@ export function install(ctx) {
     for (let i = 0; i < 7000; i++) { const a = r() * TAU, d = Math.pow(r(), .6) * c * .94, x = c + Math.cos(a) * d, y = c + Math.sin(a) * d, f = 1 - d / (c * .96); g.fillStyle = `rgba(0,0,0,${(.05 + .12 * f).toFixed(3)})`; g.beginPath(); g.ellipse(x, y, 4 + r() * 16 * (1 + f), 3 + r() * 10, r() * 3, 0, TAU); g.fill(); }
     g.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 900; i++) { const a = r() * TAU, d = Math.pow(r(), .6) * c * .9, x = c + Math.cos(a) * d, y = c + Math.sin(a) * d, q = r(); g.fillStyle = `rgba(0,0,0,${(.35 + r() * .55).toFixed(2)})`; g.beginPath(); g.ellipse(x, y, 1.5 + q * q * 11, 1.5 + r() * 5, r() * 3, 0, TAU); g.fill(); }
   });
+  // realismo: la sombra del video es una masa oscura de borde recortado con manchas de sol nítidas e irregulares, no lunares redondos y suaves
+  if (REAL) { const cv = dapTex.image, g = cv.getContext('2d'), w = cv.width, c = w / 2, r = mul(89); g.clearRect(0, 0, w, w); g.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 70; i++) { const a = r() * TAU, d = Math.pow(r(), .7) * c * .62, x = c + Math.cos(a) * d, y = c + Math.sin(a) * d, R = c * (.16 + r() * .2); g.fillStyle = 'rgba(0,0,0,.78)'; g.beginPath();
+      for (let k = 0; k <= 18; k++) { const b = k / 18 * TAU, rr = R * (.65 + .55 * r()); g[k ? 'lineTo' : 'moveTo'](x + Math.cos(b) * rr, y + Math.sin(b) * rr); } g.fill(); }
+    g.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 1100; i++) { const a = r() * TAU, d = Math.pow(r(), .5) * c * .95, x = c + Math.cos(a) * d, y = c + Math.sin(a) * d, f = d / c, q = r(); g.fillStyle = `rgba(0,0,0,${(.7 + .3 * r()).toFixed(2)})`; g.beginPath();
+      const R = (1 + q * q * q * 9) * (.7 + f * .8); for (let k = 0; k <= 7; k++) { const b = k / 7 * TAU, rr = R * (.55 + .7 * r()); g[k ? 'lineTo' : 'moveTo'](x + Math.cos(b) * rr * 1.4, y + Math.sin(b) * rr); } g.fill(); }
+    g.globalCompositeOperation = 'source-over'; dapTex.needsUpdate = true; }
   const dapMat = new THREE.MeshBasicMaterial({ color: 0x000000, map: dapTex, transparent: true, depthWrite: false, opacity: .5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
   dapMat.onBeforeCompile = sh => { sh.uniforms.uTime = U.uTime; sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace('#include <uv_vertex>', '#include <uv_vertex>\n float dph = dot(instanceMatrix[3].xz, vec2(0.071, 0.053)); vMapUv += vec2(sin(uTime * 0.83 + dph) + 0.45 * sin(uTime * 1.97 + dph * 1.7), 0.55 * cos(uTime * 0.61 + dph * 1.3)) * 0.012;'); };
   dapMat.customProgramCacheKey = () => 'vegDap';
@@ -322,9 +346,9 @@ export function install(ctx) {
   const lastSun = V3();
 
   // árboles colocados: posición, giro, escala, plantilla, tinte
-  let NT = 0, TX, TY, TZ, TR, TSc, TK, TC, TF; const TMP = [], ST = 10;
+  let NT = 0, TX, TY, TZ, TR, TSc, TK, TC, TF; const TMP = [], ST = 12; let TL;
   // flags: 1 = árbol de calle (sombra moteada propia), 2 = tronco encalado
-  const add = (x, y, z, k, s, r, fl = 0) => { const h = (r() - .5) * .08, l = .84 + r() * .26; TMP.push(x, y, z, r() * TAU, s, k, h, l, fl, 0); };
+  const add = (x, y, z, k, s, r, fl = 0, lx = 0, lz = 0) => { const h = (r() - .5) * .08, l = .84 + r() * .26; TMP.push(x, y, z, r() * TAU, s, k, h, l, fl, 0, lx, lz); };
 
   // ───────── Colocación (dentro de ready: hace falta la foto base y los hitos) ─────────
   ctx.ready.push(function vegetacion() {
@@ -362,7 +386,9 @@ export function install(ctx) {
           P(s, o); const d = offAt(s, palRow ? .5 : r()) * side, x = o.x + o.tz * d, z = o.z - o.tx * d;
           if (bad(s, x, z) || routeDist(x, z) < ROAD_W / 2 + .6 || (ctx.calzadaLibre && !ctx.calzadaLibre(x, z)) || !free(x, z, 4)) continue;
           const palm = palRow || r() < pl, k = palm ? palmK() : pickSide(dn, r() < .05), sc = palm ? .82 + r() * .36 : .8 + r() * .42, km = ctx.kmOf(s);
-          add(x, o.y - .1, z, k, sc, r, 1 | (!palm && km > 33.3 && km < 39.3 && r() < .75 ? 2 : 0));
+          // realismo: donde el arbolado es denso (como El Paraíso, Las Acacias, Los Próceres) la copa se abre sobre la vía, como en el video
+          const den = REAL && !palm ? clamp((p1 - .3) / .4, 0, 1) : 0, Lm = den * Math.min(Math.abs(d) * .55, 5.5), sg = Math.sign(d) || 1;
+          add(x, o.y - .1, z, k, sc * (1 + .18 * den), r, 1 | (!palm && km > 33.3 && km < 39.3 && r() < .75 ? 2 : 0), -o.tz * sg * Lm, o.tx * sg * Lm);
         }
         // filas de fondo y masas de parque donde la foto es verde
         for (let f = 0; f < 9; f++) {
@@ -385,6 +411,7 @@ export function install(ctx) {
     // tono: verde medido en el video (≈ 46,65,37) × matiz de la especie × variación por árbol
     const G = [1.14, 1.08, 1.04];
     for (let i = 0; i < NT; i++) { const j = i * ST; TX[i] = TMP[j]; TY[i] = TMP[j + 1]; TZ[i] = TMP[j + 2]; TR[i] = TMP[j + 3]; TSc[i] = TMP[j + 4]; TK[i] = TMP[j + 5]; TF[i] = TMP[j + 8]; const tn = TPL[TK[i]].tint, L = TMP[j + 7], h = TMP[j + 6]; TC[i * 3] = G[0] * tn[0] * L * (1 + h); TC[i * 3 + 1] = G[1] * tn[1] * L; TC[i * 3 + 2] = G[2] * tn[2] * L * (1 - h); }
+    TL = new Float32Array(NT * 2); for (let i = 0; i < NT; i++) { TL[i * 2] = TMP[i * ST + 10]; TL[i * 2 + 1] = TMP[i * ST + 11]; }
     TMP.length = 0; ctx.vegStats.arboles = NT;
     bakeImpostors(); placeGrass.ready = true; dirty = true;
   });
@@ -401,23 +428,24 @@ export function install(ctx) {
       const d = Math.sqrt(d2); if (d > 70 && (dx * fwd.x + dy * fwd.y + dz * fwd.z) < .22 * d) continue;
       if (d < NEAR_R && nc < cand.length) { cand[nc] = i; candD[nc++] = d; hist[Math.min(63, (d / BIN) | 0)] += TPL[TK[i]].tris; continue; }
       if (nf >= CAPF) continue; const t = TPL[TK[i]], s = TSc[i], o = nf * 16;
-      iA[o] = t.w * s; iA[o + 1] = 0; iA[o + 2] = 0; iA[o + 3] = 0; iA[o + 4] = 0; iA[o + 5] = t.h * s; iA[o + 6] = 0; iA[o + 7] = 0; iA[o + 8] = 0; iA[o + 9] = 0; iA[o + 10] = 1; iA[o + 11] = 0; iA[o + 12] = TX[i]; iA[o + 13] = TY[i]; iA[o + 14] = TZ[i]; iA[o + 15] = 1;
+      iA[o] = t.w * s; iA[o + 1] = 0; iA[o + 2] = 0; iA[o + 3] = 0; iA[o + 4] = 0; iA[o + 5] = t.h * s; iA[o + 6] = 0; iA[o + 7] = 0; iA[o + 8] = 0; iA[o + 9] = 0; iA[o + 10] = 1; iA[o + 11] = 0; iA[o + 12] = TX[i] + TL[i * 2] * .6; iA[o + 13] = TY[i]; iA[o + 14] = TZ[i] + TL[i * 2 + 1] * .6; iA[o + 15] = 1;
       tA[nf++] = TK[i];
     }
     const sd = ctx.sunDir, dA = dap.instanceMatrix.array; let nd = 0; lastSun.copy(sd);
     let thr = NEAR_R, cum = 0; for (let b = 0; b < 64; b++) { cum += hist[b]; if (cum > NEARTOT * 1100) { thr = b * BIN; break; } }
     for (let q = 0; q < nc; q++) {
       const i = cand[q], k = TK[i], s = TSc[i];
-      if (candD[q] > thr || cnt[k] >= CAPN) { if (nf >= CAPF) continue; const t = TPL[k], o = nf * 16; iA.fill(0, o, o + 16); iA[o] = t.w * s; iA[o + 5] = t.h * s; iA[o + 10] = 1; iA[o + 12] = TX[i]; iA[o + 13] = TY[i]; iA[o + 14] = TZ[i]; iA[o + 15] = 1; tA[nf++] = k; continue; }
+      if (candD[q] > thr || cnt[k] >= CAPN) { if (nf >= CAPF) continue; const t = TPL[k], o = nf * 16; iA.fill(0, o, o + 16); iA[o] = t.w * s; iA[o + 5] = t.h * s; iA[o + 10] = 1; iA[o + 12] = TX[i] + TL[i * 2] * .6; iA[o + 13] = TY[i]; iA[o + 14] = TZ[i] + TL[i * 2 + 1] * .6; iA[o + 15] = 1; tA[nf++] = k; continue; }
       const n = near[k], j = cnt[k]++, o = j * 16, cs = Math.cos(TR[i]) * s, sn = Math.sin(TR[i]) * s;
       for (const m of [n.tr.instanceMatrix.array, n.lv.instanceMatrix.array]) { m[o] = cs; m[o + 1] = 0; m[o + 2] = -sn; m[o + 3] = 0; m[o + 4] = 0; m[o + 5] = s; m[o + 6] = 0; m[o + 7] = 0; m[o + 8] = sn; m[o + 9] = 0; m[o + 10] = cs; m[o + 11] = 0; m[o + 12] = TX[i]; m[o + 13] = TY[i]; m[o + 14] = TZ[i]; m[o + 15] = 1; }
+      n.la.array[j * 2] = TL[i * 2]; n.la.array[j * 2 + 1] = TL[i * 2 + 1];
       const ca = n.lv.instanceColor.array; ca[j * 3] = TC[i * 3]; ca[j * 3 + 1] = TC[i * 3 + 1]; ca[j * 3 + 2] = TC[i * 3 + 2];
       const tc = n.tr.instanceColor.array; tc[j * 3] = tc[j * 3 + 1] = 1; tc[j * 3 + 2] = TF[i] & 2 ? 3 : 1;
-      if ((TF[i] & 1) && nd < DCAP && sd.y > .12) { const t = TPL[k], hc = t.cy * s, D = (isPalm(k) ? 7 : t.rh * 1.85) * s, o2 = nd * 16, c2 = Math.cos(TR[i] * 1.7) * D, s2 = Math.sin(TR[i] * 1.7) * D;
+      if ((TF[i] & 1) && nd < DCAP && sd.y > .12) { const t = TPL[k], hc = t.cy * s, D = (isPalm(k) ? 7 : t.rh * 1.85) * s * (1 + .03 * Math.hypot(TL[i * 2], TL[i * 2 + 1])), o2 = nd * 16, c2 = Math.cos(TR[i] * 1.7) * D, s2 = Math.sin(TR[i] * 1.7) * D;
         dA[o2] = c2; dA[o2 + 1] = 0; dA[o2 + 2] = -s2; dA[o2 + 3] = 0; dA[o2 + 4] = 0; dA[o2 + 5] = 1; dA[o2 + 6] = 0; dA[o2 + 7] = 0; dA[o2 + 8] = s2; dA[o2 + 9] = 0; dA[o2 + 10] = c2; dA[o2 + 11] = 0;
-        dA[o2 + 12] = TX[i] - sd.x / sd.y * hc; dA[o2 + 13] = TY[i] + .13; dA[o2 + 14] = TZ[i] - sd.z / sd.y * hc; dA[o2 + 15] = 1; nd++; }
+        dA[o2 + 12] = TX[i] + TL[i * 2] - sd.x / sd.y * hc; dA[o2 + 13] = TY[i] + .13; dA[o2 + 14] = TZ[i] + TL[i * 2 + 1] - sd.z / sd.y * hc; dA[o2 + 15] = 1; nd++; }
     }
-    near.forEach((n, k) => { n.tr.count = n.lv.count = cnt[k]; n.tr.instanceMatrix.needsUpdate = n.lv.instanceMatrix.needsUpdate = n.lv.instanceColor.needsUpdate = n.tr.instanceColor.needsUpdate = true; });
+    near.forEach((n, k) => { n.la.needsUpdate = true; n.tr.count = n.lv.count = cnt[k]; n.tr.instanceMatrix.needsUpdate = n.lv.instanceMatrix.needsUpdate = n.lv.instanceColor.needsUpdate = n.tr.instanceColor.needsUpdate = true; });
     dap.count = nd; dap.instanceMatrix.needsUpdate = true;
     imp.count = nf; imp.instanceMatrix.needsUpdate = true; tileAttr.needsUpdate = true;
     ctx.vegStats.cerca = Array.from(cnt).reduce((a, b) => a + b, 0); ctx.vegStats.impostores = nf; ctx.vegStats.radioCerca = thr;
@@ -471,7 +499,7 @@ export function install(ctx) {
     const k = clamp(ctx.sunDir.y * 6, 0, 1) * (1 - noche); U.uSunCol.value.copy(ctx.sun.color).multiplyScalar(ctx.sun.intensity * .35 * k);
     if (!NT) return;
     ctx.camera.getWorldDirection(fwd);
-    dapMat.opacity = .36 * clamp((ctx.sunDir.y - .1) * 4, 0, 1) * (1 - noche); dap.visible = dapMat.opacity > .01;
+    dapMat.opacity = (REAL && (Q.media || !Q.alta || Q.sombras === false) ? .62 : .36) * clamp((ctx.sunDir.y - .1) * 4, 0, 1) * (1 - noche); dap.visible = dapMat.opacity > .01;
     if (dirty || lastPos.distanceToSquared(ctx.camera.position) > 22 * 22 || fwd.dot(lastFwd) < .965 || lastSun.distanceToSquared(ctx.sunDir) > .002) { dirty = false; rebuild(); }
     const sNow = ctx.S ? ctx.S.sr ?? ctx.S.s : 0; if (placeGrass.ready && Math.abs(sNow - lastGS) > 25) placeGrass(sNow);
   });

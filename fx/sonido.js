@@ -2,17 +2,24 @@
 // Pisadas al ritmo de la zancada (con el pelotón alrededor, que se ralea con los km), respiración que se agita con la pendiente,
 // público con murmullo, aplausos, silbidos y tambores en los puntos de animación y la meta, pájaros del amanecer y guacamayas,
 // brisa, eco y reverberación en los túneles, y la corneta de salida.
-// Arranca con el primer clic o tecla (el navegador lo exige). Tecla M: silencio. ?audiotest=1 escribe los niveles en consola cada 2 s.
+// Voz real de la animadora en la salida y la llegada (audio/, ver VOZ). Arranca con el primer clic o tecla (el navegador lo exige). Tecla M: silencio. ?audiotest=1 escribe los niveles en consola cada 2 s.
 export const meta = { id: 'sonido', reemplaza: [] };
 
 // puntos de animación (km) y meta
 const ANIMACION = [0.1, 8.3, 17.25, 21.1, 25.1, 37.3, 38, 41.3, 42.19];
 // mezcla (ganancia de cada bus antes del compresor); todo suave, nada estridente
-const MEZCLA = { maestro: 0.85, pasos: 0.22, pelotón: 0.4, respiracion: 0.07, publico: 0.42, aplausos: 0.3, tambores: 0.22, pajaros: 0.13, guacamayas: 0.08, brisa: 0.16, corneta: 0.26, reverb: 0.2 }; // pisadas y respiración por debajo del ambiente
+const MEZCLA = { maestro: 0.85, pasos: 0.22, pelotón: 0.4, respiracion: 0.07, publico: 0.42, aplausos: 0.3, tambores: 0.22, pajaros: 0.13, guacamayas: 0.08, brisa: 0.16, corneta: 0.26, reverb: 0.2, animadora: 0.55 }; // pisadas y respiración por debajo del ambiente
+// voz de la animadora del Maratón CAF (Diana Rendeiro, con su permiso): SOLO recortes de grabaciones reales suyas, nada sintético.
+// Se cargan tras el primer gesto; si la lista está vacía o un archivo falla, silencio. ?voz=0 la apaga. Fuentes: build/investigacion/voz_animadora.md
+// EN ESPERA (19-nov-2026): los 3 recortes de llegada salen de la transmisión de CAF en YouTube (grabación de un tercero). Están en audio/pendiente/ y NO se publican
+// hasta que Alejandro decida. Para activarlos: moverlos a audio/, poner aquí llegada: ['audio/animadora_llegada_1.mp3', 'audio/animadora_llegada_2.mp3', 'audio/animadora_llegada_3.mp3']
+// y restaurar el crédito en game.js (pintaFine).
+const VOZ = { salida: [], llegada: [] };   // salida: aún sin grabación suya (ver el .md)   // p. ej. 'audio/animadora_salida_1.mp3' (solo archivos que existan: un 404 ensucia la consola)
+const DUCK = 0.45;                          // el público baja a este factor mientras ella habla
 
 export function install(ctx) {
   const { S, P, sOfKm, kmOf, TOTAL, inTunnel, sunDir } = ctx;
-  const q = new URLSearchParams(location.search), TEST = q.get('audiotest') === '1';
+  const q = new URLSearchParams(location.search), TEST = q.get('audiotest') === '1', VOZ_ON = q.get('voz') !== '0';
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
   let A = null, muted = false, G = {}, an = {}, B = {}, st = null;
   const STEP_T = Math.PI / 11; // el motor anima la zancada a 11 rad/s: un paso cada medio ciclo (≈0,286 s, 210 pasos/min)
@@ -41,7 +48,7 @@ export function install(ctx) {
     G.exterior = A.createGain(); G.exteriorLp = A.createBiquadFilter(); G.exteriorLp.type = 'lowpass'; G.exteriorLp.frequency.value = 18000; G.exterior.connect(G.exteriorLp); G.exteriorLp.connect(G.maestro); G.exteriorLp.connect(G.reverb);
     const bus = (nm, dest, rv = .3) => { const g = A.createGain(); g.gain.value = MEZCLA[nm] ?? 1; g.connect(dest); if (rv) { const s = A.createGain(); s.gain.value = rv; g.connect(s); s.connect(G.reverb); } const a = A.createAnalyser(); a.fftSize = 512; g.connect(a); an[nm] = a; G[nm] = g; return g; };
     bus('pasos', G.maestro, .25); G.pasos.connect(G.ecoIn); bus('pelotón', G.pasos, 0); bus('respiracion', G.maestro, .1);
-    bus('publico', G.exterior, .35); bus('aplausos', G.exterior, .3); bus('tambores', G.exterior, .4); bus('pajaros', G.exterior, .25); bus('guacamayas', G.exterior, .25); bus('brisa', G.exterior, 0); bus('corneta', G.maestro, .6);
+    bus('publico', G.exterior, .35); bus('aplausos', G.exterior, .3); bus('tambores', G.exterior, .4); bus('pajaros', G.exterior, .25); bus('guacamayas', G.exterior, .25); bus('brisa', G.exterior, 0); bus('corneta', G.maestro, .6); bus('animadora', G.maestro, .12);
     { const a = A.createAnalyser(); a.fftSize = 512; G.maestro.connect(a); an.maestro = a; const b = A.createAnalyser(); b.fftSize = 512; G.retorno.connect(b); an.reverb = b; }
     // capas continuas: murmullo del público (ruido rosa por tres «formantes» de voz con modulación lenta), aplausos en bucle, brisa
     const loop = (b, dest, rate = 1) => { const s = A.createBufferSource(); s.buffer = b; s.loop = true; s.playbackRate.value = rate; s.loopStart = 0; s.connect(dest); s.start(A.currentTime, Math.random() * b.duration); return s; };
@@ -52,8 +59,26 @@ export function install(ctx) {
     // respiración: ruido filtrado con una envolvente que se programa en cada ciclo
     G.aliento = A.createGain(); G.aliento.gain.value = 0; G.alientoBp = A.createBiquadFilter(); G.alientoBp.type = 'bandpass'; G.alientoBp.frequency.value = 1300; G.alientoBp.Q.value = .9; loop(B.rosa, G.alientoBp); G.alientoBp.connect(G.aliento); G.aliento.connect(G.respiracion);
     st = { nextStep: 0, side: 1, nStep: 0, otros: Array.from({ length: 14 }, (_, i) => ({ next: 0, per: 60 / (158 + Math.random() * 30), pan: (Math.random() * 2 - 1) * .9, d: 3 + Math.random() * 14, g: .5 + Math.random() * .5 })),
-      nextBreath: 0, nextBird: 0, nextMacaw: 0, nextDrum: 0, drumStep: 0, nextWhistle: 0, wasRunning: false, lastLog: 0, crowd: 0, tun: 0 };
+      nextBreath: 0, nextBird: 0, nextMacaw: 0, nextDrum: 0, drumStep: 0, nextWhistle: 0, wasRunning: false, lastLog: 0, crowd: 0, tun: 0,
+      run: 0, llegada: -1, vozPend: null, vozSrc: null, vozGain: null, vozHasta: 0, duck: false };
+    cargaVoz();
   }
+
+  // ───────── voz de la animadora (archivos reales, carga perezosa) ─────────
+  const vozBuf = { salida: [], llegada: [] };
+  function cargaVoz() {
+    if (!VOZ_ON) return;
+    for (const tipo in VOZ) for (const url of VOZ[tipo])
+      fetch(url).then(r => r.ok ? r.arrayBuffer() : null).then(ab => ab && new Promise(ok => A.decodeAudioData(ab, ok, () => ok(null)))).then(b => { if (b) vozBuf[tipo].push(b); }).catch(() => { });
+  }
+  function vozPara(t) { if (!st.vozSrc) return; try { st.vozGain.gain.setTargetAtTime(0, t, .08); st.vozSrc.stop(t + .4); } catch (e) { } st.vozSrc = null; st.vozHasta = 0; }
+  function vozSuena(tipo, t) {   // una variante al azar; si aún no está decodificada, espera hasta 4 s y si no, calla
+    const L = vozBuf[tipo]; if (!L.length) return false;
+    vozPara(t); const s = A.createBufferSource(), g = A.createGain(); s.buffer = L[Math.floor(Math.random() * L.length)]; s.connect(g); g.connect(G.animadora);
+    s.start(t); st.vozSrc = s; st.vozGain = g; st.vozHasta = t + s.buffer.duration; s.onended = () => { if (st.vozSrc === s) { st.vozSrc = null; st.vozHasta = 0; } };
+    return true;
+  }
+  function voz(tipo, t) { if (!VOZ_ON || !VOZ[tipo].length) return; if (!vozSuena(tipo, t)) st.vozPend = { tipo, t, hasta: t + 4 }; }
 
   // ───────── eventos sueltos ─────────
   function noise(dest, t, dur, f0, f1, qv, gain, type = 'bandpass', rate = 1) {
@@ -101,7 +126,13 @@ export function install(ctx) {
     if (!A || A.state !== 'running') return;
     const RA = ctx.A, now = A.currentTime, run = S.running && !S.paused, s = S.sr ?? S.s, km = kmOf(s), dens = 1 - .75 * (RA ? S.s / RA.TOTAL : s / TOTAL), ahead = .12;   // s de referencia (público, meta); densidad por la ruta activa
     // salida: corneta
-    if (S.running && !st.wasRunning && s < 60) corneta(now + .05); st.wasRunning = S.running;
+    if (S.running && !st.wasRunning) { st.run++; st.vozPend = null; if (s < 60) { corneta(now + .05); voz('salida', now + .9); } else vozPara(now); }   // cada arranque es una corrida nueva
+    st.wasRunning = S.running;
+    // voz de la animadora: llegada una sola vez por corrida al cruzar la meta de la ruta activa (42K o 21K, Reconocer o Correr la carrera)
+    if (S.s >= (RA ? RA.TOTAL : TOTAL) - 3 && st.llegada !== st.run) { st.llegada = st.run; st.vozPend = null; voz('llegada', now + .3); }
+    if (st.vozPend && (now > st.vozPend.hasta || vozSuena(st.vozPend.tipo, Math.max(now + .05, st.vozPend.t)))) st.vozPend = null;
+    { const habla = now < st.vozHasta; if (habla !== st.duck) { st.duck = habla; const k = habla ? DUCK : 1;   // el público baja mientras ella habla
+      for (const nm of ['publico', 'aplausos', 'tambores']) G[nm].gain.setTargetAtTime(MEZCLA[nm] * k, now, habla ? .15 : .6); } }
     // pisadas propias y del pelotón
     if (run) {
       if (st.nextStep < now) st.nextStep = now + .02;
@@ -138,7 +169,7 @@ export function install(ctx) {
       G.exterior.gain.setTargetAtTime(tun ? .25 : 1, now, k); G.exteriorLp.frequency.setTargetAtTime(tun ? 700 : 18000, now, k); }
     if (TEST && t - st.lastLog > 2) { st.lastLog = t; const lv = {}, d = new Float32Array(512);
       for (const k in an) { an[k].getFloatTimeDomainData(d); let e = 0; for (let i = 0; i < d.length; i++) e += d[i] * d[i]; const r = Math.sqrt(e / d.length); lv[k] = r > 1e-5 ? +(20 * Math.log10(r)).toFixed(1) + ' dB' : '—'; }
-      console.info('[audiotest]', JSON.stringify({ km: +km.toFixed(2), corriendo: run, publico: +crowd.toFixed(2), tunel: !!tun, alba: +alba.toFixed(2), esfuerzo: +esfuerzo.toFixed(2), silencio: muted, estado: A.state }), JSON.stringify(lv)); }
+      console.info('[audiotest]', JSON.stringify({ km: +km.toFixed(2), corriendo: run, publico: +crowd.toFixed(2), tunel: !!tun, alba: +alba.toFixed(2), esfuerzo: +esfuerzo.toFixed(2), silencio: muted, estado: A.state, voz: VOZ_ON ? { cargadas: vozBuf.salida.length + '+' + vozBuf.llegada.length, habla: now < st.vozHasta, corrida: st.run } : 'apagada' }), JSON.stringify(lv)); }
   }
 
   // ───────── arranque con el primer gesto y tecla M ─────────

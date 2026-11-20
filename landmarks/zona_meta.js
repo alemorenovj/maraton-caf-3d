@@ -230,5 +230,7 @@ export function build(THREE, api) {
     if (best) best.y = suelo(best.x, best.z);
     return best;
   }
+
+  // La historia de los hitos del km 21–42 que estaba aquí se mudó a data/hitos-historia.js (se aplica antes de armar 42K y 21K).
   return api.sombras(g);
 }

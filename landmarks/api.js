@@ -20,16 +20,24 @@ export function componerRuta(D, def, R = D.ruta) {
     const [x, z] = xz(ll[0], ll[1]); let b = 1e18, bi = i; for (let j = Math.max(0, i - 30); j <= Math.min(NR - 1, i + 30); j++) { const d = (R.x[j] - x) ** 2 + (R.z[j] - z) ** 2; if (d < b) { b = d; bi = j; } }
     if (Math.sqrt(b) > 15) err.push(`extremo km ${km}: el trazado está a ${Math.sqrt(b).toFixed(0)} m del punto previsto`); return bi; };
   const P = def.piezas, rs = P.map(p => p.ref ? [idx(p.ref[0], p.ll && p.ll[0]), idx(p.ref[1], p.ll && p.ll[1])] : null);
-  const X = [], Z = [], E = [], REF = [], NOM = [];
+  const X = [], Z = [], E = [], REF = [], NOM = [], RET = [], CURV = [];   // RET: [primer, último] índice de cada retorno en U; CURV: su curva fina
   P.forEach((p, k) => {
     if (p.ref) { const [i0, i1] = rs[k]; for (let i = i0; i <= i1; i++) { X.push(R.x[i]); Z.push(R.z[i]); E.push(R.e[i]); REF.push(i * ST); NOM.push(null); } return; }
     const ax = X[X.length - 1], az = Z[Z.length - 1], ae = E[E.length - 1], nb = rs[k + 1][0], bx = R.x[nb], bz = R.z[nb], be = R.e[nb];
-    const pts = [[ax, az]]; for (const q of p.con) { const v = xz(q[0], q[1]), l = pts[pts.length - 1]; if (Math.hypot(v[0] - l[0], v[1] - l[1]) > 3) pts.push(v); }
-    if (Math.hypot(pts[pts.length - 1][0] - bx, pts[pts.length - 1][1] - bz) < 3) pts.pop(); pts.push([bx, bz]);
+    let pts = [[ax, az]];
+    if (p.retorno) {   // U redondeada: Hermite entre A y B con las tangentes de la ruta de referencia (±2 puntos), muestreada cada ~0,5 m
+      const ia = rs[k - 1][1], tg = (a, b, s) => { const dx = R.x[b] - R.x[a], dz = R.z[b] - R.z[a], l = Math.hypot(dx, dz) || 1; return [dx / l * s, dz / l * s]; };   // tangentes del último tramo que llega y del primero que sale: rumbo continuo en los empalmes
+      const K = (p.retorno.k || 2) * Math.hypot(bx - ax, bz - az), ta = tg(ia - 1, ia, K), tb = tg(nb, nb + 1, K); pts = [];
+      for (let j = 0; j <= 160; j++) { const t = j / 160, t2 = t * t, t3 = t2 * t, h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2; pts.push([h00 * ax + h10 * ta[0] + h01 * bx + h11 * tb[0], h00 * az + h10 * ta[1] + h01 * bz + h11 * tb[1]]); }
+    } else { for (const q of p.con) { const v = xz(q[0], q[1]), l = pts[pts.length - 1]; if (Math.hypot(v[0] - l[0], v[1] - l[1]) > 3) pts.push(v); }
+      if (Math.hypot(pts[pts.length - 1][0] - bx, pts[pts.length - 1][1] - bz) < 3) pts.pop(); pts.push([bx, bz]); }
+    if (p.retorno) RET.push([X.length, 0]);
+    if (p.retorno) { const cu = [0]; for (let i = 1; i < pts.length; i++) cu.push(cu[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); CURV.push({ i0: X.length - 1, pts, cu }); }   // curva fina del retorno (la usa la ruta activa entre sus extremos)
     const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
     const L = cum[cum.length - 1], n = Math.max(1, Math.round(L / ST));
     for (let j = 1; j < n; j++) { const d = L * j / n; let i = 1; while (i < cum.length - 1 && cum[i] < d) i++; const t = (d - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
       X.push(pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t); Z.push(pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t); E.push(ae + (be - ae) * j / n); REF.push(-1); NOM.push(p.nombre || ''); }
+    if (p.retorno) { RET[RET.length - 1][1] = X.length - 1; CURV[CURV.length - 1].i1 = X.length; }
   });
   const N = X.length, TOTAL = (N - 1) * ST, KM = def.KM;
   // km del 21K: los del 42K en la primera pieza (si sale del km 0) y lineal desde ahí hasta KM en la meta
@@ -44,7 +52,12 @@ export function componerRuta(D, def, R = D.ruta) {
   const LAT = new Float32Array(N); if (def.llegada) { const a = rf.sOfKm(def.llegada.km0), b = rf.sOfKm(def.llegada.km1), last = P.length - 1, i0 = N - (rs[last][1] - rs[last][0] + 1);
     for (let i = Math.max(0, i0); i < N; i++) { const t = Math.max(0, Math.min(1, (REF[i] - a) / (b - a))); LAT[i] = def.llegada.lat * t * t * (3 - 2 * t); } }
   const calle = (u, calles, cada) => { const i = Math.max(0, Math.min(N - 1, Math.round(u / ST))); return NOM[i] != null ? NOM[i] : (calles ? calles[Math.min(calles.length - 1, Math.floor(SR[i] / (ST * cada)))] || '' : ''); };
-  return { x: X, z: Z, e: E, ref: REF, sr: SR, lat: LAT, N, STEP: ST, TOTAL, KM, kmOf: kf.kmOf, sOfKm: kf.sOfKm, sRef, mapKm, calle, err, kmNudos: K };
+  // pesos 0..1 por muestra: ZONA = cerca de cualquier conector (ahí la posición se interpola con Catmull-Rom: curva continua, sin esquinas en
+  // las muestras de 10 m); GIRO = cerca de un retorno en U (el pelotón mantiene su carril y la cámara sigue el rumbo). 1 hasta 2 muestras del
+  // conector y baja a 0 a las 6.
+  const peso = sel => { const W = new Float32Array(N); for (let i = 0; i < N; i++) { let d = 99; for (let j = Math.max(0, i - 6); j <= Math.min(N - 1, i + 6); j++) if (sel(j)) d = Math.min(d, Math.abs(j - i)); W[i] = d <= 2 ? 1 : d >= 6 ? 0 : 1 - (d - 2) / 4; } return W; };
+  const ZONA = peso(j => REF[j] < 0), GIRO = peso(j => RET.some(([a, b]) => j >= a && j <= b));
+  return { x: X, z: Z, e: E, ref: REF, sr: SR, lat: LAT, zona: ZONA, giro: GIRO, retornos: RET, curvas: CURV, N, STEP: ST, TOTAL, KM, kmOf: kf.kmOf, sOfKm: kf.sOfKm, sRef, mapKm, calle, err, kmNudos: K };
 }
 export function makeApi(THREE, D, o = {}) {
   const EXG = o.EX || 1;

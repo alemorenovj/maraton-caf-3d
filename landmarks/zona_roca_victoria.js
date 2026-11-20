@@ -199,5 +199,21 @@ export function build(THREE, api) {
       k.fillStyle = 'rgba(255,255,255,.18)'; for (let i = 0; i < 40; i++) k.fillRect(r() * w, r() * h, 30 + r() * 80, 3); });
     cinta(13.968, 14.048, .004, () => [[22.5, -.3, 0], [22.5, 3.6, 1]], new THREE.MeshStandardMaterial({ map: mural, roughness: .85, side: THREE.DoubleSide }), 80); }
 
+  // ───────── Muñeca de malla metálica en el parque de la izquierda, llegando a Los Símbolos (km 15,19; f_0145) ─────────
+  // auditoría final 19-nov: figura de ~4,8 m de malla color malva (falda ancha, brazos abiertos, tocado rojo) sobre la grama, a ~3 m del
+  // brocal. Es de la misma serie que el oso de alambre de la redoma (zona_ucv_acacias.js). Posición por el video (sin dato en OSM).
+  { const p = at(15.19, 9.2), y = api.ground(p.x, p.z), o = new THREE.Group();
+    const malla = api.canvasTex(64, 64, (k, w, h) => { k.fillStyle = '#9c5866'; k.fillRect(0, 0, w, h); k.strokeStyle = '#c98a95'; k.lineWidth = 2;
+      for (let i = -w; i < w * 2; i += 8) { k.beginPath(); k.moveTo(i, 0); k.lineTo(i + h, h); k.stroke(); k.beginPath(); k.moveTo(i, h); k.lineTo(i + h, 0); k.stroke(); } });
+    malla.wrapS = malla.wrapT = THREE.RepeatWrapping; malla.repeat.set(4, 3);
+    const mm = new THREE.MeshStandardMaterial({ map: malla, roughness: .7, metalness: .2 }), rojo = api.concrete(0xb3262c);
+    const pz = (geo, mat, x, yy, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, yy, z); o.add(m); return m; };
+    pz(new THREE.CylinderGeometry(.55, 1.75, 2.7, 20), mm, 0, 1.35, 0);                 // falda
+    pz(new THREE.CylinderGeometry(.42, .55, 1.1, 14), mm, 0, 3.25, 0);                  // torso
+    pz(new THREE.SphereGeometry(.42, 14, 10), mm, 0, 4.15, 0);                          // cabeza
+    pz(new THREE.SphereGeometry(.34, 10, 8), rojo, 0, 4.55, -.1);                       // tocado rojo
+    for (const s of [-1, 1]) { const b = pz(new THREE.CylinderGeometry(.11, .13, 1.6, 8), mm, s * .95, 3.05, 0); b.rotation.z = s * .9; }   // brazos abiertos
+    o.position.set(p.x, y, p.z); o.rotation.y = rotOf(p); g.add(o); }
+
   return api.sombras(g);
 }

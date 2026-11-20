@@ -466,6 +466,9 @@ export function makeGente(n, ctx) {
         let L = ctx.ROAD_W / 2 - .8, Rr = L; if (ctx.calzada) { const c = ctx.calzada(A.sRef ? A.sRef(s1) : s1); L = Math.max(2, c.izq - c.sepAncho - c.contraria.ancho - .7); Rr = Math.max(2, c.der - .7);
           // otra pasada cerca (la otra pierna de un retorno, la vuelta por la otra calzada): cada pelotón se queda en su mitad
           if (c.libreIzq < 99) L = Math.min(L, Math.max(.5, c.libreIzq - .5)); if (c.libreDer < 99) Rr = Math.min(Rr, Math.max(.5, c.libreDer - .5)); }
+        // retorno en U del 21K (A.giro 0..1): cada corredor conserva su carril a lo ancho de la U (3,6 m a cada lado del eje). La curva y su rumbo
+        // son continuos (Catmull-Rom en game.js), así que los carriles son curvas paralelas: el de afuera recorre más y nadie se cruza
+        const gw = A.giro ? A.giro(s1) : 0; if (gw > 0) { L += (3.6 - L) * gw; Rr += (3.6 - Rr) * gw; }
         let lat = (L - Rr) / 2 + G.lat[g] * (L + Rr) * .38 + sLat[i] + Math.sin(tAcc * .21 + sPh[i] * 1.7) * .25; lat = Math.max(-Rr, Math.min(L, lat));
         if (S.cam === 3 && off > -6 && off < 5 && Math.abs(lat) < 1.6) { off += 9; A.P(Math.min(A.TOTAL, S.s + off), q); }
         else if (S.cam !== 3 && Math.abs(off) < 1.3 && Math.abs(lat) < .8) lat += lat < 0 ? -.9 : .9;

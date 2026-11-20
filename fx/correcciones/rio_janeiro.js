@@ -72,6 +72,12 @@ export default {
     { ll: [10.482300, -66.846200], r: 70, col: '#e8e3d8' },
     { ll: [10.482150, -66.845300], r: 45, col: '#ddd5c4' },
     { ll: [10.483050, -66.845700], r: 70, col: '#ece8df' },
+    // auditoría final 19-nov (afb_27.48 / afb_28.08 contra f_0268 y f_0273): de 27,44 a 28,15 seguían saliendo bloques celeste y azul intenso
+    // (el color medio del video a la sombra es gris azulado: #82989e, #dcfeff, #878ba3, #8d9299). En el video son quintas y torres blancas y crema
+    // tras muros y rejas negras, con mucho árbol; el ladrillo de la izquierda en 27,78–27,88 (#9a8984) no se toca.
+    { ll: [10.481800, -66.842800], r: 75, col: '#e6e1d6' },
+    { ll: [10.481200, -66.840400], r: 45, col: '#e3dccd' },
+    { ll: [10.481100, -66.838000], r: 55, col: '#ebe6da' },
     // auditoría 19-nov: en la Calle Santa Margarita las torres de la izquierda son de ladrillo (t=750–752 s); el color medio del video las pintaba verde oliva y rosado
     { ll: [10.473994, -66.816714], a: 'RES', alt: 1, col: '#a8694a', shop: 0, nota: 'torre de ladrillo, Santa Margarita izq. (km 32,12)' },
     { ll: [10.473990, -66.817275], a: 'RES', alt: 1, col: '#b07a58', shop: 0, nota: 'torre de ladrillo alta, Santa Margarita izq. (km 32,22)' },

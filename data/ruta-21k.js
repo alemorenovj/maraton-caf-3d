@@ -5,13 +5,16 @@
 // piezas: { ref: [km0, km1], ll: [[lat, lon] del extremo 0], [lat, lon] del extremo 1] } = tramo del 42K tal cual (los extremos se buscan
 // por km y se validan contra ll: si un rebuild de caf-data mueve el trazado más de 15 m, la composición falla en la consola en vez de torcerse).
 // { con: [[lat, lon], …] } = conector por calles que el 42K no pisa (nodos de OpenStreetMap, build/raw/calles.json).
+// { retorno: { k } } = U redondeada entre el final de la pieza anterior y el comienzo de la siguiente (tangentes del 42K).
 export default {
   id: '21', KM: 21.0975, nombre: 'Medio maratón', corto: '21K',
   piezas: [
-    { ref: [0, 16.5033], ll: [null, [10.472921, -66.896652]] },
-    // retorno frente al IPSFA: enlace de doble sentido entre las dos calzadas al empezar Los Próceres (OSM «Paseo Los Próceres», 28 m)
-    { con: [[10.4729142, -66.8966398], [10.4728712, -66.8965638], [10.47283, -66.8965006], [10.4727662, -66.896413]], nombre: 'Retorno · Paseo Los Ilustres' },
-    { ref: [17.8712, 21.0826], ll: [[10.472775, -66.896465], [10.494482, -66.881392]] },
+    { ref: [0, 16.4538], ll: [null, [10.473190, -66.896444]] },   // no mover sin repetir choques: 40 y 55 m más allá el carril pisa el hongo de la plaza o el cartel
+    // retorno frente al IPSFA, donde Los Ilustres se abre hacia Los Próceres: U redondeada entre las dos calzadas (curva de Hermite con
+    // las tangentes del 42K en sus extremos; k = largo de las tangentes / separación, 2,25 da radio mínimo ≈ 10 m y 40 m de arco),
+    // como un retorno de carrera alrededor de conos. Antes era el enlace OSM de 28 m, con dos esquinas secas.
+    { retorno: { k: 2.25 }, nombre: 'Retorno · Paseo Los Ilustres' },
+    { ref: [17.9307, 21.0826], ll: [[10.473082, -66.896253], [10.494482, -66.881392]] },
     // Av. Las Acacias hacia el norte (un sentido, 5 canales) desde la Casanova hasta la Gran Avenida, al pie de La Previsora
     { con: [[10.4945268, -66.8814436], [10.4945659, -66.8814332], [10.4956055, -66.8812104], [10.4956785, -66.8811965], [10.4957673, -66.8811766]], nombre: 'Avenida Las Acacias' },
     { ref: [41.1939, 42.195], ll: [[10.495848, -66.881240], null] },
@@ -25,7 +28,7 @@ export default {
   // hitos del 42K que no aplican y los propios del 21K (km del 21K)
   quitaHitos: [17.18, 21.1],
   hitos: [
-    { km: 16.52, nombre: 'Retorno del medio maratón', tipo: 'zona', lado: 'izq', off: 30, publico: true, desc: 'Frente al IPSFA, donde Los Ilustres se abre hacia Los Próceres: das la vuelta por el enlace entre las dos calzadas. El 42K sigue de largo hasta los monolitos.' },
+    { km: 16.47, nombre: 'Retorno del medio maratón', tipo: 'zona', lado: 'izq', off: 30, publico: true, desc: 'Frente al IPSFA, donde Los Ilustres se abre hacia Los Próceres: das la vuelta por el enlace entre las dos calzadas. El 42K sigue de largo hasta los monolitos.' },
     { km: 19.9, nombre: 'Te separas del 42K', tipo: 'zona', lado: 'der', off: 30, desc: 'El maratón dobla aquí a la derecha por la Av. Casanova. Tú sigues derecho por la Av. Las Acacias, cuesta arriba hacia La Previsora.' },
     { km: 20.02, nombre: 'Torre La Previsora', tipo: 'zona', lado: 'izq', off: 40, publico: true, desc: 'La torre del reloj marca la vuelta a la izquierda hacia la Gran Avenida. Desde aquí es el final del maratón: túnel de Plaza Venezuela y recta del Paseo Colón.' },
   ],
