@@ -66,10 +66,14 @@ export function install(ctx) {
 
   // ───────── voz de la animadora (archivos reales, carga perezosa) ─────────
   const vozBuf = { salida: [], llegada: [] };
+  // Los bytes de la salida se bajan al abrir la página (sin esperar al primer toque): en un teléfono con datos, el toque que arranca el audio es el mismo
+  // que da la salida y el archivo no llegaba a tiempo. Decodificar sí necesita el contexto de audio, así que eso se hace tras el gesto.
+  const vozBytes = {}, baja = url => vozBytes[url] || (vozBytes[url] = fetch(url).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null));
+  if (VOZ_ON) setTimeout(() => VOZ.salida.forEach(baja), 1500);
   function cargaVoz() {
     if (!VOZ_ON) return;
     for (const tipo in VOZ) for (const url of VOZ[tipo])
-      fetch(url).then(r => r.ok ? r.arrayBuffer() : null).then(ab => ab && new Promise(ok => A.decodeAudioData(ab, ok, () => ok(null)))).then(b => { if (b) vozBuf[tipo].push(b); }).catch(() => { });
+      baja(url).then(ab => ab && new Promise(ok => A.decodeAudioData(ab, ok, () => ok(null)))).then(b => { if (b) vozBuf[tipo].push(b); }).catch(() => { });
   }
   function vozPara(t) { if (!st.vozSrc) return; try { st.vozGain.gain.setTargetAtTime(0, t, .08); st.vozSrc.stop(t + .4); } catch (e) { } st.vozSrc = null; st.vozHasta = 0; }
   function vozSuena(tipo, t) {   // una variante al azar; si aún no está decodificada, espera hasta 4 s y si no, calla
@@ -78,7 +82,7 @@ export function install(ctx) {
     s.start(t); st.vozSrc = s; st.vozGain = g; st.vozHasta = t + s.buffer.duration; s.onended = () => { if (st.vozSrc === s) { st.vozSrc = null; st.vozHasta = 0; } };
     return true;
   }
-  function voz(tipo, t) { if (!VOZ_ON || !VOZ[tipo].length) return; if (!vozSuena(tipo, t)) st.vozPend = { tipo, t, hasta: t + 4 }; }
+  function voz(tipo, t) { if (!VOZ_ON || !VOZ[tipo].length) return; if (!vozSuena(tipo, t)) st.vozPend = { tipo, t, hasta: t + 8 }; }
 
   // ───────── eventos sueltos ─────────
   function noise(dest, t, dur, f0, f1, qv, gain, type = 'bandpass', rate = 1) {
@@ -173,8 +177,12 @@ export function install(ctx) {
   }
 
   // ───────── arranque con el primer gesto y tecla M ─────────
-  const go = () => { try { if (!A) build(); if (A.state !== 'running') A.resume(); } catch (e) { console.warn('sonido', e); } };
-  addEventListener('pointerdown', go, { capture: true }); addEventListener('keydown', e => { go(); if (e.key && e.key.toLowerCase() === 'm' && A) { muted = !muted; G.maestro.gain.setTargetAtTime(muted ? 0 : MEZCLA.maestro, A.currentTime, .15); } }, { capture: true });
+  // iPhone: (1) el toque que cuenta como gesto para el audio es el que TERMINA (touchend / click); pointerdown solo no lo desbloquea y el contexto se
+  // quedaba suspendido para siempre. (2) Con el interruptor lateral en silencio, Web Audio no suena salvo que la sesión sea de tipo «playback» (Safari 16.4+).
+  const go = () => { try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) { }
+    try { if (!A) build(); if (A.state !== 'running') { const r = A.resume(); r && r.catch && r.catch(() => { }); } } catch (e) { console.warn('sonido', e); } };
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click']) addEventListener(ev, go, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && A && A.state !== 'running' && A.state !== 'closed') { const r = A.resume(); r && r.catch && r.catch(() => { }); } });   // al volver de otra app iOS lo deja «interrupted» addEventListener('keydown', e => { go(); if (e.key && e.key.toLowerCase() === 'm' && A) { muted = !muted; G.maestro.gain.setTargetAtTime(muted ? 0 : MEZCLA.maestro, A.currentTime, .15); } }, { capture: true });
   // aviso mínimo en pantalla (clic = silenciar / activar); se oculta con &hud=0
   const tag = document.createElement('button'); tag.type = 'button';
   tag.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:50;font:600 12px/1 Inter,system-ui,sans-serif;color:#f4efe6;background:rgba(16,18,26,.72);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:7px 11px;cursor:pointer;opacity:.85';
