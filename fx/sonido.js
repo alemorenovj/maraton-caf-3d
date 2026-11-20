@@ -11,10 +11,9 @@ const ANIMACION = [0.1, 8.3, 17.25, 21.1, 25.1, 37.3, 38, 41.3, 42.19];
 const MEZCLA = { maestro: 0.85, pasos: 0.22, pelotón: 0.4, respiracion: 0.07, publico: 0.42, aplausos: 0.3, tambores: 0.22, pajaros: 0.13, guacamayas: 0.08, brisa: 0.16, corneta: 0.26, reverb: 0.2, animadora: 0.55 }; // pisadas y respiración por debajo del ambiente
 // voz de la animadora del Maratón CAF (Diana Rendeiro, con su permiso): SOLO recortes de grabaciones reales suyas, nada sintético.
 // Se cargan tras el primer gesto; si la lista está vacía o un archivo falla, silencio. ?voz=0 la apaga. Fuentes: build/investigacion/voz_animadora.md
-// EN ESPERA (19-nov-2026): los 3 recortes de llegada salen de la transmisión de CAF en YouTube (grabación de un tercero). Están en audio/pendiente/ y NO se publican
-// hasta que Alejandro decida. Para activarlos: moverlos a audio/, poner aquí llegada: ['audio/animadora_llegada_1.mp3', 'audio/animadora_llegada_2.mp3', 'audio/animadora_llegada_3.mp3']
-// y restaurar el crédito en game.js (pintaFine).
-const VOZ = { salida: [], llegada: [] };   // salida: aún sin grabación suya (ver el .md)   // p. ej. 'audio/animadora_salida_1.mp3' (solo archivos que existan: un 404 ensucia la consola)
+// Recortes reales de Diana Rendeiro tomados de la transmisión oficial de CAF (2025 y 2026); Alejandro decidió usarlos el 20-nov-2026 (fuentes en
+// build/investigacion/voz_animadora.md). Salida: aún sin grabación; al tener notas de voz suyas van en audio/animadora_salida_N.mp3 y se listan aquí.
+const VOZ = { salida: [], llegada: ['audio/animadora_llegada_1.mp3', 'audio/animadora_llegada_2.mp3', 'audio/animadora_llegada_3.mp3'] };   // salida: aún sin grabación suya (ver el .md)   // p. ej. 'audio/animadora_salida_1.mp3' (solo archivos que existan: un 404 ensucia la consola)
 const DUCK = 0.45;                          // el público baja a este factor mientras ella habla
 
 export function install(ctx) {
