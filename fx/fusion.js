@@ -88,6 +88,8 @@ export function fusionar(THREE, roots, tick, o = {}) {
       for (const h of n.children) baja(h); };
     baja(root); }
   st.descartables = LISTA.length;
+  // rendimiento (CPU): las piezas estáticas no recalculan su matriz cada cuadro (three recorre y compone miles de matrices por cuadro)
+  st.congelar = () => { let n = 0; for (const e of LISTA) { const o = e.n; o.updateMatrixWorld(true); o.matrixAutoUpdate = false; o.matrixWorldAutoUpdate = false; n++; } st.congeladas = n; };
   // ── 4. memoria: lo apagado suelta la GPU ──
   // Una pieza apagada sigue ocupando la GPU: three sube su geometría y sus texturas la primera vez que la dibuja y no las suelta (los hitos
   // traen ~260 texturas de canvas, ~200 MB). Cuando TODAS las piezas que usan una geometría o una textura quedan más lejos que lim · K2 + M2
@@ -102,11 +104,16 @@ export function fusionar(THREE, roots, tick, o = {}) {
   for (const e of LISTA) { e.qs = [qDe(e.n.geometry, false), ...texDe(e.n.material).map(t => qDe(t, true))]; for (const q of e.qs) q.es++; }
   const LIB = [...porR.values()].filter(q => q.es === usos.get(q.r)), enLIB = new Set(LIB); for (const e of LISTA) e.qs = e.qs.filter(q => enLIB.has(q));
   st.liberables = LIB.length; st.liberadas = 0;
-  st.cull = (x, z, mem) => { let v = 0; const K2 = mem && mem.hitoK || 0, M2 = mem && mem.hitoM || 0;
-    for (const e of LISTA) { const dx = e.x - x, dz = e.z - z, d2 = dx * dx + dz * dz, on = d2 < e.l2;
+  st.cull = (x, z, mem) => { let v = 0; const K2 = mem && mem.hitoK || 0, M2 = mem && mem.hitoM || 0, D2 = (mem && mem.hitoD || 1) ** 2;   // hitoD: fracción de la distancia de apagado (media/ligera la acortan: menos llamadas)
+    for (const e of LISTA) { const dx = e.x - x, dz = e.z - z, d2 = dx * dx + dz * dz, on = d2 < e.l2 * D2;
       if (on !== e.on) { e.on = on; e.n.layers.mask = on ? e.m : 0; if (on) for (const q of e.qs) if (q.libre) { q.libre = false; if (!q.tex) q.r.userData.gpuLibre = false; } } if (on) v++;
       if (K2 && e.qs.length) { const r = Math.sqrt(e.l2) * K2 + M2, lejos = d2 > r * r; if (lejos !== !!e.lejos) { e.lejos = lejos; for (const q of e.qs) q.lejos += lejos ? 1 : -1; } } }
     if (K2) for (const q of LIB) if (!q.libre && q.lejos === q.es) { q.libre = true; q.r.dispose(); if (!q.tex) q.r.userData.gpuLibre = true; st.liberadas++; }
+    // tirones: la textura de un hito se sube a la GPU el primer cuadro en que se ve, y una de canvas grande congela ese cuadro. Se sube antes,
+    // de a UNA por llamada (cada 200 ms), cuando la pieza está a menos de 1,5 veces su distancia de encendido y aún no se ve.
+    if (st.renderer && st.subeAntes) { const R = st.renderer, pr = R.properties;
+      for (const e of LISTA) { if (e.on) continue; const dx = e.x - x, dz = e.z - z; if (dx * dx + dz * dz > e.l2 * D2 * 2.25) continue;
+        const q = e.qs.find(q => q.tex && !(pr.get(q.r).__webglTexture)); if (q) { R.initTexture(q.r); q.libre = false; break; } } }
     return v; };
   st.ms = Math.round(performance.now() - t0);
   return st;

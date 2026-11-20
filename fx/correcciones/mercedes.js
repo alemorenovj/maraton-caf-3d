@@ -168,10 +168,15 @@ export default {
     { ll: [10.479049, -66.857952], a: 'COM', pisos: 3, col: '#ddd6c8' },
     { ll: [10.478763, -66.858796], a: 'BRI', pisos: 16, col: '#c9b48e', nota: 'SAIME: torre beige de pilastras verticales (der., f_0250)' },
     { ll: [10.479148, -66.857251], a: 'RES', pisos: 5, col: '#d9cbb0', nota: 'Residencias La Hacienda' },
+    // 20-nov (pedido del dueño): C.C. Paseo Las Mercedes (OSM, 6 niveles; terminado en 1974, arq. Jimmy Alcock). Su cara NE da a la ruta a 24–27 m der.
+    // (km 25,65–25,70); cuerpo comercial blanco de vitrinas; letrero en landmarks/zona_mercedes.js §14
+    { ll: [10.477888, -66.858567], a: 'COM', alt: 1, h: 19, col: '#ece9e1', shop: 1, mural: 0, nota: 'C.C. Paseo Las Mercedes' },
     { ll: [10.479014, -66.856529], a: 'BRI', pisos: 14, col: '#e6e3da', nota: 'Torreón: losa blanca de retícula (izq., f_0252)' },
     { ll: [10.479284, -66.856211], a: 'RES', pisos: 13, alt: 1, col: '#b77a55', shop: 0, nota: 'Torre ABA, ladrillo y beige (al fondo en f_0250)' },
     // ───── bajo el viaducto: el muro con mural ocupa la derecha
-    { ll: [10.478913, -66.855461], quitar: true, nota: 'El Trolly: bajo el viaducto, en el video es el muro con mural' },
+    // 20-nov (pedido del dueño): el C.C. El Trolly (OSM, Av. La Guairita, 1 nivel; local de comida de Las Mercedes) vuelve, bajo el tablero y detrás
+    // del muro con mural (22–37 m a la der., km 25,92–26,00); su rótulo va en landmarks/zona_mercedes.js §14
+    { ll: [10.478913, -66.855461], a: 'COM', h: 4.2, col: '#e7e0d0', shop: 0, detalle: 0, mural: 0, nota: 'C.C. El Trolly' },
     { ll: [10.479136, -66.855190], quitar: true },
     { ll: [10.479330, -66.854611], quitar: true },
     { ll: [10.479725, -66.854392], quitar: true },
@@ -190,7 +195,9 @@ export default {
     // ───── rampa y puente de El Ciempiés
     { ll: [10.480286, -66.854341], a: 'RES', pisos: 4, col: '#e3d8c2', shop: 1, nota: 'Più mobili: beige de 4 pisos con planta baja naranja (izq., f_0255)' },
     { ll: [10.480095, -66.854612], a: 'RES', pisos: 9, alt: 1, col: '#a85d3d', shop: 0, nota: 'torre de ladrillo detrás de Più' },
-    { ll: [10.479746, -66.854934], a: 'RES', pisos: 4, alt: 1, col: '#9a948a', shop: 0, nota: 'tras el muro y los árboles: bajo y gris, no torre de ladrillo (t=633 s)' },
+    // 20-nov (pedido del dueño, que lo conoce de primera mano): es el Edificio Keope (OSM, 10 niveles), MARRÓN; 11–39 m a la izq., km 26,02–26,09.
+    // Antes salía de 4 pisos gris porque en t=633 s lo tapan el muro y los árboles. Rótulo con el nombre en landmarks/zona_mercedes.js §14
+    { ll: [10.479746, -66.854934], a: 'RES', pisos: 10, alt: 1, col: '#7b5139', shop: 0, mural: 0, nota: 'Edificio Keope, marrón' },
     { ll: [10.480384, -66.853466], quitar: true, nota: 'sobre el muro de contención no hay edificio (f_0256)' },
     { ll: [10.480676, -66.853196], a: 'RES', pisos: 5, col: '#d8d0c0', old: 1, shop: 0, nota: 'edificio viejo abandonado entre árboles (der., f_0257)' },
     { ll: [10.481424, -66.853429], a: 'GAL', pisos: 3, col: '#e3c23a', nota: 'estructura amarilla (izq., f_0257)' },

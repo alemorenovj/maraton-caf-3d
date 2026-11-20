@@ -13,7 +13,8 @@ const MEZCLA = { maestro: 0.85, pasos: 0.22, pelotón: 0.4, respiracion: 0.07, p
 // Se cargan tras el primer gesto; si la lista está vacía o un archivo falla, silencio. ?voz=0 la apaga. Fuentes: build/investigacion/voz_animadora.md
 // Recortes reales de Diana Rendeiro tomados de la transmisión oficial de CAF (2025 y 2026); Alejandro decidió usarlos el 20-nov-2026 (fuentes en
 // build/investigacion/voz_animadora.md). Salida: aún sin grabación; al tener notas de voz suyas van en audio/animadora_salida_N.mp3 y se listan aquí.
-const VOZ = { salida: [], llegada: ['audio/animadora_llegada_1.mp3', 'audio/animadora_llegada_2.mp3', 'audio/animadora_llegada_3.mp3'] };   // salida: aún sin grabación suya (ver el .md)   // p. ej. 'audio/animadora_salida_1.mp3' (solo archivos que existan: un 404 ensucia la consola)
+// 20-nov: Alejandro pidió que la arenga larga («cruzar la meta preparados, enteros, con una sonrisa…») suene en la SALIDA; la llegada se queda con las otras dos.
+const VOZ = { salida: ['audio/animadora_salida_1.mp3'], llegada: ['audio/animadora_llegada_2.mp3', 'audio/animadora_llegada_3.mp3'] };   // solo archivos que existan: un 404 ensucia la consola
 const DUCK = 0.45;                          // el público baja a este factor mientras ella habla
 
 export function install(ctx) {

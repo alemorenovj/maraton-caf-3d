@@ -36,7 +36,9 @@ export default function historia(D, xz, enRuta) {
     { km: 4.6, nombre: 'Maternidad Concepción Palacios', tipo: 'zona', lado: 'izq', off: 40, desc: 'El edificio amarillo de molduras blancas; lleva el nombre de la madre de Simón Bolívar, María de la Concepción Palacios.' },
     { km: 7.3, nombre: 'Puente Los Leones', tipo: 'zona', pos: enRuta ? r(enRuta(7.35)) : undefined, lado: 'der', off: 12, desc: 'Cruzas el Guaire y la Autopista Francisco Fajardo entre los cuatro leones. Al salir, la Av. O\'Higgins.' },
     // el hotel queda casi al frente (~4° a la izquierda, 300 m) al bajar por la Av. Principal de Las Mercedes; con `pos` el aviso no dice lado
-    { km: 25.55, nombre: 'Hotel Tamanaco', tipo: 'zona', pos: r(xz(10.477564, -66.856146)), desc: 'Al frente, en lo alto del cerro: abrió en 1953, proyecto de John Wellborn Root Jr., y fue durante décadas el hotel emblema de Caracas.' },
+    // 20-nov (pedido del dueño): Paseo Las Mercedes; su cara NE da a la ruta a 24–27 m der. en el km 25,65–25,70 (OSM). Fuente: Wikipedia «Paseo Las Mercedes»
+    { km: 25.4, nombre: 'C.C. Paseo Las Mercedes', tipo: 'zona', pos: r(xz(10.47845, -66.85805)), desc: 'Al final de la avenida, a la derecha: se terminó en 1974 junto con su hotel, proyecto del arquitecto Jimmy Alcock, y alberga el Trasnocho Cultural.' },
+    { km: 25.62, nombre: 'Hotel Tamanaco', tipo: 'zona', pos: r(xz(10.477564, -66.856146)), desc: 'Al frente, en lo alto del cerro: abrió en 1953, proyecto de John Wellborn Root Jr., y fue durante décadas el hotel emblema de Caracas.' },
     { km: 41.12, nombre: 'Torre La Previsora', tipo: 'zona', lado: 'der', off: 40, desc: 'Inaugurada en 1973: 30 pisos y 117 m, con el reloj luminoso que se ve desde media Caracas. La rodeas por el este y el sur.' },
   ];
   for (const n of nuevos) if (!de(n.km)) H.push(n);

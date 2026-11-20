@@ -8,9 +8,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { makeApi, kmFns, componerRuta } from './landmarks/api.js?v=6';
 import RUTA21 from './data/ruta-21k.js?v=5';
-import HISTORIA from './data/hitos-historia.js?v=1';
+import HISTORIA from './data/hitos-historia.js?v=2';
 import HITOS_IDS from './landmarks/index.js';
-import { fusionar } from './fx/fusion.js?v=6';
+import { fusionar } from './fx/fusion.js?v=7';
 import FX_IDS from './fx/index.js?v=3';
 import FIX_IDS from './fx/correcciones/index.js';
 const VQ = new URL(import.meta.url).search;   // la versión de game.js (?v=N en index.html) se propaga a los módulos que se cargan en caliente: sin esto el navegador se queda con copias viejas
@@ -26,7 +26,8 @@ window.__carga?.(.86, 'Ubicando hitos y puestos');
 const SUST = new Set(fxMods.flatMap(m => m.meta?.reemplaza || []));
 // Capa de realismo de nov-2026 (detalle del suelo, color de cámara en media/ligera, follaje y sombra moteada; ver README «Realismo»). ?realismo=0 la apaga entera (A/B).
 const REALISMO = _q0.get('realismo') !== '0';
-const ctx = { THREE, D: window.CAF, SUST, realismo: REALISMO };
+const RX = new Set((_q0.get('rx') || '').split(','));   // medición: ?rx=suelo,cola,mip,tarj,lean,dap,luzhoja,urb,lejos apaga piezas sueltas del realismo
+const ctx = { THREE, D: window.CAF, SUST, realismo: REALISMO, rx: k => REALISMO && !RX.has(k), rxt: {} };   // rxt: interruptores en vivo para medir pieza por pieza (fx/rmedir.js → piezas)
 const nearFade = { value: 0 };   // m: lo que queda más cerca que esto de la cámara de seguimiento (follaje) se desvanece en vez de taparla
 
 const D = window.CAF, R = D.ruta, N = R.x.length, STEP = R.step, TOTAL = (N - 1) * STEP;
@@ -220,8 +221,8 @@ const Q = (() => { const u = new URLSearchParams(location.search).get('calidad')
 // Presupuesto de memoria por calidad (se mide con fx/memoria.js, ?mem=): radios de carga y de suelta (histéresis) de los mosaicos z18/z19 y de las
 // zonas de detalle de edificios, tope de triángulos de detalle residentes y a qué distancia extra sueltan sus búferes de GPU los hitos apagados
 // (lim · hitoK + hitoM, con lim la distancia a la que fusion.js los apaga). En alta los radios visibles son los de siempre.
-Q.mem = Q.media ? { z18: [900, 1350], z19: [420, 640], detCarga: 760, detVis: 620, detSuelta: 1000, detTri: 550000, hitoK: 1.2, hitoM: 250 }
-  : !Q.alta ? { z18: [700, 1050], z19: [360, 560], detCarga: 620, detVis: 520, detSuelta: 850, detTri: 380000, hitoK: 1.15, hitoM: 200 }
+Q.mem = Q.media ? { z18: [900, 1350], z19: [420, 640], detCarga: 760, detVis: 620, detSuelta: 1000, detTri: 550000, hitoK: 1.2, hitoM: 250, hitoD: REALISMO ? .62 : 1 }
+  : !Q.alta ? { z18: [700, 1050], z19: [360, 560], detCarga: 620, detVis: 520, detSuelta: 850, detTri: 380000, hitoK: 1.15, hitoM: 200, hitoD: REALISMO ? .5 : 1 }
   : { z18: [1500, 2600], z19: [520, 900], detCarga: 1000, detVis: 620, detSuelta: 1400, detTri: 900000, hitoK: 1.5, hitoM: 600 };
 renderer.shadowMap.enabled = Q.alta && !Q.media; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 sun.castShadow = Q.alta; sun.shadow.mapSize.set(2048, 2048); { const c = sun.shadow.camera; c.left = -170; c.right = 170; c.top = 170; c.bottom = -170; c.near = 60; c.far = 1500; } sun.shadow.bias = -.0006; sun.shadow.normalBias = .5;
@@ -231,7 +232,7 @@ const skyU = { top: { value: new THREE.Color(0x4a90d9) }, hor: { value: new THRE
 const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
   vertexShader: 'varying vec3 d; void main(){ d = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: 'uniform vec3 top; uniform vec3 hor; uniform vec3 sunDir; uniform vec3 sunCol; uniform float sunK; varying vec3 d; void main(){ vec3 n = normalize(d); float t = pow(clamp(n.y*1.6,0.0,1.0),0.55); vec3 c = mix(hor, top, t); float s = max(dot(n, sunDir), 0.0); c += sunCol * sunK * (pow(s, 900.0) * 6.0 + pow(s, 40.0) * 0.35 + pow(s, 6.0) * 0.12); c = mix(c, hor, pow(1.0 - clamp(n.y, 0.0, 1.0), 9.0) * 0.6); gl_FragColor = vec4(c, 1.0); }' });
-const skyDome = new THREE.Mesh(new THREE.SphereGeometry(36000, 32, 16), skyMat); skyDome.renderOrder = -10; scene.add(skyDome);
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(36000, 32, 16), skyMat); skyDome.renderOrder = REALISMO ? 50 : -10; /* rendimiento: el cielo va al final de lo opaco (con prueba de profundidad): solo se pinta donde se ve */ scene.add(skyDome);
 // entorno para reflejos (vidrio de las torres): se regenera a partir del propio cielo cuando cambia la luz
 const pmrem = new THREE.PMREMGenerator(renderer), envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 32, 16), skyMat)); let envRT = null, envKey = -1;
 function envUpdate(key) { if (key === envKey) return; envKey = key; const rt = pmrem.fromScene(envScene, 0, 1, 500); scene.environment = rt.texture; if (envRT) envRT.dispose(); envRT = rt; }
@@ -259,7 +260,7 @@ const ABRE = []; { const C = DIST['21'], rf = C.ref;
     // retorno en U: se abre el separador en las filas del 42K que quedan a menos de 14 m del arco (en las dos pasadas), con 6 m de margen
     const arco = C.conectores.find(c => Math.hypot(c[0][0] - C.x[i - 1], c[0][1] - C.z[i - 1]) < 1), cerca = s => { const k = Math.round(s / STEP); return arco.some(q => Math.hypot(R.x[k] - q[0], R.z[k] - q[1]) < 14); };
     for (const s of [sa, sb]) { let a = s, b = s; for (let d = STEP; d <= 120; d += STEP) { if (cerca(s - d)) a = s - d; if (cerca(s + d)) b = s + d; } ABRE.push({ s0: a - 6, s1: b + 6, sep: true }); } i = j; } }
-const hitosListos = Promise.all(HITOS_IDS.map(id => import(`./landmarks/${id}.js${VQ}`).then(m => { (m.meta?.quita || []).forEach(q => { const p = api.xz(q[0], q[1]); QUITA.push([p.x, p.z, q[2]]); }); const o = m.build(THREE, api); o.traverse(n => { if (n.isMesh && !Q.alta) n.castShadow = false; }); scene.add(o); HROOTS.push(o); }).catch(e => console.error('hito ' + id, e)))).then(() => { if (new URLSearchParams(location.search).get('fusion') !== '0') try { FUSION = fusionar(THREE, HROOTS, st => api.tickSeguro(st)); console.info('fusion', JSON.stringify(FUSION)); } catch (e) { console.error('fusion', e); } });
+const hitosListos = Promise.all(HITOS_IDS.map(id => import(`./landmarks/${id}.js${VQ}`).then(m => { (m.meta?.quita || []).forEach(q => { const p = api.xz(q[0], q[1]); QUITA.push([p.x, p.z, q[2]]); }); const o = m.build(THREE, api); o.traverse(n => { if (n.isMesh && !Q.alta) n.castShadow = false; }); scene.add(o); HROOTS.push(o); }).catch(e => console.error('hito ' + id, e)))).then(() => { if (new URLSearchParams(location.search).get('fusion') !== '0') try { FUSION = fusionar(THREE, HROOTS, st => api.tickSeguro(st)); FUSION.renderer = renderer; FUSION.subeAntes = false; if (REALISMO) FUSION.congelar(); /* la subida anticipada de texturas (fx/fusion.js) se probó y no redujo los tirones: queda apagada */ console.info('fusion', JSON.stringify(FUSION)); } catch (e) { console.error('fusion', e); } });
 Object.assign(ctx, { A, DIST, conectores: CONECT, aberturas: ABRE, distConector, HROOTS, scene, camera, renderer, composer, bloom, grade, ShaderPass, Q, api, sun, hemi, sunDir, skyU, skyMat, skyDome, frameHooks, P, hT, Y, kmOf, sOfKm, KM, TOTAL, STEP, N, R, ROAD_W, clamp, lerp, rnd, inTunnel, enElevado, cubierto, nearRoute, canvasTex, label, elevH, edifFix, relieve, EX, nearFade,
   /** añade un pase de posproceso justo antes de la gradación de color */ addPass(p) { composer.insertPass(p, composer.passes.indexOf(grade)); } });
 const quitado = (x, z) => { for (const q of QUITA) if ((x - q[0]) ** 2 + (z - q[1]) ** 2 < q[2] * q[2]) return true; return false; };
@@ -299,16 +300,17 @@ const isGreen = c => c && c[1] > c[0] * 1.04 && c[1] > c[2] * 1.12 && c[1] < 190
 // 1) enfoque local con UNA muestra extra (la misma foto 2,5 niveles de mipmap más borrosa: luz/borroso realza el grano real de la foto) y
 // 2) ruido de valor procedural en coordenadas del mundo (3 octavas; en lo verde, más contraste y manchas secas amarillentas).
 // Se desvanece con la distancia (nada más allá de ~320 m: sin centelleo). Mismo programa para la base y todos los mosaicos; sirve igual en media/ligera.
-const sueloDet = m => { if (!REALISMO) return m;
-  m.onBeforeCompile = sh => {
+const uSd = { value: 1 }; ctx.rxt.suelo = v => uSd.value = v;
+const sueloDet = m => { if (!ctx.rx('suelo') || Q.media || !Q.alta) return m;   // rendimiento: solo en alta (en teléfonos el suelo cubre media pantalla y pesaba)
+  m.onBeforeCompile = sh => { sh.uniforms.uSd = uSd;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vSdW;').replace('#include <project_vertex>', '#include <project_vertex>\nvSdW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-varying vec3 vSdW;
+varying vec3 vSdW; uniform float uSd;
 float sdH(vec2 p) { p = mod(p, 4096.0); vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float sdN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(sdH(i), sdH(i + vec2(1.0, 0.0)), f.x), mix(sdH(i + vec2(0.0, 1.0)), sdH(i + 1.0), f.x), f.y); }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
 #ifdef USE_MAP
-{ float sdD = length(vSdW - cameraPosition), sdK = 1.0 - smoothstep(60.0, 320.0, sdD);
+{ float sdD = length(vSdW - cameraPosition), sdK = (1.0 - smoothstep(60.0, 320.0, sdD)) * uSd;
   if (sdK > 0.002) {
     vec3 t0 = texture2D(map, vMapUv).rgb, tb = texture2D(map, vMapUv, 2.5).rgb;
     float l0 = dot(t0, vec3(0.2126, 0.7152, 0.0722)), lb = dot(tb, vec3(0.2126, 0.7152, 0.0722));
@@ -330,7 +332,7 @@ float sdN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
   const idx = new Uint32Array((nx - 1) * (nz - 1) * 6); let q = 0;
   for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1; idx[q++] = a; idx[q++] = d; idx[q++] = b; idx[q++] = b; idx[q++] = d; idx[q++] = e; }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(new THREE.BufferAttribute(idx, 1));
-  scene.add(new THREE.Mesh(g, sueloDet(new THREE.MeshBasicMaterial({ map: baseTex, color: groundTint }))));
+  { const m = new THREE.Mesh(g, sueloDet(new THREE.MeshBasicMaterial({ map: baseTex, color: groundTint }))); if (REALISMO) m.renderOrder = 2.8; scene.add(m); }   // orden de dibujo: ver «capas de suelo» en makeLayer
   // Cota más baja que se dibuja en (x, z): esta malla base (hundida junto al relieve lateral, se ve donde la capa fina no ha cargado) o las capas z18/z19
   // (retícula de ~9,4 m, mismas divisiones que `layers`, que corta los escalones bruscos). Los edificios asientan su base aquí para no quedar en el aire.
   const tri = (u, v, a, b, d, e) => u + v <= 1 ? a + u * (b - a) + v * (d - a) : e + (1 - u) * (d - e) + (1 - v) * (b - e);
@@ -364,7 +366,7 @@ function makeLayer(z, offs, rLoad, rDrop, lift, order, maxPar, SEG) {
       loading--; if (t.st !== 1) { tex.dispose(); return; } tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const n = SEG + 1, pos = new Float32Array(n * n * 3), uv = new Float32Array(n * n * 2); for (let j = 0, k = 0; j < n; j++) for (let i = 0; i < n; i++, k++) { const x = xOfTile(t.tx + i / SEG, z), zz = zOfTile(t.ty + j / SEG, z); pos[k * 3] = x; pos[k * 3 + 1] = Y(hT(x, zz)) - GAP + lift; pos[k * 3 + 2] = zz; uv[k * 2] = i / SEG; uv[k * 2 + 1] = 1 - j / SEG; }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(hiIdx);
-      t.mesh = new THREE.Mesh(g, sueloDet(new THREE.MeshBasicMaterial({ map: tex, color: groundTint, polygonOffset: true, polygonOffsetFactor: -2 * order, polygonOffsetUnits: -4 * order }))); t.mesh.renderOrder = order; t.mesh.userData.mem = 'mosaico' + z; scene.add(t.mesh); t.st = 2;
+      t.mesh = new THREE.Mesh(g, sueloDet(new THREE.MeshBasicMaterial({ map: tex, color: groundTint, polygonOffset: true, polygonOffsetFactor: -2 * order, polygonOffsetUnits: -4 * order }))); t.mesh.renderOrder = REALISMO ? 2.7 - order * .1 : order;   /* rendimiento: las tres capas de suelo (z19 encima de z18 encima de la base) se dibujan de cerca a lejos y DESPUÉS de edificios y calzada: lo tapado ya no se sombrea (antes cada píxel de suelo se pintaba hasta 3 veces) */ t.mesh.userData.mem = 'mosaico' + z; scene.add(t.mesh); t.st = 2;
     }, undefined, () => { loading--; t.st = 3; });
   };
   const upd = (x, zc) => {
@@ -382,7 +384,10 @@ const layers = [makeLayer(18, [-150, 0, 150], Q.mem.z18[0], Q.mem.z18[1], .1, 1,
 // Solo lee el estado; la carga sigue igual. La usa ui/velo.js para no levantar el fundido de un salto antes de tiempo.
 ctx.pendientes = () => { const p = A.P(S.s, {}), pe = ctx.pend || {}; return (ctx.baseLista ? 0 : 1) + (pe.calzada || 0) + (pe.edificios || 0) + layers[1].pend(p.x, p.z, 260) + layers[0].pend(p.x, p.z, 420); };
 ctx.tilesCerca = (x, z) => [...layers[1].urls(x, z, 260), ...layers[0].urls(x, z, 420)];
-function hiUpdate(x, z, now) { if (now < hiNext) return; hiNext = now + 200; for (const f of layers) f(x, z); if (FUSION && FUSION.cull) FUSION.cull(x, z, Q.mem); }
+function hiUpdate(x, z, now) { if (now < hiNext) return; hiNext = now + 200; for (const f of layers) f(x, z); if (FUSION && FUSION.cull) FUSION.cull(x, z, Q.mem); if (REALISMO) rotulosCerca(x, z); }
+// rendimiento (CPU): los rótulos sueltos de la escena (km, puestos, hitos; ~55 llamadas de dibujo) se apagan lejos de la cámara (capa, no visible)
+let ROT = null; const ROT_R2 = (Q.alta && !Q.media ? 2600 : 1100) ** 2;
+function rotulosCerca(x, z) { if (!ROT) { ROT = scene.children.filter(o => o.isSprite); } for (const o of ROT) { const dx = o.position.x - x, dz = o.position.z - z; o.layers.mask = dx * dx + dz * dz < ROT_R2 ? 1 : 0; } }
 
 // Calzada: asfalto translúcido (se ve la calle real debajo) con la línea azul del maratón
 (function road() {
@@ -797,7 +802,7 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); togglePause(); } else if (k === 'c') $('bCam').click(); else if (k === 'f') { S.verFps = !S.verFps; $('fps').style.display = S.verFps ? 'block' : 'none'; } else if (k === 't') toggleIdx(); else if (k === 'escape') toggleIdx(false); else if (k === 'p') window.__cafUI?.plan?.abrir();
   else if (k === 'arrowright' && S.mode === 'tour') seek(S.s + 500); else if (k === 'arrowleft' && S.mode === 'tour') seek(S.s - 500);
 });
-const pintaFine = () => { $('fine').innerHTML = `Proyecto independiente hecho por un corredor: no es un producto oficial de CAF ni de la organización del maratón. Trazado: ${D.meta.fuente}. Imagen satelital: Esri, Maxar, Earthstar Geographics. Relieve SRTM 30 m y ${(D.edif || []).length.toLocaleString('es')} edificios con su huella real de © OpenStreetMap. Todo está a escala real 1:1; los bordes de la calzada se tiñen de rojo cuando sube y de verde cuando baja. Voz de llegada: Diana Rendeiro (@dianarendeiro), animadora del Maratón CAF, con su permiso; audio de la transmisión oficial de la carrera. ${A.aviso || ''}`; }; pintaFine();
+const pintaFine = () => { $('fine').innerHTML = `Proyecto independiente hecho por un corredor: no es un producto oficial de CAF ni de la organización del maratón. Trazado: ${D.meta.fuente}. Imagen satelital: Esri, Maxar, Earthstar Geographics. Relieve SRTM 30 m y ${(D.edif || []).length.toLocaleString('es')} edificios con su huella real de © OpenStreetMap. Todo está a escala real 1:1; los bordes de la calzada se tiñen de rojo cuando sube y de verde cuando baja. Voz de salida y llegada: Diana Rendeiro (@dianarendeiro), animadora del Maratón CAF, con su permiso; audio de la transmisión oficial de la carrera. ${A.aviso || ''}`; }; pintaFine();
 // Distancia: «42K · Maratón» o «21K · Media» en la portada (los dos modos), recordada en localStorage y con ?dist= en la URL
 const OBJ = { '42': [3.25, 3.5, 4, 4.5, 5], '21': [1.5, 1.75, 2, 2.25, 2.5] }, alDist = [];
 function setDist(id, guardar = true) { id = id === '21' ? '21' : '42'; for (const k in A) delete A[k]; Object.assign(A, DIST[id]); S.dist = id; document.body.dataset.dist = id;
@@ -840,7 +845,9 @@ function giroU(s) {
   A.P(s - 10, _ua); A.P(s + 10, _ub); const dx = _ub.x - _ua.x, dz = _ub.z - _ua.z, l = Math.hypot(dx, dz) || 1; giroU.tx = dx / l; giroU.tz = dz / l; return w;
 }
 function frame(now) {
-  requestAnimationFrame(frame); const dt = Math.min(.05, (now - last) / 1000); last = now;
+  requestAnimationFrame(frame); const crudo = now - last, dt = Math.min(.05, crudo / 1000); last = now;
+  // perfil de CPU por subsistema (fx/rmedir.js → perfil): solo si window.__cafPerf existe; acumula ms por etiqueta
+  const PF = window.__cafPerf; let _pt = PF ? performance.now() : 0; const mark = PF ? k => { const n = performance.now(); PF[k] = (PF[k] || 0) + n - _pt; _pt = n; } : null;
   if (S.running && !S.paused) step(dt);
   const s = S.running || $('end').style.display === 'flex' ? S.s : (idleS = (idleS + dt * 260) % A.TOTAL), p = A.P(s, pa), sc = S.running ? S.scale : 30, sr = A.sRef(s);
   // héroe
@@ -851,7 +858,7 @@ function frame(now) {
   // pelotón (se dispersa con los km)
   const m4 = frame.m || (frame.m = new THREE.Matrix4()), dens = 1 - .75 * (s / A.TOTAL); let vis = 0;
   for (let i = 0; i < PACK; i++) { const d = packD[i]; if (!S.paused) d.off += d.v * dt * 3; if (d.off > 240) d.off = -90; if (d.off < -90) d.off = 240; if (i / PACK > dens) continue; if (S.cam === 3 && d.off > -6 && d.off < 5) d.off += 9; const q = A.P(clamp(s + d.off, 0, A.TOTAL), pb); gente.set(vis++, q.x + q.tz * d.lat, q.y + Math.abs(Math.cos(anim * d.cad + d.ph)) * .07, q.z - q.tx * d.lat, Math.atan2(q.tx, q.tz), anim * d.cad + d.ph, 1.12); }
-  gente.commit(vis);
+  gente.commit(vis); mark && mark('pelotón');
   // cámara
   // seguimiento: baja y pegada al corredor, por debajo de las copas; va SOBRE la ruta (no corta esquinas) aunque el tiempo vaya comprimido
   if (S.cam === 0) { const tun = cubierto(sr) || cubierto(A.sRef(s - 14)), kq = Math.min(sc, 60) / 60, back = tun ? 7 : 8.5 + kq * 5, hgt = tun ? 2.4 : 3 + kq * 1.4, la = 30 + kq * 30, b = A.P(s - back, pb), f = miraAdelante(s, p, la, pc), wu = giroU(s); wantPos.set(b.x, Math.max(b.y, p.y - 1) + hgt, b.z); wantTgt.set(f.x, (f.y + p.y) / 2 + 1.6, f.z); camera.up.set(0, 1, 0);
@@ -870,29 +877,68 @@ function frame(now) {
   camera.position.copy(camPos); camera.lookAt(camTgt);
   skyDome.position.set(camPos.x, 0, camPos.z); S.min = sky(S.dia ? 150 : S.running || $('end').style.display === 'flex' ? S.clock / 60 : 110);
   { const ax = p.x + p.tx * 45, az = p.z + p.tz * 45, sd = sunDir.y > .04 ? sunDir : MOON; sun.target.position.set(ax, p.y, az); sun.position.set(ax + sd.x * 700, p.y + sd.y * 700, az + sd.z * 700); }
-  api.tick({ noche: NOCHE, t: now / 1000, dt }); frameHooks.forEach(f => f(NOCHE, now / 1000, dt, p));
-  hiUpdate(p.x, p.z, now);
-  if (S.running) updateHUD();
+  mark && mark('cámara+cielo');
+  api.tick({ noche: NOCHE, t: now / 1000, dt }); mark && mark('hitos (onFrame)');
+  if (PF) for (const f of frameHooks) { f(NOCHE, now / 1000, dt, p); mark('fx ' + (f.mod || 'listo')); } else frameHooks.forEach(f => f(NOCHE, now / 1000, dt, p));
+  hiUpdate(p.x, p.z, now); mark && mark('mosaicos+fusión');
+  if (S.running) updateHUD(); mark && mark('HUD');
   if (precarga && ctx.baseLista) {   // precarga por distancia (ver abajo): este cuadro se dibuja sin descarte por encuadre
-    precarga = 0; const fc = []; scene.traverse(o => { if (o.frustumCulled && o.visible && (o.isMesh || o.isSprite || o.isLine || o.isPoints)) { o.frustumCulled = false; fc.push(o); } }); dibuja(); for (const o of fc) o.frustumCulled = true;
+    precarga = 0; const fc = [], vac = []; scene.traverse(o => { if (o.frustumCulled && o.visible && (o.isMesh || o.isSprite || o.isLine || o.isPoints)) { o.frustumCulled = false; fc.push(o); }
+      // tirones: la primera vez que se dibuja una malla instanciada vacía (count 0: busetas, kioscos, especies de árbol que aún no salieron…) el
+      // controlador compila su estado de dibujo y ese cuadro se congelaba hasta 2,7 s a mitad del recorrido. Aquí se dibujan una vez (una instancia, tras el fundido de carga)
+      if (REALISMO && o.isInstancedMesh && o.count === 0 && o.visible && o.layers.mask) { o.count = 1; vac.push(o); } }); dibuja(); for (const o of fc) o.frustumCulled = true; for (const o of vac) o.count = 0;
+    if (REALISMO && !precalentado && FUSION) { precalentado = true; try { precalienta(); } catch (e) { console.warn('precalienta', e); } }
   } else dibuja();
+  mark && mark('render (CPU de three)');
   fpsEma = fpsEma * .95 + (1 / Math.max(dt, .001)) * .05; if (S.verFps && (fpsTick = (fpsTick + 1) % 20) === 0) $('fps').textContent = Math.round(fpsEma) + ' fps · ' + (Q.media ? 'media' : Q.alta ? 'alta' + (Q.nivel ? ' (ajuste ' + Q.nivel + ')' : '') : 'ligera') + ' · ' + triEsc.toLocaleString('es') + ' tri';
+  resAdapt(crudo);
   // ajuste automático: si el equipo no da 28 fps sostenidos, baja primero resolución, luego sombras, luego posproceso
   if (Q.alta && !Q.fija && !document.hidden && S.running && !S.paused) { perfT += dt; perfN++; if (perfN >= 90) { const fps = perfN / perfT; perfT = perfN = 0; Q.fps = fps;
     // por debajo de 40 fps se baja un escalón: 1) resolución 1,25  2) resolución 1,0  3) sombra de 1024  4) sin sombras  5) sin posproceso
     if (fps < 40 && ++perfBad >= 2 && (Q.nivel || 0) < 5) { perfBad = 0; Q.nivel = (Q.nivel || 0) + 1;
-      if (Q.nivel === 1) { renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25)); resize(); } else if (Q.nivel === 2) { renderer.setPixelRatio(1); resize(); }
+      if (!RES.on && Q.nivel === 1) { renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25)); resize(); } else if (!RES.on && Q.nivel === 2) { renderer.setPixelRatio(1); resize(); }
+      else if (Q.nivel === 1) RES.max = Math.min(RES.max, 1.25); else if (Q.nivel === 2) RES.max = Math.min(RES.max, 1);   // la resolución la lleva resAdapt (tope más bajo)
       else if (Q.nivel === 3) { sun.shadow.mapSize.set(1024, 1024); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } } else if (Q.nivel === 4) Q.sombras = false; else Q.post = false;
       console.info('calidad ajustada, nivel', Q.nivel, 'fps', fps.toFixed(0)); } else if (fps >= 40) perfBad = 0; } }
 }
 let perfT = 0, perfN = 0, perfBad = 0, fpsEma = 60, fpsTick = 0;
+// Resolución adaptativa (todas las calidades salvo ?calidad=fija): si el cuadro pasa de ~22 ms sostenido 1 s, el pixel ratio baja un escalón
+// (0,125; mínimo 0,75); si sobra (< 18 ms, o sea a ritmo de pantalla) 4 s seguidos, sube uno hasta el tope de la calidad. Tras bajar, no vuelve a
+// intentar subir en 15 s (sin vaivén). Cambiar el pixel ratio solo redimensiona el lienzo y los búferes: no se reconstruye nada.
+const RES = { on: REALISMO, max: renderer.getPixelRatio(), cur: renderer.getPixelRatio(), ema: 16.7, malo: 0, bueno: 0, veda: 0 };
+function resAdapt(ms) {
+  if (!RES.on || Q.fija || document.hidden || !S.running || S.paused || !(ms > 0) || ms > 250) return;   // pausas, pestaña oculta y saltos no cuentan
+  const dt = ms / 1000; RES.t = (RES.t || 0) + dt; RES.ema += (ms - RES.ema) * .12; RES.veda = Math.max(0, RES.veda - dt);
+  if (RES.ema > 22) { RES.malo += dt; RES.bueno = 0; } else if (RES.ema < 18) { RES.bueno += dt; RES.malo = Math.max(0, RES.malo - dt); } else { RES.bueno = 0; RES.malo = Math.max(0, RES.malo - dt); }
+  if (RES.inutil) { if (RES.cur > RES.max) { RES.cur = RES.max; renderer.setPixelRatio(RES.cur); resize(); } return; }
+  /* Si en el piso sigue igual de lento (≥ 88 % del tiempo que tenía arriba), la resolución no era el freno: pantalla limitada a 30 fps (modo ahorro
+     del iPhone) o CPU. Se devuelve la nitidez y no se vuelve a bajar: quedarse borroso sin ganar fluidez es peor. */
+  let nv = RES.cur; if (RES.cur <= .75 && RES.malo > 5 && RES.ms0 && RES.ema > RES.ms0 * .88) { RES.inutil = 1; nv = RES.max; console.info('resolución: bajar no ayuda, vuelve a', nv); }
+  else if (RES.malo > 1 && RES.cur > .75) { if (RES.cur >= RES.max) RES.ms0 = RES.ema; nv = Math.max(.75, RES.cur - .125); RES.espera = RES.t - (RES.tSube || -99) < 12 ? Math.min(240, (RES.espera || 15) * 2) : 15; RES.veda = RES.espera; }   /* si acaba de subir y tuvo que volver a bajar, espera el doble antes de reintentar (15, 30, 60… 240 s): sin vaivén de nitidez */
+  else if (RES.bueno > 4 && RES.veda <= 0 && RES.cur < RES.max) { nv = Math.min(RES.max, RES.cur + .125); RES.tSube = RES.t; }
+  if (RES.cur > RES.max) nv = RES.max;
+  if (nv !== RES.cur) { RES.cur = nv; RES.malo = RES.bueno = 0; RES.ema = 16.7; renderer.setPixelRatio(nv); resize(); }
+}
 function dibuja() { if (Q.alta && Q.post !== false) composer.render(); else renderer.render(scene, camera); }
 // Precarga por distancia: three sube a la GPU solo lo que entra en el encuadre, así que lo cargado (dentro de su radio) que quedaba a la espalda
 // se subía más tarde, al girar, y la memoria dependía de hacia dónde se había mirado. Un cuadro tras el arranque y tras cada salto (> 400 m)
 // se dibuja sin descarte por encuadre: lo de atrás queda recortado (la imagen es la misma), pero ya está en la GPU y lo residente lo decide la distancia.
-let precarga = 1;
+let precarga = 1, precalentado = false;
+// Tirones de varios segundos al llegar por primera vez a un hito (medido: 0,5–4 s dentro de una llamada de GL cualquiera, que espera al proceso
+// de la GPU): el controlador prepara el estado de dibujo de cada combinación nueva de sombreador + formato de vértices la primera vez que se dibuja.
+// Una sola vez, tras el primer cuadro de precarga (bajo el fundido de carga), se dibuja UN representante de cada combinación de todo lo que
+// fusion.js tiene apagado por distancia (capa 31 en la cámara, además de la normal): sube solo esos pocos (≈100 mallas pequeñas), no los hitos enteros.
+function precalienta() {
+  const reps = new Map(), sig = o => { const m = o.material, g = o.geometry; if (!m || Array.isArray(m) || !g) return null; return [m.type, m.customProgramCacheKey ? m.customProgramCacheKey().slice(0, 40) : '', !!m.map, !!m.emissiveMap, !!m.normalMap, !!m.alphaMap, m.vertexColors, m.transparent, m.side, m.alphaTest > 0, o.isInstancedMesh, o.isSkinnedMesh, Object.keys(g.attributes).sort().join(',')].join('|'); };
+  scene.traverse(o => { if (!o.isMesh || reps.has(sig(o))) return; const k = sig(o); if (k) reps.set(k, o); });
+  const L = [...reps.values()], prev = L.map(o => [o.layers.mask, o.frustumCulled, o.isInstancedMesh ? o.count : -1]), cm = camera.layers.mask;
+  L.forEach(o => { o.layers.enable(31); o.frustumCulled = false; if (o.isInstancedMesh && o.count === 0) o.count = 1; });
+  camera.layers.enable(31); dibuja(); camera.layers.mask = cm;   // capa 0 + 31: mismas luces y mismos pases que un cuadro normal (si no, compila variantes que no sirven)
+  L.forEach((o, i) => { o.layers.mask = prev[i][0]; o.frustumCulled = prev[i][1]; if (prev[i][2] >= 0) o.count = prev[i][2]; });
+  console.info('precalienta', L.length, 'combinaciones');
+}
 Object.assign(ctx, { S, hero, seek, start });
-for (const m of fxMods) { try { m.install?.(ctx); } catch (e) { console.error('fx install', m.meta?.id, e); } }
+for (const m of fxMods) { const n0 = frameHooks.length; try { m.install?.(ctx); } catch (e) { console.error('fx install', m.meta?.id, e); } for (let i = n0; i < frameHooks.length; i++) frameHooks[i].mod = m.meta?.id; }
 window.__carga?.(1); $('load').style.display = 'none'; $('start').style.display = 'flex'; requestAnimationFrame(frame);
 { const q = new URLSearchParams(location.search); if (q.get('auto') !== null) ready.push(() => setTimeout(() => { start('tour'); S.scale = 10; S.dia = q.get('dia') !== '0'; S.cam = +(q.get('cam') || 0); seek(A.sOfKm(+q.get('auto'))); if (!S.dia && q.get('min')) S.clock = +q.get('min') * 60; if (q.get('hud') === '0') $('hud').style.display = 'none'; camSnap = true;   // corre 1,6 s para que la luz se asiente y luego vuelve clavado al km pedido
   setTimeout(() => { seek(A.sOfKm(+q.get('auto'))); S.paused = true; camSnap = true; setTimeout(() => { document.title = 'listo'; }, 6000); }, 1600); }, 300)); }
@@ -918,5 +964,6 @@ import(`./ui/cine.js${VQ}`).then(m => { window.__cafCine = m.crearCine(window.__
   const [a, b, paso, cuadros, vueltas] = q.split(',').map(Number), espera = () => ctx.baseLista ? new Promise(r => setTimeout(r, 2500)) : new Promise(r => setTimeout(r, 300)).then(espera);
   return espera().then(() => m.recorrer(window.__caf, { km0: a || 0, km1: isNaN(b) ? A.KM - .005 : b, paso, cuadros, vueltas, log: f => console.info('MEMORIA ' + (f.vuelta ? 'v=' + f.vuelta + ' ' : '') + m.linea(f)) }))
     .then(r => { console.info('MEMORIA DESGLOSE ' + JSON.stringify(m.desglose(window.__caf))); console.info('MEMORIA FIN ' + Q.tier + ' max ' + JSON.stringify(r.max)); }); }).catch(e => console.error('mem', e)); }
+{ if (new URLSearchParams(location.search).get('rauto')) hitosListos.then(() => { const t0 = performance.now(), ch = new MessageChannel(); ch.port1.onmessage = () => performance.now() - t0 < 8000 ? ch.port2.postMessage(0) : import('./fx/rmedir.js' + VQ).then(m => m.autolote(window.__caf)).catch(e => console.error('rauto', e)); ch.port2.postMessage(0); }); }
 { const q = new URLSearchParams(location.search).get('rmedir'); if (q) hitosListos.then(() => setTimeout(() => import('./fx/rmedir.js' + VQ).then(m => m.default(window.__caf, q.split(',').map(Number))).catch(e => console.error('rmedir', e)), 3000)); }   // llamadas de dibujo y triángulos por km (fx/rmedir.js)
 { const q = new URLSearchParams(location.search).get('choques'); if (q) hitosListos.then(() => setTimeout(() => import('./fx/choques.js' + VQ).then(m => m.default(window.__caf, +q.split(',')[0], +q.split(',')[1])).then(r => console.info('CHOQUES ' + q + ' → ' + r.split('\n').join(' ¦ ') + ' ¦ FIN')).catch(e => console.error('choques', e)), 5000)); }

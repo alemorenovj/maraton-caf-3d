@@ -785,5 +785,84 @@ export function build(THREE, api) {
         const me = add(ge, m, q.x, q.y + .05, q.z, Math.atan2(-q.tx, -q.tz)); me.receiveShadow = true; return me; };
       piso('DESPACIO', 23.487); piso('ALCALDÍA', 23.497); }
   }
+
+  // ═════════ 14 (20-nov, pedido del dueño). Paseo Las Mercedes, Rampa de Las Mercedes en desuso, El Trolly y Edificio Keope ═════════
+  // Posiciones: huellas y vías de OSM (build/raw/edificios.json y calles.json). Volumen y color de los tres edificios en fx/correcciones/mercedes.js;
+  // aquí van los rótulos y la rampa. Lados respecto al corredor: Paseo der. (km 25,65–25,70, 24–27 m), rampa der. (25,79–26,11, de 9,5 a 34 m: pegada al muro con mural, ver abajo),
+  // Trolly der. (25,92–26,00, 22–37 m, bajo el tablero de la autopista), Keope izq. (26,02–26,09, 11–39 m).
+  {
+    const conc = api.concrete(0xa8a59c), concOsc = api.concrete(0x7d7b75);
+    // cara(poly, km): arista de la planta que mejor mira a la ruta en ese km → {x, z, len, ry} (ry gira el +Z local hacia la ruta)
+    const cara = (poly, km) => { const P = poly.map(([a, b]) => LL(a, b)), r = RA(km); let best = null;
+      for (let i = 0; i < P.length; i++) { const A = P[i], B = P[(i + 1) % P.length], len = Math.hypot(B.x - A.x, B.z - A.z); if (len < 6) continue;
+        const mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2; let nx = (B.z - A.z) / len, nz = -(B.x - A.x) / len; if ((r.x - mx) * nx + (r.z - mz) * nz < 0) { nx = -nx; nz = -nz; }
+        const d = Math.hypot(r.x - mx, r.z - mz) - len * .3; if (!best || d < best.d) best = { d, x: mx + nx * .35, z: mz + nz * .35, len, ry: Math.atan2(nx, nz) }; }
+      return best; };
+    const rotulo = (w, h, fn) => valla(w, h, fn);
+    // letrero plano (caja delgada) con la textura solo en la cara que mira a la ruta (+Z local)
+    const letrero = (c, ancho, alto, y, mat, fondo = concOsc) => add(new THREE.BoxGeometry(ancho, alto, .25), [fondo, fondo, fondo, fondo, mat, fondo], c.x, y, c.z, c.ry);
+
+    // ── C.C. Paseo Las Mercedes: letras en la banda alta de la cara NE (la que da a la Av. Principal) ──
+    { const c = cara([[10.478650, -66.858185], [10.478321, -66.857856], [10.477202, -66.858363], [10.477285, -66.859053], [10.478618, -66.858534]], 25.67);
+      const t = rotulo(256, 40, (x, w, h) => { x.fillStyle = '#f3f1ec'; x.fillRect(0, 0, w, h); x.fillStyle = '#1f3a5c'; x.font = 'bold 25px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('PASEO LAS MERCEDES', w / 2, h / 2 + 1); });
+      if (c) letrero(c, Math.min(26, c.len * .8), 4, GY(c.x, c.z) + 15.6, t, api.concrete(0xe9e6de)); }
+
+    // ── El Trolly: rótulo sobre el pretil del local, por encima del muro con mural (se lee desde la vía entre 25,85 y 25,95) ──
+    { const c = cara([[10.478981, -66.855425], [10.478881, -66.855657], [10.478893, -66.855704], [10.478842, -66.855741], [10.478767, -66.855702], [10.478862, -66.855385], [10.478928, -66.85522], [10.478986, -66.855104], [10.47908, -66.855215]], 25.95);
+      const t = rotulo(256, 64, (x, w, h) => { x.fillStyle = '#f4ead2'; x.fillRect(0, 0, w, h); x.fillStyle = '#b3241f'; x.fillRect(0, 0, w, 7); x.fillRect(0, h - 7, w, 7);
+        x.font = 'italic bold 40px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('El Trolly', w / 2, h / 2 + 2); });
+      if (c) { const y = GY(c.x, c.z); letrero(c, 9, 2.2, y + 5.3, t, api.concrete(0xb3241f)); for (const s of [-3.6, 3.6]) add(new THREE.BoxGeometry(.18, 1.4, .18), concOsc, c.x + Math.cos(c.ry) * s, y + 3.9, c.z - Math.sin(c.ry) * s); } }
+
+    // ── Edificio Keope: nombre arriba, en la cara larga que da a la vía, y placa junto a la entrada ──
+    { const c = cara([[10.479969, -66.854788], [10.479782, -66.854667], [10.479523, -66.85508], [10.47971, -66.855202]], 26.05);
+      const t = rotulo(256, 48, (x, w, h) => { x.fillStyle = '#5a3a27'; x.fillRect(0, 0, w, h); x.fillStyle = '#f1e6d2'; x.font = 'bold 34px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('K E O P E', w / 2, h / 2 + 2); });
+      const p = rotulo(128, 32, (x, w, h) => { x.fillStyle = '#e9e1d2'; x.fillRect(0, 0, w, h); x.fillStyle = '#3b2a1f'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('EDIFICIO KEOPE', w / 2, h / 2 + 1); });
+      if (c) { const y = GY(c.x, c.z); letrero(c, 13, 2.4, y + 10 * 3.2 - 1.6, t, api.concrete(0x5a3a27)); letrero(c, 3.2, .8, y + 2.9, p, api.concrete(0x3b2a1f)); }
+      // la cara larga queda casi paralela a la vía: el nombre también en la testera que mira a quien llega (la arista cuya normal va contra el sentido de carrera)
+      { const P = [[10.479969, -66.854788], [10.479782, -66.854667], [10.479523, -66.85508], [10.47971, -66.855202]].map(([a, b]) => LL(a, b)), r = RA(26.0); let best = null;
+        for (let i = 0; i < 4; i++) { const A = P[i], B = P[(i + 1) % 4], len = Math.hypot(B.x - A.x, B.z - A.z), mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2; let nx = (B.z - A.z) / len, nz = -(B.x - A.x) / len;
+          let cx = 0, cz = 0; P.forEach(q => { cx += q.x / 4; cz += q.z / 4; }); if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }
+          const sc = -(nx * r.tx + nz * r.tz); if (!best || sc > best.sc) best = { sc, x: mx + nx * .35, z: mz + nz * .35, len, ry: Math.atan2(nx, nz) }; }
+        if (best) letrero(best, Math.min(12, best.len * .8), 2.4, GY(best.x, best.z) + 10 * 3.2 - 1.6, t, api.concrete(0x5a3a27)); } }
+
+    // ── Rampa de Las Mercedes (sube de la calle al viaducto de la Autopista Prados del Este), en desuso ──
+    // En OSM es el motorway_link «Rampa de Las Mercedes»: se separa a la DERECHA al final de la Av. Principal (25,74; el brocal amarillo del ramal,
+    // f_0251) y sube hacia la calzada sur de la autopista. Su eje OSM queda 30–60 m afuera, detrás del muro con mural, y desde la vía no se veía
+    // nada (el muro de 3–4 m tapa todo lo que esté por debajo de ~17 m a 60 m). En el video (f_0254) la calzada alta corre justo detrás del muro
+    // con mural (se ve un autobús por encima de él), así que la trazo pegada a ese muro: a nivel en 25,79, sube a ~3,6 m en 26,04, sale de detrás
+    // del muro (que termina en 26,07) y gira a la derecha hasta el tablero del viaducto (≈ 8,6 m) en 26,11. Tablero de 7,5 m con New Jersey a los
+    // dos lados, terraplén lleno donde va baja, pilas donde va en el aire, asfalto viejo con monte y bloques que cierran la entrada.
+    // Las caras de los muros van con dos() (dos caras de frente) por la oclusión ambiental.
+    { const HWr = 3.75, PJ = .85, OF = 9.5 + HWr, S = [];
+      for (let k = 25.79; k <= 26.04 + 1e-6; k += .003) { const r = RA(k), u = (k - 25.79) / .25; S.push({ x: r.x - r.lx * OF, z: r.z - r.lz * OF, y: r.y + .15 + 3.45 * u * u * (3 - 2 * u) * .6 + 3.45 * u * .4 }); }
+      { const r0 = RA(26.04), r1 = RA(26.11), P0 = { x: r0.x - r0.lx * OF, z: r0.z - r0.lz * OF }, C = { x: P0.x + r0.tx * 30, z: P0.z + r0.tz * 30 }, P1 = { x: r1.x - r1.lx * 30, z: r1.z - r1.lz * 30 };
+        const y0 = S[S.length - 1].y, y1 = r1.y + 8.6;
+        for (let t = .05; t <= 1 + 1e-6; t += .05) { const a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t; S.push({ x: a * P0.x + b * C.x + c * P1.x, z: a * P0.z + b * C.z + c * P1.z, y: y0 + (y1 - y0) * t * t * (3 - 2 * t) }); } }
+      S.forEach((p, i) => { p.s = i ? S[i - 1].s + Math.hypot(p.x - S[i - 1].x, p.z - S[i - 1].z) : 0; });
+      S.forEach((p, i) => { const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], l = Math.hypot(b.x - a.x, b.z - a.z) || 1; p.nx = -(b.z - a.z) / l; p.nz = (b.x - a.x) / l; p.gy = GY(p.x, p.z); });
+      // cinta entre dos bordes (desplazamiento lateral o0/o1, alturas f0/f1 en función del punto); uv: u = metros a lo largo
+      const cinta = (o0, f0, o1, f1, mat, uRep = 8) => { const ps = [], uv = [], ix = []; S.forEach((p, i) => { ps.push(p.x + p.nx * o0, f0(p), p.z + p.nz * o0, p.x + p.nx * o1, f1(p), p.z + p.nz * o1); uv.push(p.s / uRep, 0, p.s / uRep, 1);
+          if (i) { const o = (i - 1) * 2; ix.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); } });
+        const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(ps, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(ix); g.add(dos(ge, mat)); };
+      const asfT = api.canvasTex(128, 128, (x, w, h) => { x.fillStyle = '#5f5e5a'; x.fillRect(0, 0, w, h); let sd = 7; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+        for (let k = 0; k < 90; k++) { x.fillStyle = r() < .55 ? `rgba(${70 + r() * 40 | 0},${95 + r() * 50 | 0},${45 + r() * 25 | 0},.55)` : 'rgba(40,38,34,.35)'; x.beginPath(); x.ellipse(r() * w, r() * h, 2 + r() * 9, 1 + r() * 4, r() * 3, 0, 7); x.fill(); }
+        x.strokeStyle = 'rgba(30,30,28,.5)'; x.lineWidth = 1; for (let k = 0; k < 6; k++) { x.beginPath(); x.moveTo(r() * w, 0); x.lineTo(r() * w, h); x.stroke(); } });
+      asfT.wrapS = asfT.wrapT = THREE.RepeatWrapping;
+      const asf = new THREE.MeshStandardMaterial({ map: asfT, roughness: .95 }), muroR = api.concrete(0xb2aea4), njM = api.concrete(0xc7c3b8);
+      const bajo = p => p.y - p.gy < 4.5 ? p.gy - .6 : p.y - 1.1;          // donde va baja es terraplén lleno; arriba, solo el canto del tablero
+      cinta(-HWr + .5, p => p.y, HWr - .5, p => p.y, asf, 8);              // calzada
+      for (const sg of [-1, 1]) {
+        cinta(sg * HWr, bajo, sg * HWr, p => p.y + PJ, muroR, 6);           // cara exterior (muro de terraplén o canto) hasta el tope del New Jersey
+        cinta(sg * (HWr - .5), p => p.y, sg * (HWr - .32), p => p.y + PJ, njM, 6);   // cara interior del New Jersey
+        cinta(sg * (HWr - .32), p => p.y + PJ, sg * HWr, p => p.y + PJ, njM, 6); }    // tope
+      cinta(-HWr, p => p.y - p.gy < 4.5 ? p.gy - .6 : p.y - 1.1, HWr, p => p.y - p.gy < 4.5 ? p.gy - .6 : p.y - 1.1, concOsc, 8);   // fondo del tablero
+      // pilas cada ~18 m donde va en el aire
+      let ult = -99; for (const p of S) { const hh = p.y - 1.1 - p.gy; if (hh > 2.5 && p.s - ult >= 18) { ult = p.s; add(new THREE.BoxGeometry(1.4, hh + .5, 1.4), conc, p.x, p.gy + (hh + .5) / 2 - .5, p.z); } }
+      // cierre de la entrada: tres bloques de concreto atravesados con franjas rojas y blancas borrosas
+      { const p = S[2], ry = Math.atan2(p.nx, p.nz), bT = api.canvasTex(64, 16, (x, w, h) => { x.fillStyle = '#c9c5ba'; x.fillRect(0, 0, w, h); for (let i = 0; i < 8; i++) { x.fillStyle = i % 2 ? 'rgba(190,60,50,.6)' : 'rgba(240,240,235,.6)'; x.fillRect(i * 8, 4, 8, 7); } });
+        const bm = new THREE.MeshStandardMaterial({ map: bT, roughness: .9 });
+        for (const o of [-2.3, 0, 2.3]) add(new THREE.BoxGeometry(2.1, .82, .6), [njM, njM, njM, njM, bm, bm], p.x + p.nx * o, p.y + .41, p.z + p.nz * o, ry); }
+    }
+  }
   return api.sombras(g);
 }

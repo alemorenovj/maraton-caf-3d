@@ -13,7 +13,7 @@
 export const meta = { id: 'urbano', reemplaza: [] };
 
 export function install(ctx) {
-  if (ctx.realismo === false) return;
+  if (ctx.realismo === false || (ctx.rx && !ctx.rx('urb'))) return;
   const { THREE, scene, D, Q, P, hT, Y } = ctx;
   const MEDIA = !!Q.media || !Q.alta, RAD = MEDIA ? 380 : 700, KCAP = MEDIA ? 160 : 320, CCAP = MEDIA ? 90 : 220;
   const mul = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
@@ -136,5 +136,6 @@ export function install(ctx) {
     }
     kit.count = nk; cab.count = nc; kit.instanceMatrix.needsUpdate = cab.instanceMatrix.needsUpdate = aKit.needsUpdate = true;
   }
+  if (ctx.rxt) ctx.rxt.urb = v => kit.visible = cab.visible = !!v;
   ctx.frameHooks.push(() => { if (!listo) return; const cp = ctx.camera.position; if (last.distanceToSquared(cp) > 400) rebuild(cp); });
 }

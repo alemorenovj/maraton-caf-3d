@@ -94,11 +94,14 @@ export function install(ctx) {
 
   // ───────── Materiales (viento, translucidez, sombra calada) ─────────
   const REAL = ctx.realismo !== false;
+  // rendimiento (teléfonos): en media y ligera el follaje es lo que más pesa por píxel (tarjetas con alfa que se solapan); ahí no se agrandan
+  // las tarjetas ni las copas, la inclinación sobre la vía es el 60 %, el alfa por mipmap queda solo en los impostores y la sombra moteada solo cerca.
+  const BAJA = !!Q.media || !Q.alta;
   const MIP_ALFA = `#ifdef USE_MAP
- { vec2 tsz = vec2(textureSize(map, 0)), du = dFdx(vMapUv * tsz), dv = dFdy(vMapUv * tsz); diffuseColor.a *= 1.0 + max(0.5 * log2(max(dot(du, du), dot(dv, dv))), 0.0) * 0.3; }
+ { vec2 tsz = vec2(textureSize(map, 0)), du = dFdx(vMapUv * tsz), dv = dFdy(vMapUv * tsz); diffuseColor.a *= 1.0 + max(0.5 * log2(max(dot(du, du), dot(dv, dv))), 0.0) * 0.3 * uMipK; }
 #endif
 `;
-  const U = { uTime: { value: 0 }, uWind: { value: .22 }, uSunV: { value: V3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uTransl: { value: .9 } };
+  const U = { uMipK: { value: 1 }, uLeanK: { value: 1 }, uLuzK: { value: 1 }, uTime: { value: 0 }, uWind: { value: .22 }, uSunV: { value: V3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uTransl: { value: .9 } };
   const windVS = leaf => `
     #ifdef USE_INSTANCING
       vec3 ip = instanceMatrix[3].xyz;
@@ -115,29 +118,31 @@ export function install(ctx) {
       transformed += wo;
     #endif
     #ifdef USE_INSTANCING
-      { float lf = smoothstep(2.5, 11.0, position.y); mat3 lim = mat3(instanceMatrix); transformed += transpose(lim) * vec3(aLean.x, 0.0, aLean.y) * lf / dot(lim[0], lim[0]); }
+      { float lf = smoothstep(2.5, 11.0, position.y); mat3 lim = mat3(instanceMatrix); transformed += transpose(lim) * vec3(aLean.x, 0.0, aLean.y) * uLeanK * lf / dot(lim[0], lim[0]); }
     #endif`;
   function patch(mat, { leaf = false, transl = false, noFlip = false, paint = false } = {}) {
     mat.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, U);
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aWind; uniform float uTime; uniform float uWind;\n#ifdef USE_INSTANCING\nattribute vec2 aLean;\n#endif')
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aWind; uniform float uTime; uniform float uWind; uniform float uLeanK;\n#ifdef USE_INSTANCING\nattribute vec2 aLean;\n#endif')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + windVS(leaf));
       if (paint) { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vPaint; varying float vLy;').replace('#include <color_vertex>', '#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n vPaint = instanceColor.b > 2.0 ? 1.0 : 0.0; vColor = color;\n#endif\n vLy = position.y;');
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPaint; varying float vLy;').replace('#include <color_fragment>', '#include <color_fragment>\n if (vPaint > 0.5 && vLy < 1.3 - 0.03 * sin(vLy * 40.0)) diffuseColor.rgb = vec3(0.78, 0.78, 0.74);'); }
       // realismo: el alfa de las hojas se promedia en los mipmaps y con alphaTest las copas lejanas se vacían (palmas en «estrella», copas
       // ralas). Se escala el alfa con el nivel de mipmap (derivadas de pantalla): la copa conserva su cobertura a cualquier distancia. Sin muestras extra.
-      if (REAL && leaf) sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', MIP_ALFA + '#include <alphatest_fragment>');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uMipK; uniform float uLuzK;');
+      if (REAL && leaf && !BAJA && ctx.rx('mip')) sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', MIP_ALFA + '#include <alphatest_fragment>');
       if (REAL && paint) sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= vec3(1.7, 1.66, 1.6);');   // corteza: gris pardo como en el video, no casi negra
       if (sh.fragmentShader.includes('#include <opaque_fragment>')) {
         // lo que queda pegado a la cámara de seguimiento se desvanece (tramado) en vez de taparla
         if (ctx.nearFade) { sh.uniforms.uNearFade = ctx.nearFade; sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uNearFade;').replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n if (uNearFade > 0.0) { float cd = length(vViewPosition) / uNearFade; if (cd < 1.0 && fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) > cd * cd) discard; }'); }
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uSunV; uniform vec3 uSunCol; uniform float uTransl;');
         if (noFlip) sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0; vec3 normal = normalize(vNormal); vec3 nonPerturbedNormal = normal;');
-        if (transl && REAL) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{ float sl = max(dot(normal, uSunV), 0.0); outgoingLight *= mix(vec3(0.94, 0.97, 1.0), vec3(1.2, 1.14, 0.78), sl); }\n#include <opaque_fragment>`);   // cara al sol: verde amarillento; cara en sombra: más fría (como en el video)
-        if (transl) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{ vec3 vdir = normalize(-vViewPosition); float tr = pow(max(dot(vdir, uSunV), 0.0), 5.0); outgoingLight += diffuseColor.rgb * uSunCol * uTransl * (tr * 1.1 + 0.16 * (1.0 - max(dot(normal, uSunV), 0.0))); }\n#include <opaque_fragment>`);
+        if (transl && REAL && !BAJA && ctx.rx('luzhoja')) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{ float sl = max(dot(normal, uSunV), 0.0); outgoingLight *= mix(vec3(0.94, 0.97, 1.0), vec3(1.2, 1.14, 0.78), sl * uLuzK); }\n#include <opaque_fragment>`);   // cara al sol: verde amarillento; cara en sombra: más fría (como en el video)
+        if (transl && REAL && BAJA) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', 'outgoingLight += diffuseColor.rgb * uSunCol * 0.13;\n#include <opaque_fragment>');   // rendimiento (teléfonos): relleno constante en vez de la translucidez por píxel
+        if (transl && !(REAL && BAJA)) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `{ vec3 vdir = normalize(-vViewPosition); float tr = pow(max(dot(vdir, uSunV), 0.0), 5.0); outgoingLight += diffuseColor.rgb * uSunCol * uTransl * (tr * 1.1 + 0.16 * (1.0 - max(dot(normal, uSunV), 0.0))); }\n#include <opaque_fragment>`);
       }
     };
-    mat.customProgramCacheKey = () => 'veg' + (+leaf) + (+transl) + (+noFlip) + (+paint) + (+REAL);
+    mat.customProgramCacheKey = () => 'veg' + (+leaf) + (+transl) + (+noFlip) + (+paint) + (+REAL) + (+BAJA);
     return mat;
   }
   const leafMat = patch(new THREE.MeshLambertMaterial({ map: leafTex, alphaTest: .5, side: THREE.DoubleSide, vertexColors: true }), { leaf: true, transl: true, noFlip: true });
@@ -201,7 +206,7 @@ export function install(ctx) {
     araguaneyFlor: { H: 11.5, tH: 4.4, r0: .26, nP: 4, arch: .35, rh: 4.6, rv: 3.1, cy: 8.6, bot: 5.9, n2: 4, cards: 9, size: 2.1, tiles: [[2, .88], [1, .12]], elev: [-.35, 1], tint: [1.2, 1.12, 1.1] },
     mango: { H: 11, tH: 2.3, r0: .42, nP: 5, arch: .3, rh: 6.2, rv: 4.4, cy: 6.6, bot: 2.6, n2: 5, cards: 12, size: 2.4, tiles: [[1, 1]], elev: [-.55, 1], hang: 1, tint: [.66, .74, .66] },
   };
-  if (REAL) for (const k in SP) SP[k].size *= 1.15;   // realismo: copas más llenas con las mismas tarjetas (0 triángulos más)
+  if (REAL && !BAJA && ctx.rx('tarj')) for (const k in SP) SP[k].size *= 1.15;   // realismo: copas más llenas con las mismas tarjetas (0 triángulos más)
   const NAMES = Object.keys(SP), CAS = NAMES.length, PALM0 = CAS + 1, NPALM = 3, isPalm = k => k >= PALM0; // casuarina y tres chaguaramos
   function buildTree(sp, seed) {
     const r = mul(seed), T = new Builder(), L = new Builder(), ctr = V3(0, sp.cy, 0);
@@ -301,8 +306,8 @@ export function install(ctx) {
     imRT.scissorTest = false; rn.setRenderTarget(prev.rt); rn.autoClear = prev.ac; rn.setClearColor(cc, prev.ca); U.uWind.value = prev.w; U.uTransl.value = prev.t; rn.shadowMap.enabled = prev.sh;
   }
   const imMat = new THREE.MeshLambertMaterial({ map: imRT.texture, alphaTest: .5, side: THREE.DoubleSide });
-  imMat.onBeforeCompile = sh => {
-    if (REAL) sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', MIP_ALFA + '#include <alphatest_fragment>');
+  imMat.onBeforeCompile = sh => { sh.uniforms.uMipK = U.uMipK; sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uMipK;');
+    if (REAL && ctx.rx('mip')) sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', MIP_ALFA + '#include <alphatest_fragment>');
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTile;')
       .replace('#include <uv_vertex>', `#include <uv_vertex>\n vMapUv = (vec2(mod(aTile, ${GX}.0), floor(aTile / ${GX}.0)) + uv * vec2(1.0, 1.0)) / vec2(${GX}.0, ${GY}.0);`)
       .replace('#include <defaultnormal_vertex>', 'vec3 icn = instanceMatrix[3].xyz; vec3 transformedNormal = normalize((viewMatrix * vec4(normalize(normalize(cameraPosition - icn) * vec3(1.0, 0.0, 1.0) * 0.6 + vec3(0.0, 0.8, 0.0)), 0.0)).xyz);')
@@ -332,7 +337,7 @@ export function install(ctx) {
     g.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 900; i++) { const a = r() * TAU, d = Math.pow(r(), .6) * c * .9, x = c + Math.cos(a) * d, y = c + Math.sin(a) * d, q = r(); g.fillStyle = `rgba(0,0,0,${(.35 + r() * .55).toFixed(2)})`; g.beginPath(); g.ellipse(x, y, 1.5 + q * q * 11, 1.5 + r() * 5, r() * 3, 0, TAU); g.fill(); }
   });
   // realismo: la sombra del video es una masa oscura de borde recortado con manchas de sol nítidas e irregulares, no lunares redondos y suaves
-  if (REAL) { const cv = dapTex.image, g = cv.getContext('2d'), w = cv.width, c = w / 2, r = mul(89); g.clearRect(0, 0, w, w); g.globalCompositeOperation = 'source-over';
+  if (REAL && ctx.rx('dap')) { const cv = dapTex.image, g = cv.getContext('2d'), w = cv.width, c = w / 2, r = mul(89); g.clearRect(0, 0, w, w); g.globalCompositeOperation = 'source-over';
     for (let i = 0; i < 70; i++) { const a = r() * TAU, d = Math.pow(r(), .7) * c * .62, x = c + Math.cos(a) * d, y = c + Math.sin(a) * d, R = c * (.16 + r() * .2); g.fillStyle = 'rgba(0,0,0,.78)'; g.beginPath();
       for (let k = 0; k <= 18; k++) { const b = k / 18 * TAU, rr = R * (.65 + .55 * r()); g[k ? 'lineTo' : 'moveTo'](x + Math.cos(b) * rr, y + Math.sin(b) * rr); } g.fill(); }
     g.globalCompositeOperation = 'destination-out';
@@ -344,6 +349,8 @@ export function install(ctx) {
   dapMat.customProgramCacheKey = () => 'vegDap';
   const DCAP = 600, dap = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), dapMat, DCAP); dap.frustumCulled = false; dap.count = 0; dap.renderOrder = 2; scene.add(dap);
   const lastSun = V3();
+  if (ctx.rxt) Object.assign(ctx.rxt, { mip: v => U.uMipK.value = v, lean: v => U.uLeanK.value = v, luzhoja: v => U.uLuzK.value = v, dap: v => dap.visible = dapOn = !!v });
+  let dapOn = true;
 
   // árboles colocados: posición, giro, escala, plantilla, tinte
   let NT = 0, TX, TY, TZ, TR, TSc, TK, TC, TF; const TMP = [], ST = 12; let TL;
@@ -387,8 +394,8 @@ export function install(ctx) {
           if (bad(s, x, z) || routeDist(x, z) < ROAD_W / 2 + .6 || (ctx.calzadaLibre && !ctx.calzadaLibre(x, z)) || !free(x, z, 4)) continue;
           const palm = palRow || r() < pl, k = palm ? palmK() : pickSide(dn, r() < .05), sc = palm ? .82 + r() * .36 : .8 + r() * .42, km = ctx.kmOf(s);
           // realismo: donde el arbolado es denso (como El Paraíso, Las Acacias, Los Próceres) la copa se abre sobre la vía, como en el video
-          const den = REAL && !palm ? clamp((p1 - .3) / .4, 0, 1) : 0, Lm = den * Math.min(Math.abs(d) * .55, 5.5), sg = Math.sign(d) || 1;
-          add(x, o.y - .1, z, k, sc * (1 + .18 * den), r, 1 | (!palm && km > 33.3 && km < 39.3 && r() < .75 ? 2 : 0), -o.tz * sg * Lm, o.tx * sg * Lm);
+          const den = REAL && ctx.rx('lean') && !palm ? clamp((p1 - .3) / .4, 0, 1) : 0, Lm = den * Math.min(Math.abs(d) * .55, 5.5) * (BAJA ? .6 : 1), sg = Math.sign(d) || 1;
+          add(x, o.y - .1, z, k, sc * (1 + (BAJA ? 0 : .18) * den), r, 1 | (!palm && km > 33.3 && km < 39.3 && r() < .75 ? 2 : 0), -o.tz * sg * Lm, o.tx * sg * Lm);
         }
         // filas de fondo y masas de parque donde la foto es verde
         for (let f = 0; f < 9; f++) {
@@ -441,7 +448,7 @@ export function install(ctx) {
       n.la.array[j * 2] = TL[i * 2]; n.la.array[j * 2 + 1] = TL[i * 2 + 1];
       const ca = n.lv.instanceColor.array; ca[j * 3] = TC[i * 3]; ca[j * 3 + 1] = TC[i * 3 + 1]; ca[j * 3 + 2] = TC[i * 3 + 2];
       const tc = n.tr.instanceColor.array; tc[j * 3] = tc[j * 3 + 1] = 1; tc[j * 3 + 2] = TF[i] & 2 ? 3 : 1;
-      if ((TF[i] & 1) && nd < DCAP && sd.y > .12) { const t = TPL[k], hc = t.cy * s, D = (isPalm(k) ? 7 : t.rh * 1.85) * s * (1 + .03 * Math.hypot(TL[i * 2], TL[i * 2 + 1])), o2 = nd * 16, c2 = Math.cos(TR[i] * 1.7) * D, s2 = Math.sin(TR[i] * 1.7) * D;
+      if ((TF[i] & 1) && nd < DCAP && sd.y > .12 && (!BAJA || candD[q] < 150)) { const t = TPL[k], hc = t.cy * s, D = (isPalm(k) ? 7 : t.rh * 1.85) * s * (1 + .03 * Math.hypot(TL[i * 2], TL[i * 2 + 1])), o2 = nd * 16, c2 = Math.cos(TR[i] * 1.7) * D, s2 = Math.sin(TR[i] * 1.7) * D;
         dA[o2] = c2; dA[o2 + 1] = 0; dA[o2 + 2] = -s2; dA[o2 + 3] = 0; dA[o2 + 4] = 0; dA[o2 + 5] = 1; dA[o2 + 6] = 0; dA[o2 + 7] = 0; dA[o2 + 8] = s2; dA[o2 + 9] = 0; dA[o2 + 10] = c2; dA[o2 + 11] = 0;
         dA[o2 + 12] = TX[i] + TL[i * 2] - sd.x / sd.y * hc; dA[o2 + 13] = TY[i] + .13; dA[o2 + 14] = TZ[i] + TL[i * 2 + 1] - sd.z / sd.y * hc; dA[o2 + 15] = 1; nd++; }
     }
@@ -499,7 +506,7 @@ export function install(ctx) {
     const k = clamp(ctx.sunDir.y * 6, 0, 1) * (1 - noche); U.uSunCol.value.copy(ctx.sun.color).multiplyScalar(ctx.sun.intensity * .35 * k);
     if (!NT) return;
     ctx.camera.getWorldDirection(fwd);
-    dapMat.opacity = (REAL && (Q.media || !Q.alta || Q.sombras === false) ? .62 : .36) * clamp((ctx.sunDir.y - .1) * 4, 0, 1) * (1 - noche); dap.visible = dapMat.opacity > .01;
+    dapMat.opacity = (REAL && ctx.rx('dap') && (Q.media || !Q.alta || Q.sombras === false) ? .62 : .36) * clamp((ctx.sunDir.y - .1) * 4, 0, 1) * (1 - noche); dap.visible = dapOn && dapMat.opacity > .01;
     if (dirty || lastPos.distanceToSquared(ctx.camera.position) > 22 * 22 || fwd.dot(lastFwd) < .965 || lastSun.distanceToSquared(ctx.sunDir) > .002) { dirty = false; rebuild(); }
     const sNow = ctx.S ? ctx.S.sr ?? ctx.S.s : 0; if (placeGrass.ready && Math.abs(sNow - lastGS) > 25) placeGrass(sNow);
   });

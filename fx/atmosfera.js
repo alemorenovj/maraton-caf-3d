@@ -125,17 +125,19 @@ export function install(ctx) {
   // pantalla (TONE_MAPPING definido: nunca en alta, que dibuja a un búfer intermedio), el ACES + sRGB pasan al final de la bruma y detrás va la misma
   // curva que el pase «cámara» de alta. Coste: unas 30 operaciones por píxel, sin pases ni búferes nuevos. El cielo y las nubes (ShaderMaterial
   // propios, que no pasaban ni por el ACES ni por el sRGB en media: de ahí el azul eléctrico) llevan la misma cola.
-  const GR = new Float32Array([REAL ? 1 : 0, COLOR.gam, 1 / 1280, 1 / 720]);   // x activo, y gamma (de noche baja), zw 1/resolución (viñeta)
+  const GR = new Float32Array([REAL ? 1 : 0, COLOR.gam, 1 / 1280, 1 / 720]); if (ctx.rxt) ctx.rxt.cola = v => GR[0] = v;   // x activo, y gamma (de noche baja), zw 1/resolución (viñeta)
   const f3 = v => v.toFixed(4);
+  // rendimiento: en media y ligera (lo que corre en teléfonos) la cola de color va sin polarizador, sin verdes y sin viñeta (≈ la mitad de operaciones por píxel)
+  const GR_LIGERA = !!Q.media || !Q.alta;
   const GRADE = `uniform vec4 cafGr;
  vec3 cafGrade( vec3 c ) {
   c *= vec3( ${COLOR.wb.map(f3).join(', ')} ); c = clamp( ( c - ${f3(COLOR.blk)} ) / ${f3(COLOR.wht - COLOR.blk)}, 0.0, 1.0 );
   c = pow( c, vec3( cafGr.y ) ); vec3 s = c * c * ( 3.0 - 2.0 * c ); c = mix( c, s, ${f3(COLOR.con)} );
   float mx = max( c.r, max( c.g, c.b ) ), mn = min( c.r, min( c.g, c.b ) ), st = mx - mn, l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) );
   c = mix( vec3( l ), c, ${f3(COLOR.sat)} + ${f3(COLOR.vib)} * ( 1.0 - st ) * ( 1.0 - st ) );
-  float azul = clamp( ( c.b - max( c.r, c.g ) ) * 4.0, 0.0, 1.0 ) * smoothstep( 0.25, 0.6, c.b ); c = mix( c, c * vec3( 0.78, 0.9, 1.0 ) * ( 0.95 + 0.05 * c.b ), azul * ${f3(COLOR.cieloAzul)} );
+${GR_LIGERA ? '' : `  float azul = clamp( ( c.b - max( c.r, c.g ) ) * 4.0, 0.0, 1.0 ) * smoothstep( 0.25, 0.6, c.b ); c = mix( c, c * vec3( 0.78, 0.9, 1.0 ) * ( 0.95 + 0.05 * c.b ), azul * ${f3(COLOR.cieloAzul)} );
   float vrd = clamp( ( c.g - max( c.r, c.b ) ) * 5.0, 0.0, 1.0 ); c = mix( c, c * vec3( 0.88, 1.06, 0.82 ), vrd * ${f3(COLOR.verde)} );
-  vec2 q = gl_FragCoord.xy * cafGr.zw - 0.5; c *= 1.0 - ${f3(COLOR.vig)} * smoothstep( 0.05, 0.55, dot( q, q ) * 1.6 );
+  vec2 q = gl_FragCoord.xy * cafGr.zw - 0.5; c *= 1.0 - ${f3(COLOR.vig)} * smoothstep( 0.05, 0.55, dot( q, q ) * 1.6 );`}
   return clamp( c, 0.0, 1.0 ); }
 `;
   const GR_COLA = `#if defined( TONE_MAPPING )
@@ -146,6 +148,7 @@ export function install(ctx) {
 #endif`;
   if (REAL) {
     for (const id in THREE.ShaderLib) { const u = THREE.ShaderLib[id].uniforms; if (u && u.fogColor) u.cafGr = { value: GR }; }
+    if (!ctx.rx('cola')) GR[0] = 0;
     // los materiales que traen la bruma (casi todos los de three) definen CAF_POST: su ACES + sRGB se hace al final de la bruma
     C.fog_pars_fragment += '\n#define CAF_POST\n' + GRADE;
     C.tonemapping_fragment = '#ifndef CAF_POST\n' + C.tonemapping_fragment + '\n#endif';
@@ -153,7 +156,7 @@ export function install(ctx) {
     // ronda 2 · lejanía (El Ávila, los cerros del sur): el video los muestra azulados y sin contraste a partir de ~2 km, aunque estén altos.
     // La bruma del motor cae con la altura (1/700 m) y dejaba la montaña verde y nítida: se suma una extinción que solo depende de la
     // distancia (5e-5/m desde 1,5 km, plena a 9 km) y la bruma lejana se tiñe de azul.
-    C.fog_fragment = C.fog_fragment.replace('float aF = min( 1.0 - exp( - aTau ), aerP.w );', 'float aFar = smoothstep( 1500.0, 9000.0, aD ); aTau += aD * 5.0e-5 * aFar; float aF = min( 1.0 - exp( - aTau ), aerP.w );')
+    if (ctx.rx('lejos')) C.fog_fragment = C.fog_fragment.replace('float aF = min( 1.0 - exp( - aTau ), aerP.w );', 'float aFar = smoothstep( 1500.0, 9000.0, aD ); aTau += aD * 5.0e-5 * aFar; float aF = min( 1.0 - exp( - aTau ), aerP.w );')
       .replace('gl_FragColor.rgb = mix( gl_FragColor.rgb, aHz, aF );', 'aHz = mix( aHz, aHz * vec3( 0.82, 0.95, 1.2 ), aFar ); gl_FragColor.rgb = mix( gl_FragColor.rgb, aHz, aF );');
     C.fog_fragment += '\n' + GR_COLA;
     ctx.frameHooks.push(noche => { GR[1] = COLOR.gam + (COLOR.gamNoche - COLOR.gam) * noche; const sz = renderer.getDrawingBufferSize(_grv); GR[2] = 1 / sz.x; GR[3] = 1 / sz.y; });

@@ -321,7 +321,7 @@ const GLSL_FACADE = /* glsl */`
       if (arch != 1. && h11(rid * 11.3) < .035) { col = mix(col, arch == 5. ? vec3(.6, .36, .26) : C * vec3(.82, .8, .78), win); win = 0.; }   // ventana tapiada
       float ww = wx1 - wx0, wh = wy1 - wy0;
       // LOD: cuando la ventana es más pequeña que ~3 px se dibuja su promedio
-      float lod = smoothstep(.25, .6, mpp / max(.4, min(ww, wh)) * 2.);
+      float lod = smoothstep(.25, .6, mpp * CAF_LODK / max(.4, min(ww, wh)) * 2.);
       lit = step(h11(rid * 7.1), litF); lc = lampC(h11(rid * 3.3));
       if (arch == 1.) { lit = step(h21(vec2(floor(ci / 4.), fi) + seed), litF); lc = vec3(.85, .93, 1.); }
       if (inCell) {
@@ -427,14 +427,14 @@ function makeMaterial(THREE, ctx, railing) {
       .replace('#include <common>', '#include <common>\nattribute vec2 aUV; attribute vec4 aB; attribute vec2 aG; varying vec2 vFac; varying vec4 vB; varying vec2 vG;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvFac = aUV; vB = aB; vG = aG;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\n' + (DBG && location.search.match(/edq=(\d)/) ? '#define EDQ' + location.search.match(/edq=(\d)/)[1] + '\n' : '') + GLSL_PARS)
+      .replace('#include <common>', '#include <common>\n' + (ctx.realismo !== false && ctx.Q && (ctx.Q.media || !ctx.Q.alta) ? '#define CAF_LODK 2.2\n' : '#define CAF_LODK 1.0\n') + (DBG && location.search.match(/edq=(\d)/) ? '#define EDQ' + location.search.match(/edq=(\d)/)[1] + '\n' : '') + GLSL_PARS)
       .replace('#include <color_fragment>', (DBG && /edq=1/.test(location.search) ? 'fEm=vec3(0.);fH=0.;diffuseColor.rgb=vColor;' : GLSL_FACADE) + (railing ? '\n if (floor(vB.x+.5) == 8. && vFac.y > .1 && vFac.y < .95 && fract(vFac.x / .14) > .22) discard;' : ''))
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = fRough;')
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = fMetal;')
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = perturbN(-vViewPosition, normal, vec2(dFdx(fH), dFdy(fH)), faceDirection);')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += fEm;');
   };
-  m.customProgramCacheKey = () => 'edif' + (railing ? 'R' : '') + (std ? 'S' : '');
+  m.customProgramCacheKey = () => 'edif' + (railing ? 'R' : '') + (std ? 'S' : '');   // CAF_LODK (media/ligera 2,2): la ventana pasa a su promedio, sin cuarto falso, desde ~6 px y no desde ~3 (rendimiento en teléfonos)
   return m;
 }
 
@@ -697,18 +697,24 @@ function build(ctx, THREE, D) {
 
   tendido(ctx, THREE, mat, shadows);
   // detalle cerca de la ruta, construido por zonas según avanza el corredor
-  const buildDet = d => {
-    const G = new Geo(), GR = new Geo();
-    for (const b of d.list) detail(b, G, GR, ctx, THREE, hT, Y, inPoly, R, nearest);
+  // tirones: una zona entera de detalle se construía en un solo cuadro (35–90 ms en un M5). Ahora, salvo tras un salto (fundido de carga),
+  // se construye por partes: edificio a edificio con un tope de ~4 ms por cuadro (d.st 2 = a medias); la malla aparece al terminar.
+  const PASO_MS = ctx.realismo === false ? Infinity : 4;
+  const buildDet = (d, tope = Infinity) => {
+    if (!d.G) { d.G = new Geo(); d.GR = new Geo(); d.k = 0; }
+    const G = d.G, GR = d.GR, t0 = performance.now();
+    while (d.k < d.list.length) { detail(d.list[d.k++], G, GR, ctx, THREE, hT, Y, inPoly, R, nearest); if (performance.now() - t0 > tope) break; }
+    if (d.k < d.list.length) { d.st = 2; return false; }
+    d.G = d.GR = null;
     d.mesh = G.mesh(THREE, mat, shadows); d.meshR = GR.mesh(THREE, matR, shadows);
     for (const m of [d.mesh, d.meshR]) if (m) { m.userData.mem = 'edif-det'; scene.add(m); } d.st = 1;
-    d.tris = (d.mesh ? d.mesh.geometry.index.count / 3 : 0) + (d.meshR ? d.meshR.geometry.index.count / 3 : 0);
+    d.tris = (d.mesh ? d.mesh.geometry.index.count / 3 : 0) + (d.meshR ? d.meshR.geometry.index.count / 3 : 0); return true;
   };
   // Memoria acotada: una zona de detalle se construye a menos de `carga` m, se ve a menos de `vis` y se suelta de verdad (fuera de la escena,
   // geometría liberada, referencias soltadas) a más de `suelta` m; si vuelve a quedar cerca (ida y vuelta) se reconstruye igual. Además hay un
   // tope de triángulos de detalle residentes: si se pasa, se sueltan primero las zonas más lejanas que no se están viendo. Radios en ctx.Q.mem.
   const MB = ctx.Q.mem || {}, R_CARGA = MB.detCarga || 1000, R_VIS = MB.detVis || 620, R_SUELTA = Math.max(R_CARGA + 150, MB.detSuelta || 1400), TOPE = MB.detTri || Infinity;
-  const freeDet = d => { for (const m of [d.mesh, d.meshR]) if (m) { scene.remove(m); m.geometry.dispose(); } d.mesh = d.meshR = null; d.st = 0; detTri -= d.tris || 0; d.tris = 0; };
+  const freeDet = d => { d.G = d.GR = null; d.k = 0; for (const m of [d.mesh, d.meshR]) if (m) { scene.remove(m); m.geometry.dispose(); } d.mesh = d.meshR = null; d.st = 0; detTri -= d.tris || 0; d.tris = 0; };
   let detTri = 0; ctx.edificios.detTri = () => detTri;
   const U = [mat.userData.U, matR.userData.U]; let lx = 1e9, lz = 1e9;
   ctx.frameHooks.push((noche, t, dt, p) => {
@@ -717,9 +723,9 @@ function build(ctx, THREE, D) {
     let built = 0, pend = 0, freed = 0; const first = Math.hypot(p.x - lx, p.z - lz) > 250; lx = p.x; lz = p.z;   // salto (inicio o teletransporte): construye todo lo cercano ya
     for (const d of detList) {
       const dd = d.dd = Math.hypot(d.cx - p.x, d.cz - p.z);
-      if (d.st === 1 && dd > R_SUELTA && (freed < 3 || first)) { freeDet(d); freed++; }   // se suelta lo que quedó atrás (pocas por cuadro, salvo tras un salto)
-      if (d.st === 0 && dd < R_CARGA && (dd < R_VIS || detTri < TOPE * .9) && (built < 1 || first)) { buildDet(d); detTri += d.tris; built++; }   // el primer cuadro construye todo lo cercano
-      if (d.st === 0 && dd < R_VIS) pend++;
+      if ((d.st === 1 || d.st === 2) && dd > R_SUELTA && (freed < 3 || first)) { freeDet(d); freed++; }   // se suelta lo que quedó atrás (pocas por cuadro, salvo tras un salto)
+      if ((d.st === 0 || d.st === 2) && dd < R_CARGA && (dd < R_VIS || detTri < TOPE * .9) && (built < 1 || first)) { if (buildDet(d, first ? Infinity : PASO_MS)) detTri += d.tris; built++; }   // el primer cuadro construye todo lo cercano
+      if ((d.st === 0 || d.st === 2) && dd < R_VIS) pend++;
       const vis = dd < R_VIS; if (d.mesh) d.mesh.visible = vis; if (d.meshR) d.meshR.visible = vis;
     }
     if (detTri > TOPE) { const vivas = detList.filter(d => d.st === 1 && d.dd > R_VIS).sort((a, b) => b.dd - a.dd); for (const d of vivas) { if (detTri <= TOPE) break; freeDet(d); } }   // tope duro: primero lo más lejano
